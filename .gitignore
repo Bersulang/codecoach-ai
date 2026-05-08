@@ -1,37 +1,90 @@
+# =========================
+# OS
+# =========================
+
 # macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+ehthumbs.db
+
+# Linux
+*~
+
+# =========================
+# IDE / Editor
+# =========================
 
 # IntelliJ IDEA
 .idea/
 *.iml
+*.iws
+*.ipr
+out/
 
 # VS Code
 .vscode/
 
-# Java
+# =========================
+# Java / Maven / Gradle
+# =========================
+
 target/
 *.class
 
-# Maven
-.mvn/wrapper/maven-wrapper.jar
+# Gradle
+.gradle/
+build/
 
-# Node
+# =========================
+# Node / Frontend
+# =========================
+
 node_modules/
 dist/
+.vite/
+
+# =========================
+# Environment
+# =========================
+
 .env
 .env.local
 .env.*.local
+application-local.yml
+application-prod.yml
 
+# 如果后续需要提交配置模板，使用：
+# application-example.yml
+# .env.example
+
+# =========================
 # Logs
+# =========================
+
 *.log
 logs/
 
-# Docker
+# =========================
+# Docker / Runtime Data
+# =========================
+
 docker-data/
-
-# Upload files
+data/
 uploads/
-
-# Temporary files
 tmp/
 temp/
+
+# =========================
+# Package Managers
+# =========================
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
