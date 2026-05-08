@@ -1,6 +1,8 @@
 package com.codecoach.module.interview.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.codecoach.common.exception.BusinessException;
+import com.codecoach.common.result.ResultCode;
 import com.codecoach.module.ai.service.AiInterviewService;
 import com.codecoach.module.interview.dto.InterviewSessionCreateRequest;
 import com.codecoach.module.interview.entity.InterviewMessage;
@@ -10,10 +12,12 @@ import com.codecoach.module.interview.mapper.InterviewSessionMapper;
 import com.codecoach.module.interview.service.InterviewSessionService;
 import com.codecoach.module.interview.vo.InterviewMessageVO;
 import com.codecoach.module.interview.vo.InterviewSessionCreateResponse;
+import com.codecoach.module.interview.vo.InterviewSessionDetailVO;
 import com.codecoach.module.project.entity.Project;
 import com.codecoach.module.project.mapper.ProjectMapper;
 import com.codecoach.security.UserContext;
 import java.time.LocalDateTime;
+import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -26,6 +30,8 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
     private static final int PROJECT_ACCESS_DENIED_CODE = 2002;
 
     private static final int AI_CALL_FAILED_CODE = 3003;
+
+    private static final int SESSION_NOT_FOUND_CODE = 3001;
 
     private static final String STATUS_IN_PROGRESS = "IN_PROGRESS";
 
@@ -98,6 +104,43 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         interviewMessageMapper.insert(message);
 
         return new InterviewSessionCreateResponse(session.getId(), toInterviewMessageVO(message));
+    }
+
+    @Override
+    public InterviewSessionDetailVO getSessionDetail(Long sessionId) {
+        Long currentUserId = UserContext.getCurrentUserId();
+        InterviewSession session = interviewSessionMapper.selectById(sessionId);
+        if (session == null || Integer.valueOf(DELETED).equals(session.getIsDeleted())) {
+            throw new BusinessException(SESSION_NOT_FOUND_CODE, "训练会话不存在");
+        }
+        if (!currentUserId.equals(session.getUserId())) {
+            throw new BusinessException(ResultCode.FORBIDDEN);
+        }
+
+        Project project = projectMapper.selectById(session.getProjectId());
+        String projectName = null;
+        if (project != null && !Integer.valueOf(DELETED).equals(project.getIsDeleted())) {
+            projectName = project.getName();
+        }
+
+        LambdaQueryWrapper<InterviewMessage> queryWrapper = new LambdaQueryWrapper<InterviewMessage>()
+                .eq(InterviewMessage::getSessionId, sessionId)
+                .orderByAsc(InterviewMessage::getCreatedAt);
+        List<InterviewMessageVO> messages = interviewMessageMapper.selectList(queryWrapper).stream()
+                .map(this::toInterviewMessageVO)
+                .toList();
+
+        return new InterviewSessionDetailVO(
+                session.getId(),
+                session.getProjectId(),
+                projectName,
+                session.getTargetRole(),
+                session.getDifficulty(),
+                session.getStatus(),
+                session.getCurrentRound(),
+                session.getMaxRound(),
+                messages
+        );
     }
 
     private String generateFirstQuestion(Project project, String targetRole, String difficulty) {
