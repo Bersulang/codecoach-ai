@@ -16,4 +16,6 @@ public interface ProjectService {
     ProjectVO getProjectDetail(Long id);
 
     Boolean updateProject(Long id, ProjectUpdateRequest request);
+
+    Boolean deleteProject(Long id);
 }

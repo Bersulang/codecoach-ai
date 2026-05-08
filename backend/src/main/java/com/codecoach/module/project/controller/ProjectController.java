@@ -9,6 +9,7 @@ import com.codecoach.module.project.service.ProjectService;
 import com.codecoach.module.project.vo.ProjectCreateResponse;
 import com.codecoach.module.project.vo.ProjectVO;
 import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -45,5 +46,10 @@ public class ProjectController {
     @PutMapping("/{id}")
     public Result<Boolean> updateProject(@PathVariable Long id, @Valid @RequestBody ProjectUpdateRequest request) {
         return Result.success(projectService.updateProject(id, request));
+    }
+
+    @DeleteMapping("/{id}")
+    public Result<Boolean> deleteProject(@PathVariable Long id) {
+        return Result.success(projectService.deleteProject(id));
     }
 }

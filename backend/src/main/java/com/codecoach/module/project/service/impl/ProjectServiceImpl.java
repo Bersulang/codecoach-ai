@@ -13,6 +13,7 @@ import com.codecoach.module.project.service.ProjectService;
 import com.codecoach.module.project.vo.ProjectCreateResponse;
 import com.codecoach.module.project.vo.ProjectVO;
 import com.codecoach.security.UserContext;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +23,8 @@ import org.springframework.util.StringUtils;
 public class ProjectServiceImpl implements ProjectService {
 
     private static final String STATUS_NORMAL = "NORMAL";
+
+    private static final String STATUS_DELETED = "DELETED";
 
     private static final long DEFAULT_PAGE_NUM = 1L;
 
@@ -109,6 +112,25 @@ public class ProjectServiceImpl implements ProjectService {
         project.setRole(request.getRole());
         project.setHighlights(request.getHighlights());
         project.setDifficulties(request.getDifficulties());
+        projectMapper.updateById(project);
+        return true;
+    }
+
+    @Override
+    @Transactional
+    public Boolean deleteProject(Long id) {
+        Long currentUserId = UserContext.getCurrentUserId();
+        Project project = projectMapper.selectById(id);
+        if (project == null || Integer.valueOf(1).equals(project.getIsDeleted())) {
+            throw new BusinessException(PROJECT_NOT_FOUND_CODE, "项目不存在");
+        }
+        if (!currentUserId.equals(project.getUserId())) {
+            throw new BusinessException(PROJECT_ACCESS_DENIED_CODE, "无权访问该项目");
+        }
+
+        project.setIsDeleted(1);
+        project.setStatus(STATUS_DELETED);
+        project.setDeletedAt(LocalDateTime.now());
         projectMapper.updateById(project);
         return true;
     }
