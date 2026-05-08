@@ -6,6 +6,7 @@ import com.codecoach.common.result.ResultCode;
 import com.codecoach.module.ai.dto.InterviewContext;
 import com.codecoach.module.ai.service.AiInterviewService;
 import com.codecoach.module.ai.vo.FeedbackAndQuestionResult;
+import com.codecoach.module.ai.vo.ReportGenerateResult;
 import com.codecoach.module.interview.dto.InterviewAnswerRequest;
 import com.codecoach.module.interview.dto.InterviewSessionCreateRequest;
 import com.codecoach.module.interview.entity.InterviewMessage;
@@ -14,12 +15,17 @@ import com.codecoach.module.interview.mapper.InterviewMessageMapper;
 import com.codecoach.module.interview.mapper.InterviewSessionMapper;
 import com.codecoach.module.interview.service.InterviewSessionService;
 import com.codecoach.module.interview.vo.InterviewAnswerResponse;
+import com.codecoach.module.interview.vo.InterviewFinishResponse;
 import com.codecoach.module.interview.vo.InterviewMessageVO;
 import com.codecoach.module.interview.vo.InterviewSessionCreateResponse;
 import com.codecoach.module.interview.vo.InterviewSessionDetailVO;
 import com.codecoach.module.project.entity.Project;
 import com.codecoach.module.project.mapper.ProjectMapper;
+import com.codecoach.module.report.entity.InterviewReport;
+import com.codecoach.module.report.mapper.InterviewReportMapper;
 import com.codecoach.security.UserContext;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -41,6 +47,8 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
     private static final int SESSION_ENDED_CODE = 3002;
 
     private static final String STATUS_IN_PROGRESS = "IN_PROGRESS";
+
+    private static final String STATUS_FINISHED = "FINISHED";
 
     private static final String ROLE_USER = "USER";
 
@@ -68,18 +76,26 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
 
     private final ProjectMapper projectMapper;
 
+    private final InterviewReportMapper interviewReportMapper;
+
     private final AiInterviewService aiInterviewService;
+
+    private final ObjectMapper objectMapper;
 
     public InterviewSessionServiceImpl(
             InterviewSessionMapper interviewSessionMapper,
             InterviewMessageMapper interviewMessageMapper,
             ProjectMapper projectMapper,
-            AiInterviewService aiInterviewService
+            InterviewReportMapper interviewReportMapper,
+            AiInterviewService aiInterviewService,
+            ObjectMapper objectMapper
     ) {
         this.interviewSessionMapper = interviewSessionMapper;
         this.interviewMessageMapper = interviewMessageMapper;
         this.projectMapper = projectMapper;
+        this.interviewReportMapper = interviewReportMapper;
         this.aiInterviewService = aiInterviewService;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -229,6 +245,52 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         );
     }
 
+    @Override
+    @Transactional
+    public InterviewFinishResponse finishSession(Long sessionId) {
+        Long currentUserId = UserContext.getCurrentUserId();
+        InterviewSession session = interviewSessionMapper.selectById(sessionId);
+        if (session == null || Integer.valueOf(DELETED).equals(session.getIsDeleted())) {
+            throw new BusinessException(SESSION_NOT_FOUND_CODE, "训练会话不存在");
+        }
+        if (!currentUserId.equals(session.getUserId())) {
+            throw new BusinessException(ResultCode.FORBIDDEN);
+        }
+
+        InterviewReport existingReport = getReportBySessionId(sessionId);
+        if (existingReport != null) {
+            return new InterviewFinishResponse(existingReport.getId(), sessionId, existingReport.getTotalScore());
+        }
+        if (STATUS_FINISHED.equals(session.getStatus())) {
+            throw new BusinessException(SESSION_ENDED_CODE, "训练会话已结束");
+        }
+
+        Project project = projectMapper.selectById(session.getProjectId());
+        List<InterviewMessage> messages = listSessionMessages(sessionId);
+        ReportGenerateResult reportResult = generateReport(buildInterviewContext(session, project, messages, null));
+
+        LocalDateTime now = LocalDateTime.now();
+        InterviewReport report = new InterviewReport();
+        report.setSessionId(sessionId);
+        report.setUserId(currentUserId);
+        report.setProjectId(session.getProjectId());
+        report.setTotalScore(reportResult.getTotalScore());
+        report.setSummary(reportResult.getSummary());
+        report.setStrengths(toJson(reportResult.getStrengths()));
+        report.setWeaknesses(toJson(reportResult.getWeaknesses()));
+        report.setSuggestions(toJson(reportResult.getSuggestions()));
+        report.setQaReview(toJson(reportResult.getQaReview()));
+        report.setCreatedAt(now);
+        interviewReportMapper.insert(report);
+
+        session.setStatus(STATUS_FINISHED);
+        session.setEndedAt(now);
+        session.setTotalScore(reportResult.getTotalScore());
+        interviewSessionMapper.updateById(session);
+
+        return new InterviewFinishResponse(report.getId(), sessionId, report.getTotalScore());
+    }
+
     private String generateFirstQuestion(Project project, String targetRole, String difficulty) {
         try {
             String firstQuestion = aiInterviewService.generateFirstQuestion(project, targetRole, difficulty);
@@ -236,6 +298,20 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
                 throw new BusinessException(AI_CALL_FAILED_CODE, "AI 调用失败，请稍后重试");
             }
             return firstQuestion;
+        } catch (BusinessException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new BusinessException(AI_CALL_FAILED_CODE, "AI 调用失败，请稍后重试");
+        }
+    }
+
+    private ReportGenerateResult generateReport(InterviewContext context) {
+        try {
+            ReportGenerateResult result = aiInterviewService.generateReport(context);
+            if (result == null || result.getTotalScore() == null || !StringUtils.hasText(result.getSummary())) {
+                throw new BusinessException(AI_CALL_FAILED_CODE, "AI 调用失败，请稍后重试");
+            }
+            return result;
         } catch (BusinessException exception) {
             throw exception;
         } catch (Exception exception) {
@@ -313,6 +389,21 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
                 .orderByAsc(InterviewMessage::getCreatedAt)
                 .orderByAsc(InterviewMessage::getId);
         return interviewMessageMapper.selectList(queryWrapper);
+    }
+
+    private InterviewReport getReportBySessionId(Long sessionId) {
+        LambdaQueryWrapper<InterviewReport> queryWrapper = new LambdaQueryWrapper<InterviewReport>()
+                .eq(InterviewReport::getSessionId, sessionId)
+                .last("LIMIT 1");
+        return interviewReportMapper.selectOne(queryWrapper);
+    }
+
+    private String toJson(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (JsonProcessingException exception) {
+            throw new BusinessException(AI_CALL_FAILED_CODE, "AI 调用失败，请稍后重试");
+        }
     }
 
     private InterviewMessageVO toInterviewMessageVO(InterviewMessage message) {

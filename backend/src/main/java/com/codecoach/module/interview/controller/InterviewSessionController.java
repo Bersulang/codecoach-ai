@@ -5,6 +5,7 @@ import com.codecoach.module.interview.dto.InterviewAnswerRequest;
 import com.codecoach.module.interview.dto.InterviewSessionCreateRequest;
 import com.codecoach.module.interview.service.InterviewSessionService;
 import com.codecoach.module.interview.vo.InterviewAnswerResponse;
+import com.codecoach.module.interview.vo.InterviewFinishResponse;
 import com.codecoach.module.interview.vo.InterviewSessionCreateResponse;
 import com.codecoach.module.interview.vo.InterviewSessionDetailVO;
 import jakarta.validation.Valid;
@@ -43,5 +44,10 @@ public class InterviewSessionController {
             @Valid @RequestBody InterviewAnswerRequest request
     ) {
         return Result.success(interviewSessionService.submitAnswer(sessionId, request));
+    }
+
+    @PostMapping("/{sessionId}/finish")
+    public Result<InterviewFinishResponse> finishSession(@PathVariable Long sessionId) {
+        return Result.success(interviewSessionService.finishSession(sessionId));
     }
 }
