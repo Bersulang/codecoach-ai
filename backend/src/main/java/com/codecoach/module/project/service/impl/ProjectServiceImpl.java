@@ -6,6 +6,7 @@ import com.codecoach.common.exception.BusinessException;
 import com.codecoach.common.result.PageResult;
 import com.codecoach.module.project.dto.ProjectCreateRequest;
 import com.codecoach.module.project.dto.ProjectPageRequest;
+import com.codecoach.module.project.dto.ProjectUpdateRequest;
 import com.codecoach.module.project.entity.Project;
 import com.codecoach.module.project.mapper.ProjectMapper;
 import com.codecoach.module.project.service.ProjectService;
@@ -88,6 +89,28 @@ public class ProjectServiceImpl implements ProjectService {
         }
 
         return toProjectVO(project);
+    }
+
+    @Override
+    @Transactional
+    public Boolean updateProject(Long id, ProjectUpdateRequest request) {
+        Long currentUserId = UserContext.getCurrentUserId();
+        Project project = projectMapper.selectById(id);
+        if (project == null || Integer.valueOf(1).equals(project.getIsDeleted())) {
+            throw new BusinessException(PROJECT_NOT_FOUND_CODE, "项目不存在");
+        }
+        if (!currentUserId.equals(project.getUserId())) {
+            throw new BusinessException(PROJECT_ACCESS_DENIED_CODE, "无权访问该项目");
+        }
+
+        project.setName(request.getName());
+        project.setDescription(request.getDescription());
+        project.setTechStack(request.getTechStack());
+        project.setRole(request.getRole());
+        project.setHighlights(request.getHighlights());
+        project.setDifficulties(request.getDifficulties());
+        projectMapper.updateById(project);
+        return true;
     }
 
     private long normalizePageNum(Long pageNum) {
