@@ -1,6 +1,7 @@
 package com.codecoach.security;
 
 import com.codecoach.module.user.entity.User;
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
@@ -42,5 +43,32 @@ public class JwtTokenProvider {
                 .expiration(Date.from(now.plusSeconds(expirationSeconds)))
                 .signWith(secretKey)
                 .compact();
+    }
+
+    public LoginUser parseToken(String token) {
+        Claims claims = Jwts.parser()
+                .verifyWith(secretKey)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+
+        Long userId = parseUserId(claims.get("userId"));
+        String username = claims.get("username", String.class);
+        String role = claims.get("role", String.class);
+        if (userId == null || username == null || role == null) {
+            throw new IllegalArgumentException("JWT claims are incomplete");
+        }
+
+        return new LoginUser(userId, username, role);
+    }
+
+    private Long parseUserId(Object userId) {
+        if (userId instanceof Number number) {
+            return number.longValue();
+        }
+        if (userId instanceof String text) {
+            return Long.valueOf(text);
+        }
+        return null;
     }
 }
