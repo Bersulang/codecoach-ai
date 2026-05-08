@@ -14,3 +14,7 @@ mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+jwt:
+  secret: codecoach-local-dev-secret-key-must-be-long-enough
+  expiration-seconds: 86400

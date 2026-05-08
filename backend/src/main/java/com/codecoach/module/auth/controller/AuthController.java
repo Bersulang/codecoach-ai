@@ -1,8 +1,10 @@
 package com.codecoach.module.auth.controller;
 
 import com.codecoach.common.result.Result;
+import com.codecoach.module.auth.dto.LoginRequest;
 import com.codecoach.module.auth.dto.RegisterRequest;
 import com.codecoach.module.auth.service.AuthService;
+import com.codecoach.module.auth.vo.LoginResponse;
 import com.codecoach.module.auth.vo.RegisterResponse;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,5 +25,10 @@ public class AuthController {
     @PostMapping("/register")
     public Result<RegisterResponse> register(@Valid @RequestBody RegisterRequest request) {
         return Result.success(authService.register(request));
+    }
+
+    @PostMapping("/login")
+    public Result<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
+        return Result.success(authService.login(request));
     }
 }
