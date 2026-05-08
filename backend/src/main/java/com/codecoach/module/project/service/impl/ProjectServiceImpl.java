@@ -2,6 +2,7 @@ package com.codecoach.module.project.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.codecoach.common.exception.BusinessException;
 import com.codecoach.common.result.PageResult;
 import com.codecoach.module.project.dto.ProjectCreateRequest;
 import com.codecoach.module.project.dto.ProjectPageRequest;
@@ -26,6 +27,10 @@ public class ProjectServiceImpl implements ProjectService {
     private static final long DEFAULT_PAGE_SIZE = 10L;
 
     private static final long MAX_PAGE_SIZE = 100L;
+
+    private static final int PROJECT_NOT_FOUND_CODE = 2001;
+
+    private static final int PROJECT_ACCESS_DENIED_CODE = 2002;
 
     private final ProjectMapper projectMapper;
 
@@ -69,6 +74,20 @@ public class ProjectServiceImpl implements ProjectService {
                 .toList();
 
         return new PageResult<>(records, page.getTotal(), page.getCurrent(), page.getSize(), page.getPages());
+    }
+
+    @Override
+    public ProjectVO getProjectDetail(Long id) {
+        Long currentUserId = UserContext.getCurrentUserId();
+        Project project = projectMapper.selectById(id);
+        if (project == null || Integer.valueOf(1).equals(project.getIsDeleted())) {
+            throw new BusinessException(PROJECT_NOT_FOUND_CODE, "项目不存在");
+        }
+        if (!currentUserId.equals(project.getUserId())) {
+            throw new BusinessException(PROJECT_ACCESS_DENIED_CODE, "无权访问该项目");
+        }
+
+        return toProjectVO(project);
     }
 
     private long normalizePageNum(Long pageNum) {

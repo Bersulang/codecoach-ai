@@ -11,4 +11,6 @@ public interface ProjectService {
     ProjectCreateResponse createProject(ProjectCreateRequest request);
 
     PageResult<ProjectVO> pageProjects(ProjectPageRequest request);
+
+    ProjectVO getProjectDetail(Long id);
 }
