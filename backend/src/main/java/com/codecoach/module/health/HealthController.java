@@ -1,5 +1,6 @@
 package com.codecoach.module.health;
 
+import com.codecoach.common.result.Result;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -7,7 +8,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class HealthController {
 
     @GetMapping("/api/health")
-    public String health() {
-        return "ok";
+    public Result<String> health() {
+        return Result.success("ok");
     }
 }
