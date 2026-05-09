@@ -16,6 +16,9 @@ public class ReportGenerateResult {
 
     private List<QaReviewItem> qaReview;
 
+    public ReportGenerateResult() {
+    }
+
     public ReportGenerateResult(
             Integer totalScore,
             String summary,
@@ -87,6 +90,9 @@ public class ReportGenerateResult {
         private String answer;
 
         private String feedback;
+
+        public QaReviewItem() {
+        }
 
         public QaReviewItem(String question, String answer, String feedback) {
             this.question = question;

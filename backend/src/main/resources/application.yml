@@ -6,3 +6,15 @@ spring:
     name: codecoach-backend
   profiles:
     active: dev
+  config:
+    import:
+      - optional:file:./application-local.yml
+      - optional:file:./src/main/resources/application-local.yml
+
+ai:
+  provider: ${AI_PROVIDER:openai-compatible}
+  openai-compatible:
+    base-url: ${AI_BASE_URL:}
+    api-key: ${AI_API_KEY:}
+    model: ${AI_MODEL:}
+    timeout-seconds: ${AI_TIMEOUT_SECONDS:30}

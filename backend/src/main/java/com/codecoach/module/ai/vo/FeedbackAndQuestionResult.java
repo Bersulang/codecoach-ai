@@ -6,6 +6,9 @@ public class FeedbackAndQuestionResult {
 
     private String nextQuestion;
 
+    public FeedbackAndQuestionResult() {
+    }
+
     public FeedbackAndQuestionResult(String feedback, String nextQuestion) {
         this.feedback = feedback;
         this.nextQuestion = nextQuestion;
