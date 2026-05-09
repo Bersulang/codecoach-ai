@@ -7,6 +7,7 @@ public enum ResultCode {
     UNAUTHORIZED(401, "未登录"),
     FORBIDDEN(403, "无权限"),
     NOT_FOUND(404, "资源不存在"),
+    ANSWER_PROCESSING(3004, "当前回答正在处理中，请稍后"),
     INTERNAL_ERROR(500, "系统异常");
 
     private final Integer code;

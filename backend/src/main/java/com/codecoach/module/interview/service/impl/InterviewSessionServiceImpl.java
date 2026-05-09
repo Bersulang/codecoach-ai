@@ -30,26 +30,37 @@ import com.codecoach.module.report.mapper.InterviewReportMapper;
 import com.codecoach.security.UserContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 
 @Service
 public class InterviewSessionServiceImpl implements InterviewSessionService {
+
+    private static final Logger log = LoggerFactory.getLogger(InterviewSessionServiceImpl.class);
 
     private static final int PROJECT_NOT_FOUND_CODE = 2001;
 
     private static final int PROJECT_ACCESS_DENIED_CODE = 2002;
 
     private static final int AI_CALL_FAILED_CODE = 3003;
+
+    private static final int ANSWER_PROCESSING_CODE = 3004;
 
     private static final int SESSION_NOT_FOUND_CODE = 3001;
 
@@ -85,6 +96,17 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
 
     private static final long MAX_PAGE_SIZE = 100L;
 
+    private static final Duration ANSWER_LOCK_TTL = Duration.ofSeconds(120);
+
+    private static final String ANSWER_LOCK_KEY_PREFIX = "interview:answer:lock:";
+
+    private static final DefaultRedisScript<Long> RELEASE_LOCK_SCRIPT = new DefaultRedisScript<>(
+            "if redis.call('get', KEYS[1]) == ARGV[1] then "
+                    + "return redis.call('del', KEYS[1]) "
+                    + "else return 0 end",
+            Long.class
+    );
+
     private final InterviewSessionMapper interviewSessionMapper;
 
     private final InterviewMessageMapper interviewMessageMapper;
@@ -97,13 +119,19 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
 
     private final ObjectMapper objectMapper;
 
+    private final StringRedisTemplate stringRedisTemplate;
+
+    private final TransactionTemplate transactionTemplate;
+
     public InterviewSessionServiceImpl(
             InterviewSessionMapper interviewSessionMapper,
             InterviewMessageMapper interviewMessageMapper,
             ProjectMapper projectMapper,
             InterviewReportMapper interviewReportMapper,
             AiInterviewService aiInterviewService,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            StringRedisTemplate stringRedisTemplate,
+            TransactionTemplate transactionTemplate
     ) {
         this.interviewSessionMapper = interviewSessionMapper;
         this.interviewMessageMapper = interviewMessageMapper;
@@ -111,6 +139,8 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         this.interviewReportMapper = interviewReportMapper;
         this.aiInterviewService = aiInterviewService;
         this.objectMapper = objectMapper;
+        this.stringRedisTemplate = stringRedisTemplate;
+        this.transactionTemplate = transactionTemplate;
     }
 
     @Override
@@ -214,10 +244,26 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
     }
 
     @Override
-    @Transactional
     public InterviewAnswerResponse submitAnswer(Long sessionId, InterviewAnswerRequest request) {
+        String lockKey = ANSWER_LOCK_KEY_PREFIX + sessionId;
+        String lockValue = UUID.randomUUID().toString();
+        acquireAnswerLock(lockKey, lockValue);
+        try {
+            InterviewAnswerResponse response = transactionTemplate.execute(
+                    status -> submitAnswerInTransaction(sessionId, request)
+            );
+            if (response == null) {
+                throw new BusinessException(AI_CALL_FAILED_CODE, "AI 调用失败，请稍后重试");
+            }
+            return response;
+        } finally {
+            releaseAnswerLock(lockKey, lockValue);
+        }
+    }
+
+    private InterviewAnswerResponse submitAnswerInTransaction(Long sessionId, InterviewAnswerRequest request) {
         Long currentUserId = UserContext.getCurrentUserId();
-        InterviewSession session = interviewSessionMapper.selectById(sessionId);
+        InterviewSession session = getSessionForUpdate(sessionId);
         if (session == null || Integer.valueOf(DELETED).equals(session.getIsDeleted())) {
             throw new BusinessException(SESSION_NOT_FOUND_CODE, "训练会话不存在");
         }
@@ -230,6 +276,9 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
 
         Integer currentRound = session.getCurrentRound();
         Integer maxRound = session.getMaxRound();
+        checkCurrentRoundAnswerNotSubmitted(sessionId, currentUserId, currentRound);
+        checkPreviousRoundSameAnswerNotSubmitted(sessionId, currentUserId, currentRound, request.getAnswer());
+
         List<InterviewMessage> historyMessages = listSessionMessages(sessionId);
         Project project = projectMapper.selectById(session.getProjectId());
         LocalDateTime now = LocalDateTime.now();
@@ -328,6 +377,65 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         interviewSessionMapper.updateById(session);
 
         return new InterviewFinishResponse(report.getId(), sessionId, report.getTotalScore());
+    }
+
+    private void acquireAnswerLock(String lockKey, String lockValue) {
+        try {
+            Boolean locked = stringRedisTemplate.opsForValue().setIfAbsent(lockKey, lockValue, ANSWER_LOCK_TTL);
+            if (Boolean.TRUE.equals(locked)) {
+                return;
+            }
+        } catch (RuntimeException exception) {
+            log.warn("Failed to acquire interview answer lock", exception);
+        }
+        throw new BusinessException(ResultCode.ANSWER_PROCESSING);
+    }
+
+    private void releaseAnswerLock(String lockKey, String lockValue) {
+        try {
+            stringRedisTemplate.execute(RELEASE_LOCK_SCRIPT, Collections.singletonList(lockKey), lockValue);
+        } catch (RuntimeException exception) {
+            log.warn("Failed to release interview answer lock", exception);
+        }
+    }
+
+    private InterviewSession getSessionForUpdate(Long sessionId) {
+        LambdaQueryWrapper<InterviewSession> queryWrapper = new LambdaQueryWrapper<InterviewSession>()
+                .eq(InterviewSession::getId, sessionId)
+                .last("FOR UPDATE");
+        return interviewSessionMapper.selectOne(queryWrapper);
+    }
+
+    private void checkCurrentRoundAnswerNotSubmitted(Long sessionId, Long userId, Integer currentRound) {
+        Long count = interviewMessageMapper.selectCount(new LambdaQueryWrapper<InterviewMessage>()
+                .eq(InterviewMessage::getSessionId, sessionId)
+                .eq(InterviewMessage::getUserId, userId)
+                .eq(InterviewMessage::getMessageType, MESSAGE_TYPE_USER_ANSWER)
+                .eq(InterviewMessage::getRoundNo, currentRound));
+        if (count != null && count > 0) {
+            throw new BusinessException(ANSWER_PROCESSING_CODE, "当前轮次已提交，请刷新页面查看最新结果");
+        }
+    }
+
+    private void checkPreviousRoundSameAnswerNotSubmitted(
+            Long sessionId,
+            Long userId,
+            Integer currentRound,
+            String answer
+    ) {
+        if (currentRound == null || currentRound <= FIRST_ROUND_NO || !StringUtils.hasText(answer)) {
+            return;
+        }
+
+        Long count = interviewMessageMapper.selectCount(new LambdaQueryWrapper<InterviewMessage>()
+                .eq(InterviewMessage::getSessionId, sessionId)
+                .eq(InterviewMessage::getUserId, userId)
+                .eq(InterviewMessage::getMessageType, MESSAGE_TYPE_USER_ANSWER)
+                .eq(InterviewMessage::getRoundNo, currentRound - 1)
+                .eq(InterviewMessage::getContent, answer));
+        if (count != null && count > 0) {
+            throw new BusinessException(ANSWER_PROCESSING_CODE, "当前轮次已提交，请刷新页面查看最新结果");
+        }
     }
 
     private String generateFirstQuestion(Project project, String targetRole, String difficulty) {
