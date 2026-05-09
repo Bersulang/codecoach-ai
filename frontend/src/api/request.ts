@@ -4,10 +4,14 @@ import { message } from "antd";
 import type { Result } from "../types/api";
 
 const DEFAULT_BASE_URL = "http://localhost:8080";
+const BUSINESS_ERROR_MESSAGES: Record<number, string> = {
+  3003: "AI 调用失败，请稍后重试",
+  3004: "当前回答正在处理中，请稍后刷新查看",
+};
 
 const instance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || DEFAULT_BASE_URL,
-  timeout: 10000,
+  timeout: 120000,
   headers: {
     "Content-Type": "application/json",
   },
@@ -66,6 +70,12 @@ instance.interceptors.response.use(
       return Promise.reject(new Error(payload.message || "Unauthorized"));
     }
 
+    const businessMessage = BUSINESS_ERROR_MESSAGES[payload.code];
+    if (businessMessage) {
+      message.error(businessMessage);
+      return Promise.reject(new Error(businessMessage));
+    }
+
     message.error(payload.message || "请求失败");
     return Promise.reject(new Error(payload.message || "Request failed"));
   },
@@ -75,6 +85,16 @@ instance.interceptors.response.use(
 
     if (status === 401 || data?.code === 401) {
       handleUnauthorized(data?.message);
+      return Promise.reject(error);
+    }
+
+    const businessMessage =
+      data && typeof data.code === "number"
+        ? BUSINESS_ERROR_MESSAGES[data.code]
+        : undefined;
+
+    if (businessMessage) {
+      message.error(businessMessage);
       return Promise.reject(error);
     }
 

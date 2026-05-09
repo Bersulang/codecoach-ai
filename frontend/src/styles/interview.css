@@ -126,6 +126,12 @@
   color: #6b7280;
 }
 
+.interview-status-hint {
+  display: block;
+  margin-top: 8px;
+  color: #94a3b8;
+}
+
 .interview-empty {
   border: 1px dashed #e5e7eb;
   border-radius: 18px;

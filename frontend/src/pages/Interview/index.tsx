@@ -204,7 +204,7 @@ function InterviewPage() {
 
   const handleSubmitAnswer = async () => {
     const trimmed = answer.trim();
-    if (!trimmed || !sessionId) {
+    if (!trimmed || !sessionId || sending || loading || isFinished) {
       return;
     }
     setSending(true);
@@ -370,6 +370,11 @@ function InterviewPage() {
             ? "训练已结束，你可以查看报告或返回项目列表。"
             : "请输入你的回答，AI 将生成反馈与下一道问题。"}
         </Typography.Text>
+        {!isFinished ? (
+          <Typography.Text className="interview-status-hint">
+            AI 回复可能需要数秒，请勿关闭页面
+          </Typography.Text>
+        ) : null}
         <TextArea
           value={answer}
           onChange={(event) => setAnswer(event.target.value)}
@@ -388,7 +393,7 @@ function InterviewPage() {
                 sending || loading || isFinished || trimmedAnswer.length === 0
               }
             >
-              提交回答
+              {sending ? "AI 正在思考..." : "提交回答"}
             </Button>
             <Button onClick={() => setAnswer("")} disabled={!answer || sending}>
               清空
