@@ -10,16 +10,24 @@ public class InterviewAnswerResponse {
 
     private Boolean finished;
 
+    private Long reportId;
+
+    private Integer totalScore;
+
     public InterviewAnswerResponse(
             InterviewMessageVO userAnswer,
             InterviewMessageVO aiFeedback,
             InterviewMessageVO nextQuestion,
-            Boolean finished
+            Boolean finished,
+            Long reportId,
+            Integer totalScore
     ) {
         this.userAnswer = userAnswer;
         this.aiFeedback = aiFeedback;
         this.nextQuestion = nextQuestion;
         this.finished = finished;
+        this.reportId = reportId;
+        this.totalScore = totalScore;
     }
 
     public InterviewMessageVO getUserAnswer() {
@@ -52,5 +60,21 @@ public class InterviewAnswerResponse {
 
     public void setFinished(Boolean finished) {
         this.finished = finished;
+    }
+
+    public Long getReportId() {
+        return reportId;
+    }
+
+    public void setReportId(Long reportId) {
+        this.reportId = reportId;
+    }
+
+    public Integer getTotalScore() {
+        return totalScore;
+    }
+
+    public void setTotalScore(Integer totalScore) {
+        this.totalScore = totalScore;
     }
 }

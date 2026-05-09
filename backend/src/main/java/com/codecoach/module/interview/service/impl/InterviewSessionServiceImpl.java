@@ -322,14 +322,24 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
             interviewMessageMapper.insert(nextQuestion);
         }
 
-        session.setCurrentRound(finished ? maxRound : currentRound + 1);
-        interviewSessionMapper.updateById(session);
+        InterviewFinishResponse finishResponse = null;
+        if (finished) {
+            List<InterviewMessage> reportMessages = new ArrayList<>(historyMessages);
+            reportMessages.add(userAnswer);
+            reportMessages.add(aiFeedback);
+            finishResponse = finishSessionWithReport(session, project, reportMessages, LocalDateTime.now());
+        } else {
+            session.setCurrentRound(currentRound + 1);
+            interviewSessionMapper.updateById(session);
+        }
 
         return new InterviewAnswerResponse(
                 toInterviewMessageVO(userAnswer),
                 toInterviewMessageVO(aiFeedback),
                 nextQuestion == null ? null : toInterviewMessageVO(nextQuestion),
-                finished
+                finished,
+                finishResponse == null ? null : finishResponse.getReportId(),
+                finishResponse == null ? null : finishResponse.getTotalScore()
         );
     }
 
@@ -355,28 +365,7 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
 
         Project project = projectMapper.selectById(session.getProjectId());
         List<InterviewMessage> messages = listSessionMessages(sessionId);
-        ReportGenerateResult reportResult = generateReport(buildInterviewContext(session, project, messages, null));
-
-        LocalDateTime now = LocalDateTime.now();
-        InterviewReport report = new InterviewReport();
-        report.setSessionId(sessionId);
-        report.setUserId(currentUserId);
-        report.setProjectId(session.getProjectId());
-        report.setTotalScore(reportResult.getTotalScore());
-        report.setSummary(reportResult.getSummary());
-        report.setStrengths(toJson(reportResult.getStrengths()));
-        report.setWeaknesses(toJson(reportResult.getWeaknesses()));
-        report.setSuggestions(toJson(reportResult.getSuggestions()));
-        report.setQaReview(toJson(reportResult.getQaReview()));
-        report.setCreatedAt(now);
-        interviewReportMapper.insert(report);
-
-        session.setStatus(STATUS_FINISHED);
-        session.setEndedAt(now);
-        session.setTotalScore(reportResult.getTotalScore());
-        interviewSessionMapper.updateById(session);
-
-        return new InterviewFinishResponse(report.getId(), sessionId, report.getTotalScore());
+        return finishSessionWithReport(session, project, messages, LocalDateTime.now());
     }
 
     private void acquireAnswerLock(String lockKey, String lockValue) {
@@ -404,6 +393,46 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
                 .eq(InterviewSession::getId, sessionId)
                 .last("FOR UPDATE");
         return interviewSessionMapper.selectOne(queryWrapper);
+    }
+
+    private InterviewFinishResponse finishSessionWithReport(
+            InterviewSession session,
+            Project project,
+            List<InterviewMessage> messages,
+            LocalDateTime now
+    ) {
+        InterviewReport existingReport = getReportBySessionId(session.getId());
+        if (existingReport != null) {
+            session.setStatus(STATUS_FINISHED);
+            session.setEndedAt(now);
+            session.setTotalScore(existingReport.getTotalScore());
+            session.setCurrentRound(session.getMaxRound());
+            interviewSessionMapper.updateById(session);
+            return new InterviewFinishResponse(existingReport.getId(), session.getId(), existingReport.getTotalScore());
+        }
+
+        ReportGenerateResult reportResult = generateReport(buildInterviewContext(session, project, messages, null));
+
+        InterviewReport report = new InterviewReport();
+        report.setSessionId(session.getId());
+        report.setUserId(session.getUserId());
+        report.setProjectId(session.getProjectId());
+        report.setTotalScore(reportResult.getTotalScore());
+        report.setSummary(reportResult.getSummary());
+        report.setStrengths(toJson(reportResult.getStrengths()));
+        report.setWeaknesses(toJson(reportResult.getWeaknesses()));
+        report.setSuggestions(toJson(reportResult.getSuggestions()));
+        report.setQaReview(toJson(reportResult.getQaReview()));
+        report.setCreatedAt(now);
+        interviewReportMapper.insert(report);
+
+        session.setStatus(STATUS_FINISHED);
+        session.setEndedAt(now);
+        session.setTotalScore(reportResult.getTotalScore());
+        session.setCurrentRound(session.getMaxRound());
+        interviewSessionMapper.updateById(session);
+
+        return new InterviewFinishResponse(report.getId(), session.getId(), report.getTotalScore());
     }
 
     private void checkCurrentRoundAnswerNotSubmitted(Long sessionId, Long userId, Integer currentRound) {
