@@ -445,7 +445,9 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
             return Collections.emptyMap();
         }
 
-        return projectMapper.selectBatchIds(projectIds).stream()
+        LambdaQueryWrapper<Project> queryWrapper = new LambdaQueryWrapper<Project>()
+                .in(Project::getId, projectIds);
+        return projectMapper.selectList(queryWrapper).stream()
                 .collect(Collectors.toMap(Project::getId, Project::getName));
     }
 
