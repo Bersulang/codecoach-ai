@@ -46,6 +46,8 @@ export interface AnswerResponse {
   aiFeedback: InterviewMessage | string;
   nextQuestion?: InterviewMessage | string | null;
   finished?: boolean;
+  reportId?: number | null;
+  totalScore?: number | null;
 }
 
 export interface FinishResponse {

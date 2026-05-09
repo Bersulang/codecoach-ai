@@ -212,6 +212,14 @@ function InterviewPage() {
       const data = await submitInterviewAnswer(sessionId, { answer: trimmed });
       handleAppend(data);
       setAnswer("");
+      if (data.finished) {
+        if (typeof data.reportId === "number") {
+          message.success("训练已完成，正在生成报告");
+          navigate(`/reports/${data.reportId}`);
+        } else {
+          message.info("训练已完成，请稍后在历史记录中查看报告");
+        }
+      }
     } catch {
       // Errors are handled by the request interceptor.
     } finally {
