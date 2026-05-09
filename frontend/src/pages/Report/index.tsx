@@ -8,48 +8,48 @@ import {
   Statistic,
   Typography,
   message,
-} from 'antd'
-import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { getReportDetail } from '../../api/report'
-import { createInterviewSession } from '../../api/interview'
-import type { InterviewReport, QaReview } from '../../types/report'
-import '../../styles/report.css'
+} from "antd";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { getReportDetail } from "../../api/report";
+import { createInterviewSession } from "../../api/interview";
+import type { InterviewReport, QaReview } from "../../types/report";
+import "../../styles/report.css";
 
-const DEFAULT_TARGET_ROLE = 'Java 后端实习'
-const DEFAULT_DIFFICULTY = 'NORMAL'
+const DEFAULT_TARGET_ROLE = "Java 后端实习";
+const DEFAULT_DIFFICULTY = "NORMAL";
 
 function formatDate(value?: string) {
   if (!value) {
-    return '—'
+    return "—";
   }
-  const date = new Date(value)
+  const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return value
+    return value;
   }
-  return date.toLocaleDateString()
+  return date.toLocaleDateString();
 }
 
 function ReportPage() {
-  const { reportId } = useParams()
-  const navigate = useNavigate()
-  const [report, setReport] = useState<InterviewReport | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [loadError, setLoadError] = useState(false)
-  const [restarting, setRestarting] = useState(false)
+  const { reportId } = useParams();
+  const navigate = useNavigate();
+  const [report, setReport] = useState<InterviewReport | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [restarting, setRestarting] = useState(false);
 
   useEffect(() => {
     if (!reportId) {
-      return
+      return;
     }
 
-    let active = true
-    setLoading(true)
-    setLoadError(false)
+    let active = true;
+    setLoading(true);
+    setLoadError(false);
     getReportDetail(reportId)
       .then((data) => {
         if (!active) {
-          return
+          return;
         }
         setReport({
           ...data,
@@ -57,87 +57,87 @@ function ReportPage() {
           weaknesses: data.weaknesses || [],
           suggestions: data.suggestions || [],
           qaReview: data.qaReview || [],
-        })
+        });
       })
       .catch(() => {
         if (!active) {
-          return
+          return;
         }
-        setLoadError(true)
-        message.error('训练报告加载失败')
+        setLoadError(true);
+        message.error("训练报告加载失败");
       })
       .finally(() => {
         if (!active) {
-          return
+          return;
         }
-        setLoading(false)
-      })
+        setLoading(false);
+      });
 
     return () => {
-      active = false
-    }
-  }, [reportId])
+      active = false;
+    };
+  }, [reportId]);
 
   const handleBack = () => {
-    navigate('/projects')
-  }
+    navigate("/projects");
+  };
 
   const handleRestart = async () => {
     if (!report) {
-      return
+      return;
     }
-    const projectId = report.projectId
+    const projectId = report.projectId;
     if (!projectId) {
-      message.error('无法发起新训练')
-      return
+      message.error("无法发起新训练");
+      return;
     }
-    setRestarting(true)
+    setRestarting(true);
     try {
       const data = await createInterviewSession({
         projectId,
         targetRole: report.targetRole || DEFAULT_TARGET_ROLE,
         difficulty: report.difficulty || DEFAULT_DIFFICULTY,
-      })
+      });
 
       if (!data?.sessionId) {
-        message.error('创建训练失败，请稍后重试')
-        return
+        message.error("创建训练失败，请稍后重试");
+        return;
       }
 
-      navigate(`/interviews/${data.sessionId}`)
+      navigate(`/interviews/${data.sessionId}`);
     } catch {
       // Errors are handled by the request interceptor.
     } finally {
-      setRestarting(false)
+      setRestarting(false);
     }
-  }
+  };
 
   const metaItems = useMemo(
     () =>
       report
         ? [
-            { label: '项目名称', value: report.projectName },
-            { label: '目标岗位', value: report.targetRole },
-            { label: '难度', value: report.difficulty },
-            { label: '报告生成', value: formatDate(report.createdAt) },
+            { label: "项目名称", value: report.projectName },
+            { label: "目标岗位", value: report.targetRole },
+            { label: "难度", value: report.difficulty },
+            { label: "报告生成", value: formatDate(report.createdAt) },
           ]
         : [],
     [report],
-  )
+  );
 
   const renderList = (items: string[]) => {
     if (!items.length) {
-      return <Empty description="暂无内容" />
+      return <Empty description="暂无内容" />;
     }
     return (
       <List
         dataSource={items}
         renderItem={(item) => <List.Item>{item}</List.Item>}
       />
-    )
-  }
+    );
+  };
 
-  const qaItems: QaReview[] = report?.qaReview || []
+  const qaItems: QaReview[] = report?.qaReview || [];
 
   if (!reportId) {
     return (
@@ -153,7 +153,7 @@ function ReportPage() {
           }
         />
       </div>
-    )
+    );
   }
 
   if (loadError) {
@@ -170,7 +170,7 @@ function ReportPage() {
           }
         />
       </div>
-    )
+    );
   }
 
   return (
@@ -217,7 +217,7 @@ function ReportPage() {
           总体评价
         </Typography.Title>
         <Typography.Paragraph>
-          {report?.summary || '暂无总体评价'}
+          {report?.summary || "暂无总体评价"}
         </Typography.Paragraph>
       </Card>
 
@@ -251,7 +251,7 @@ function ReportPage() {
             <Empty description="暂无问答复盘" />
           </div>
         ) : (
-          <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          <Space direction="vertical" size={12} style={{ width: "100%" }}>
             {qaItems.map((item, index) => (
               <div key={`${item.question}-${index}`} className="report-qa-card">
                 <div>
@@ -272,7 +272,7 @@ function ReportPage() {
         )}
       </Card>
     </div>
-  )
+  );
 }
 
-export default ReportPage
+export default ReportPage;

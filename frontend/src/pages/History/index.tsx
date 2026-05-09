@@ -8,67 +8,67 @@ import {
   Tag,
   Typography,
   message,
-} from 'antd'
-import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { getInterviewSessions } from '../../api/interview'
+} from "antd";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { getInterviewSessions } from "../../api/interview";
 import type {
   InterviewSessionHistoryItem,
   InterviewStatus,
-} from '../../types/interview'
-import '../../styles/history.css'
+} from "../../types/interview";
+import "../../styles/history.css";
 
-const DEFAULT_PAGE_SIZE = 10
+const DEFAULT_PAGE_SIZE = 10;
 
 const STATUS_OPTIONS: Array<{ label: string; value: InterviewStatus }> = [
-  { label: '进行中', value: 'IN_PROGRESS' },
-  { label: '已结束', value: 'FINISHED' },
-  { label: '失败', value: 'FAILED' },
-]
+  { label: "进行中", value: "IN_PROGRESS" },
+  { label: "已结束", value: "FINISHED" },
+  { label: "失败", value: "FAILED" },
+];
 
 function formatDate(value?: string | null) {
   if (!value) {
-    return '—'
+    return "—";
   }
-  const date = new Date(value)
+  const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return value
+    return value;
   }
-  return date.toLocaleDateString()
+  return date.toLocaleDateString();
 }
 
 function statusColor(status: InterviewStatus) {
-  if (status === 'FINISHED') {
-    return 'default'
+  if (status === "FINISHED") {
+    return "default";
   }
-  if (status === 'FAILED') {
-    return 'red'
+  if (status === "FAILED") {
+    return "red";
   }
-  return 'blue'
+  return "blue";
 }
 
 function statusLabel(status: InterviewStatus) {
-  if (status === 'FINISHED') {
-    return '已结束'
+  if (status === "FINISHED") {
+    return "已结束";
   }
-  if (status === 'FAILED') {
-    return '失败'
+  if (status === "FAILED") {
+    return "失败";
   }
-  return '进行中'
+  return "进行中";
 }
 
 function HistoryPage() {
-  const navigate = useNavigate()
-  const [items, setItems] = useState<InterviewSessionHistoryItem[]>([])
-  const [loading, setLoading] = useState(false)
-  const [status, setStatus] = useState<InterviewStatus | undefined>(undefined)
-  const [pageNum, setPageNum] = useState(1)
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
-  const [total, setTotal] = useState(0)
+  const navigate = useNavigate();
+  const [items, setItems] = useState<InterviewSessionHistoryItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<InterviewStatus | undefined>(undefined);
+  const [pageNum, setPageNum] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [total, setTotal] = useState(0);
 
   useEffect(() => {
-    let active = true
-    setLoading(true)
+    let active = true;
+    setLoading(true);
     getInterviewSessions({
       pageNum,
       pageSize,
@@ -76,28 +76,28 @@ function HistoryPage() {
     })
       .then((data) => {
         if (!active) {
-          return
+          return;
         }
-        setItems(data.records || [])
-        setTotal(data.total || 0)
+        setItems(data.records || []);
+        setTotal(data.total || 0);
       })
       .catch(() => {
         if (!active) {
-          return
+          return;
         }
-        message.error('训练历史加载失败')
+        message.error("训练历史加载失败");
       })
       .finally(() => {
         if (!active) {
-          return
+          return;
         }
-        setLoading(false)
-      })
+        setLoading(false);
+      });
 
     return () => {
-      active = false
-    }
-  }, [pageNum, pageSize, status])
+      active = false;
+    };
+  }, [pageNum, pageSize, status]);
 
   const emptyState = useMemo(
     () => (
@@ -106,19 +106,19 @@ function HistoryPage() {
       </div>
     ),
     [],
-  )
+  );
 
-  const showPagination = total > pageSize
+  const showPagination = total > pageSize;
 
   const handlePageChange = (nextPage: number, nextSize: number) => {
-    setPageNum(nextPage)
-    setPageSize(nextSize)
-  }
+    setPageNum(nextPage);
+    setPageSize(nextSize);
+  };
 
   const handleStatusChange = (value: InterviewStatus | undefined) => {
-    setStatus(value)
-    setPageNum(1)
-  }
+    setStatus(value);
+    setPageNum(1);
+  };
 
   return (
     <div className="history-page">
@@ -166,7 +166,7 @@ function HistoryPage() {
                   </Space>
                 </div>
                 <Space className="history-actions-group" wrap>
-                  {item.status === 'FINISHED' && item.reportId ? (
+                  {item.status === "FINISHED" && item.reportId ? (
                     <Button
                       type="primary"
                       onClick={() => navigate(`/reports/${item.reportId}`)}
@@ -174,7 +174,7 @@ function HistoryPage() {
                       查看报告
                     </Button>
                   ) : null}
-                  {item.status === 'IN_PROGRESS' ? (
+                  {item.status === "IN_PROGRESS" ? (
                     <Button onClick={() => navigate(`/interviews/${item.id}`)}>
                       继续训练
                     </Button>
@@ -195,7 +195,7 @@ function HistoryPage() {
                 <div>
                   <span className="history-card__label">总评分</span>
                   <span className="history-card__value">
-                    {item.totalScore ?? '—'}
+                    {item.totalScore ?? "—"}
                   </span>
                 </div>
                 <div>
@@ -228,7 +228,7 @@ function HistoryPage() {
         </div>
       )}
     </div>
-  )
+  );
 }
 
-export default HistoryPage
+export default HistoryPage;

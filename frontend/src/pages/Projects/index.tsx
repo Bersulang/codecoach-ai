@@ -8,48 +8,48 @@ import {
   Space,
   Typography,
   message,
-} from 'antd'
-import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { getProjects, deleteProject } from '../../api/project'
-import { createInterviewSession } from '../../api/interview'
-import type { ProjectVO } from '../../types/project'
-import '../../styles/projects.css'
+} from "antd";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { getProjects, deleteProject } from "../../api/project";
+import { createInterviewSession } from "../../api/interview";
+import type { ProjectVO } from "../../types/project";
+import "../../styles/projects.css";
 
-const DEFAULT_PAGE_SIZE = 10
-const DEFAULT_TARGET_ROLE = 'Java 后端实习'
-const DEFAULT_DIFFICULTY = 'NORMAL'
+const DEFAULT_PAGE_SIZE = 10;
+const DEFAULT_TARGET_ROLE = "Java 后端实习";
+const DEFAULT_DIFFICULTY = "NORMAL";
 
 function formatDate(value?: string) {
   if (!value) {
-    return '—'
+    return "—";
   }
-  const date = new Date(value)
+  const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return value
+    return value;
   }
-  return date.toLocaleDateString()
+  return date.toLocaleDateString();
 }
 
 function ProjectsPage() {
-  const navigate = useNavigate()
-  const [projects, setProjects] = useState<ProjectVO[]>([])
-  const [loading, setLoading] = useState(false)
-  const [keyword, setKeyword] = useState('')
-  const [query, setQuery] = useState('')
-  const [pageNum, setPageNum] = useState(1)
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
-  const [total, setTotal] = useState(0)
-  const [refreshKey, setRefreshKey] = useState(0)
-  const [startingId, setStartingId] = useState<number | null>(null)
-  const [deletingId, setDeletingId] = useState<number | null>(null)
+  const navigate = useNavigate();
+  const [projects, setProjects] = useState<ProjectVO[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [keyword, setKeyword] = useState("");
+  const [query, setQuery] = useState("");
+  const [pageNum, setPageNum] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [total, setTotal] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [startingId, setStartingId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
-  const hasData = projects.length > 0
-  const showPagination = total > pageSize
+  const hasData = projects.length > 0;
+  const showPagination = total > pageSize;
 
   useEffect(() => {
-    let active = true
-    setLoading(true)
+    let active = true;
+    setLoading(true);
     getProjects({
       pageNum,
       pageSize,
@@ -57,27 +57,27 @@ function ProjectsPage() {
     })
       .then((data) => {
         if (!active) {
-          return
+          return;
         }
-        setProjects(data.records || [])
-        setTotal(data.total || 0)
+        setProjects(data.records || []);
+        setTotal(data.total || 0);
       })
       .catch(() => {
         if (!active) {
-          return
+          return;
         }
       })
       .finally(() => {
         if (!active) {
-          return
+          return;
         }
-        setLoading(false)
-      })
+        setLoading(false);
+      });
 
     return () => {
-      active = false
-    }
-  }, [pageNum, pageSize, query, refreshKey])
+      active = false;
+    };
+  }, [pageNum, pageSize, query, refreshKey]);
 
   const emptyState = useMemo(
     () => (
@@ -86,67 +86,67 @@ function ProjectsPage() {
       </div>
     ),
     [],
-  )
+  );
 
   const handleSearch = (value: string) => {
-    const nextQuery = value.trim()
-    setKeyword(value)
-    setQuery(nextQuery)
-    setPageNum(1)
-  }
+    const nextQuery = value.trim();
+    setKeyword(value);
+    setQuery(nextQuery);
+    setPageNum(1);
+  };
 
   const handleKeywordChange = (value: string) => {
-    setKeyword(value)
+    setKeyword(value);
     if (!value.trim() && query) {
-      setQuery('')
-      setPageNum(1)
+      setQuery("");
+      setPageNum(1);
     }
-  }
+  };
 
   const handlePageChange = (nextPage: number, nextSize: number) => {
-    setPageNum(nextPage)
-    setPageSize(nextSize)
-  }
+    setPageNum(nextPage);
+    setPageSize(nextSize);
+  };
 
   const handleDelete = async (projectId: number) => {
-    setDeletingId(projectId)
+    setDeletingId(projectId);
     try {
-      await deleteProject(projectId)
-      message.success('项目已删除')
+      await deleteProject(projectId);
+      message.success("项目已删除");
 
       if (projects.length === 1 && pageNum > 1) {
-        setPageNum(pageNum - 1)
+        setPageNum(pageNum - 1);
       } else {
-        setRefreshKey((prev) => prev + 1)
+        setRefreshKey((prev) => prev + 1);
       }
     } catch {
       // Errors are handled by the request interceptor.
     } finally {
-      setDeletingId(null)
+      setDeletingId(null);
     }
-  }
+  };
 
   const handleStartInterview = async (projectId: number) => {
-    setStartingId(projectId)
+    setStartingId(projectId);
     try {
       const data = await createInterviewSession({
         projectId,
         targetRole: DEFAULT_TARGET_ROLE,
         difficulty: DEFAULT_DIFFICULTY,
-      })
+      });
 
       if (!data?.sessionId) {
-        message.error('创建训练失败，请稍后重试')
-        return
+        message.error("创建训练失败，请稍后重试");
+        return;
       }
 
-      navigate(`/interviews/${data.sessionId}`)
+      navigate(`/interviews/${data.sessionId}`);
     } catch {
       // Errors are handled by the request interceptor.
     } finally {
-      setStartingId(null)
+      setStartingId(null);
     }
-  }
+  };
 
   return (
     <div className="projects-page">
@@ -169,7 +169,7 @@ function ProjectsPage() {
             onSearch={handleSearch}
             enterButton="搜索"
           />
-          <Button type="primary" onClick={() => navigate('/projects/new')}>
+          <Button type="primary" onClick={() => navigate("/projects/new")}>
             新建项目
           </Button>
         </div>
@@ -200,7 +200,9 @@ function ProjectsPage() {
                   >
                     开始拷打
                   </Button>
-                  <Button onClick={() => navigate(`/projects/${project.id}/edit`)}>
+                  <Button
+                    onClick={() => navigate(`/projects/${project.id}/edit`)}
+                  >
                     编辑
                   </Button>
                   <Popconfirm
@@ -219,19 +221,19 @@ function ProjectsPage() {
                 className="project-card__description"
                 ellipsis={{ rows: 2 }}
               >
-                {project.description || '暂无项目描述'}
+                {project.description || "暂无项目描述"}
               </Typography.Paragraph>
               <div className="project-card__meta">
                 <div>
                   <span className="project-card__meta-label">技术栈</span>
                   <span className="project-card__meta-value">
-                    {project.techStack || '—'}
+                    {project.techStack || "—"}
                   </span>
                 </div>
                 <div>
                   <span className="project-card__meta-label">负责模块</span>
                   <span className="project-card__meta-value">
-                    {project.role || '—'}
+                    {project.role || "—"}
                   </span>
                 </div>
               </div>
@@ -252,7 +254,7 @@ function ProjectsPage() {
         </div>
       )}
     </div>
-  )
+  );
 }
 
-export default ProjectsPage
+export default ProjectsPage;

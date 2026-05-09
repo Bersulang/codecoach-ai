@@ -1,25 +1,25 @@
 export interface LoginRequest {
-  username: string
-  password: string
+  username: string;
+  password: string;
 }
 
 export interface AuthUser {
-  id?: number
-  username?: string
-  [key: string]: unknown
+  id?: number;
+  username?: string;
+  [key: string]: unknown;
 }
 
 export interface LoginResponse {
-  token: string
-  user: AuthUser
+  token: string;
+  user: AuthUser;
 }
 
 export interface RegisterRequest {
-  username: string
-  password: string
-  confirmPassword: string
+  username: string;
+  password: string;
+  confirmPassword: string;
 }
 
 export interface RegisterResponse {
-  userId: number
+  userId: number;
 }

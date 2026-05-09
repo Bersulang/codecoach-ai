@@ -1,24 +1,24 @@
-import request from './request'
-import type { PageResult } from '../types/api'
+import request from "./request";
+import type { PageResult } from "../types/api";
 import type {
   ProjectCreateRequest,
   ProjectCreateResponse,
   ProjectListParams,
   ProjectUpdateRequest,
   ProjectVO,
-} from '../types/project'
+} from "../types/project";
 
 export const getProjects = (params: ProjectListParams) =>
-  request.get<PageResult<ProjectVO>>('/api/projects', { params })
+  request.get<PageResult<ProjectVO>>("/api/projects", { params });
 
 export const deleteProject = (id: number) =>
-  request.delete<boolean>(`/api/projects/${id}`)
+  request.delete<boolean>(`/api/projects/${id}`);
 
 export const createProject = (payload: ProjectCreateRequest) =>
-  request.post<ProjectCreateResponse>('/api/projects', payload)
+  request.post<ProjectCreateResponse>("/api/projects", payload);
 
 export const getProjectDetail = (id: number) =>
-  request.get<ProjectVO>(`/api/projects/${id}`)
+  request.get<ProjectVO>(`/api/projects/${id}`);
 
 export const updateProject = (id: number, payload: ProjectUpdateRequest) =>
-  request.put<boolean>(`/api/projects/${id}`, payload)
+  request.put<boolean>(`/api/projects/${id}`, payload);

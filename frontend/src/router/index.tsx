@@ -1,23 +1,23 @@
-import { Navigate, createBrowserRouter } from 'react-router-dom'
-import MainLayout from '../layouts/MainLayout'
-import RequireAuth from '../components/RequireAuth'
-import PublicOnlyRoute from '../components/PublicOnlyRoute'
-import LoginPage from '../pages/Login'
-import RegisterPage from '../pages/Register'
-import ProjectsPage from '../pages/Projects'
-import ProjectFormPage from '../pages/ProjectForm'
-import InterviewPage from '../pages/Interview'
-import ReportPage from '../pages/Report'
-import HistoryPage from '../pages/History'
+import { Navigate, createBrowserRouter } from "react-router-dom";
+import MainLayout from "../layouts/MainLayout";
+import RequireAuth from "../components/RequireAuth";
+import PublicOnlyRoute from "../components/PublicOnlyRoute";
+import LoginPage from "../pages/Login";
+import RegisterPage from "../pages/Register";
+import ProjectsPage from "../pages/Projects";
+import ProjectFormPage from "../pages/ProjectForm";
+import InterviewPage from "../pages/Interview";
+import ReportPage from "../pages/Report";
+import HistoryPage from "../pages/History";
 
 function RootRedirect() {
-  const hasToken = Boolean(localStorage.getItem('token'))
-  return <Navigate to={hasToken ? '/projects' : '/login'} replace />
+  const hasToken = Boolean(localStorage.getItem("token"));
+  return <Navigate to={hasToken ? "/projects" : "/login"} replace />;
 }
 
 const router = createBrowserRouter([
   {
-    path: '/',
+    path: "/",
     children: [
       {
         index: true,
@@ -29,7 +29,7 @@ const router = createBrowserRouter([
             <LoginPage />
           </PublicOnlyRoute>
         ),
-        path: 'login',
+        path: "login",
       },
       {
         element: (
@@ -37,7 +37,7 @@ const router = createBrowserRouter([
             <RegisterPage />
           </PublicOnlyRoute>
         ),
-        path: 'register',
+        path: "register",
       },
       {
         element: (
@@ -47,37 +47,37 @@ const router = createBrowserRouter([
         ),
         children: [
           {
-            path: 'projects',
+            path: "projects",
             element: <ProjectsPage />,
           },
           {
-            path: 'projects/new',
+            path: "projects/new",
             element: <ProjectFormPage />,
           },
           {
-            path: 'projects/:id/edit',
+            path: "projects/:id/edit",
             element: <ProjectFormPage />,
           },
           {
-            path: 'interviews/:sessionId',
+            path: "interviews/:sessionId",
             element: <InterviewPage />,
           },
           {
-            path: 'reports/:reportId',
+            path: "reports/:reportId",
             element: <ReportPage />,
           },
           {
-            path: 'history',
+            path: "history",
             element: <HistoryPage />,
           },
         ],
       },
       {
-        path: '*',
+        path: "*",
         element: <Navigate to="/" replace />,
       },
     ],
   },
-])
+]);
 
-export default router
+export default router;

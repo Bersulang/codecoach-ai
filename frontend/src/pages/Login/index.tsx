@@ -1,27 +1,27 @@
-import { Button, Form, Input, Typography } from 'antd'
-import { Link, useNavigate } from 'react-router-dom'
-import { useState } from 'react'
-import { login } from '../../api/auth'
-import type { LoginRequest } from '../../types/auth'
-import '../../styles/auth.css'
+import { Button, Form, Input, Typography } from "antd";
+import { Link, useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { login } from "../../api/auth";
+import type { LoginRequest } from "../../types/auth";
+import "../../styles/auth.css";
 
 function LoginPage() {
-  const navigate = useNavigate()
-  const [loading, setLoading] = useState(false)
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
 
   const handleFinish = async (values: LoginRequest) => {
-    setLoading(true)
+    setLoading(true);
     try {
-      const data = await login(values)
-      localStorage.setItem('token', data.token)
-      localStorage.setItem('user', JSON.stringify(data.user))
-      navigate('/projects')
+      const data = await login(values);
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      navigate("/projects");
     } catch {
       // Errors are handled by the request interceptor.
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <div className="auth-page">
@@ -38,14 +38,18 @@ function LoginPage() {
           <Form.Item
             label="用户名"
             name="username"
-            rules={[{ required: true, message: '请输入用户名' }]}
+            rules={[{ required: true, message: "请输入用户名" }]}
           >
-            <Input placeholder="请输入用户名" size="large" autoComplete="username" />
+            <Input
+              placeholder="请输入用户名"
+              size="large"
+              autoComplete="username"
+            />
           </Form.Item>
           <Form.Item
             label="密码"
             name="password"
-            rules={[{ required: true, message: '请输入密码' }]}
+            rules={[{ required: true, message: "请输入密码" }]}
           >
             <Input.Password
               placeholder="请输入密码"
@@ -72,7 +76,7 @@ function LoginPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }
 
-export default LoginPage
+export default LoginPage;

@@ -1,8 +1,8 @@
-import { Layout } from 'antd'
-import { NavLink, Outlet } from 'react-router-dom'
-import './MainLayout.css'
+import { Layout } from "antd";
+import { NavLink, Outlet } from "react-router-dom";
+import "./MainLayout.css";
 
-const { Header, Content } = Layout
+const { Header, Content } = Layout;
 
 function MainLayout() {
   return (
@@ -13,7 +13,7 @@ function MainLayout() {
           <NavLink
             to="/projects"
             className={({ isActive }) =>
-              `main-layout__nav-item${isActive ? ' is-active' : ''}`
+              `main-layout__nav-item${isActive ? " is-active" : ""}`
             }
           >
             我的项目
@@ -21,7 +21,7 @@ function MainLayout() {
           <NavLink
             to="/history"
             className={({ isActive }) =>
-              `main-layout__nav-item${isActive ? ' is-active' : ''}`
+              `main-layout__nav-item${isActive ? " is-active" : ""}`
             }
           >
             训练历史
@@ -32,7 +32,7 @@ function MainLayout() {
         <Outlet />
       </Content>
     </Layout>
-  )
+  );
 }
 
-export default MainLayout
+export default MainLayout;

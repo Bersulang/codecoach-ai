@@ -33,7 +33,9 @@
   text-decoration: none;
   color: #6b7280;
   font-size: 14px;
-  transition: background 0.2s ease, color 0.2s ease;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
 }
 
 .main-layout__nav-item:hover {
