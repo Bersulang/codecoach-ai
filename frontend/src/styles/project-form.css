@@ -1,0 +1,42 @@
+.project-form-page {
+  max-width: 820px;
+  margin: 0 auto;
+}
+
+.project-form-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 20px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+}
+
+.project-form-card .ant-card-body {
+  padding: 32px;
+}
+
+.project-form-header {
+  margin-bottom: 24px;
+}
+
+.project-form-title {
+  margin: 0 0 6px 0;
+  font-weight: 500;
+  color: #111827;
+}
+
+.project-form-subtitle {
+  color: #6b7280;
+}
+
+.project-form .ant-form-item {
+  margin-bottom: 18px;
+}
+
+.project-form-actions {
+  margin-top: 8px;
+}
+
+@media (max-width: 768px) {
+  .project-form-card .ant-card-body {
+    padding: 24px;
+  }
+}

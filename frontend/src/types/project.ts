@@ -15,3 +15,18 @@ export interface ProjectListParams {
   pageSize?: number
   keyword?: string
 }
+
+export interface ProjectCreateRequest {
+  name: string
+  description: string
+  techStack: string
+  role?: string
+  highlights?: string
+  difficulties?: string
+}
+
+export interface ProjectUpdateRequest extends ProjectCreateRequest {}
+
+export interface ProjectCreateResponse {
+  projectId: number
+}
