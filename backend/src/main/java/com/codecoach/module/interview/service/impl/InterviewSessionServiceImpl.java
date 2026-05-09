@@ -1,7 +1,9 @@
 package com.codecoach.module.interview.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.codecoach.common.exception.BusinessException;
+import com.codecoach.common.result.PageResult;
 import com.codecoach.common.result.ResultCode;
 import com.codecoach.module.ai.dto.InterviewContext;
 import com.codecoach.module.ai.service.AiInterviewService;
@@ -9,6 +11,7 @@ import com.codecoach.module.ai.vo.FeedbackAndQuestionResult;
 import com.codecoach.module.ai.vo.ReportGenerateResult;
 import com.codecoach.module.interview.dto.InterviewAnswerRequest;
 import com.codecoach.module.interview.dto.InterviewSessionCreateRequest;
+import com.codecoach.module.interview.dto.InterviewSessionPageRequest;
 import com.codecoach.module.interview.entity.InterviewMessage;
 import com.codecoach.module.interview.entity.InterviewSession;
 import com.codecoach.module.interview.mapper.InterviewMessageMapper;
@@ -19,6 +22,7 @@ import com.codecoach.module.interview.vo.InterviewFinishResponse;
 import com.codecoach.module.interview.vo.InterviewMessageVO;
 import com.codecoach.module.interview.vo.InterviewSessionCreateResponse;
 import com.codecoach.module.interview.vo.InterviewSessionDetailVO;
+import com.codecoach.module.interview.vo.InterviewSessionHistoryVO;
 import com.codecoach.module.project.entity.Project;
 import com.codecoach.module.project.mapper.ProjectMapper;
 import com.codecoach.module.report.entity.InterviewReport;
@@ -28,7 +32,12 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -69,6 +78,12 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
     private static final int NOT_DELETED = 0;
 
     private static final int DELETED = 1;
+
+    private static final long DEFAULT_PAGE_NUM = 1L;
+
+    private static final long DEFAULT_PAGE_SIZE = 10L;
+
+    private static final long MAX_PAGE_SIZE = 100L;
 
     private final InterviewSessionMapper interviewSessionMapper;
 
@@ -135,6 +150,30 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         interviewMessageMapper.insert(message);
 
         return new InterviewSessionCreateResponse(session.getId(), toInterviewMessageVO(message));
+    }
+
+    @Override
+    public PageResult<InterviewSessionHistoryVO> pageSessions(InterviewSessionPageRequest request) {
+        Long currentUserId = UserContext.getCurrentUserId();
+        long pageNum = normalizePageNum(request.getPageNum());
+        long pageSize = normalizePageSize(request.getPageSize());
+
+        LambdaQueryWrapper<InterviewSession> queryWrapper = new LambdaQueryWrapper<InterviewSession>()
+                .eq(InterviewSession::getUserId, currentUserId)
+                .eq(InterviewSession::getIsDeleted, NOT_DELETED)
+                .eq(request.getProjectId() != null, InterviewSession::getProjectId, request.getProjectId())
+                .eq(StringUtils.hasText(request.getStatus()), InterviewSession::getStatus, request.getStatus())
+                .orderByDesc(InterviewSession::getCreatedAt);
+
+        Page<InterviewSession> page = interviewSessionMapper.selectPage(new Page<>(pageNum, pageSize), queryWrapper);
+        List<InterviewSession> sessions = page.getRecords();
+        Map<Long, String> projectNameMap = getProjectNameMap(sessions);
+        Map<Long, Long> reportIdMap = getReportIdMap(sessions);
+        List<InterviewSessionHistoryVO> records = sessions.stream()
+                .map(session -> toInterviewSessionHistoryVO(session, projectNameMap, reportIdMap))
+                .toList();
+
+        return new PageResult<>(records, page.getTotal(), page.getCurrent(), page.getSize(), page.getPages());
     }
 
     @Override
@@ -396,6 +435,67 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
                 .eq(InterviewReport::getSessionId, sessionId)
                 .last("LIMIT 1");
         return interviewReportMapper.selectOne(queryWrapper);
+    }
+
+    private Map<Long, String> getProjectNameMap(List<InterviewSession> sessions) {
+        Set<Long> projectIds = sessions.stream()
+                .map(InterviewSession::getProjectId)
+                .collect(Collectors.toSet());
+        if (projectIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        return projectMapper.selectBatchIds(projectIds).stream()
+                .collect(Collectors.toMap(Project::getId, Project::getName));
+    }
+
+    private Map<Long, Long> getReportIdMap(List<InterviewSession> sessions) {
+        Set<Long> sessionIds = sessions.stream()
+                .map(InterviewSession::getId)
+                .collect(Collectors.toSet());
+        if (sessionIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        LambdaQueryWrapper<InterviewReport> queryWrapper = new LambdaQueryWrapper<InterviewReport>()
+                .in(InterviewReport::getSessionId, sessionIds);
+        return interviewReportMapper.selectList(queryWrapper).stream()
+                .collect(Collectors.toMap(InterviewReport::getSessionId, InterviewReport::getId));
+    }
+
+    private InterviewSessionHistoryVO toInterviewSessionHistoryVO(
+            InterviewSession session,
+            Map<Long, String> projectNameMap,
+            Map<Long, Long> reportIdMap
+    ) {
+        return new InterviewSessionHistoryVO(
+                session.getId(),
+                session.getProjectId(),
+                projectNameMap.get(session.getProjectId()),
+                session.getTargetRole(),
+                session.getDifficulty(),
+                session.getStatus(),
+                session.getCurrentRound(),
+                session.getMaxRound(),
+                session.getTotalScore(),
+                reportIdMap.get(session.getId()),
+                session.getCreatedAt(),
+                session.getEndedAt()
+        );
+    }
+
+    private long normalizePageNum(Long pageNum) {
+        if (pageNum == null || pageNum < DEFAULT_PAGE_NUM) {
+            return DEFAULT_PAGE_NUM;
+        }
+        return pageNum;
+    }
+
+    private long normalizePageSize(Long pageSize) {
+        if (pageSize == null || pageSize < 1) {
+            return DEFAULT_PAGE_SIZE;
+        }
+        return Math.min(pageSize, MAX_PAGE_SIZE);
     }
 
     private String toJson(Object value) {

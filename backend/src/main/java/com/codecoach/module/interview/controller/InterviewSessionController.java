@@ -1,11 +1,14 @@
 package com.codecoach.module.interview.controller;
 
+import com.codecoach.common.result.PageResult;
 import com.codecoach.common.result.Result;
 import com.codecoach.module.interview.dto.InterviewAnswerRequest;
+import com.codecoach.module.interview.dto.InterviewSessionPageRequest;
 import com.codecoach.module.interview.dto.InterviewSessionCreateRequest;
 import com.codecoach.module.interview.service.InterviewSessionService;
 import com.codecoach.module.interview.vo.InterviewAnswerResponse;
 import com.codecoach.module.interview.vo.InterviewFinishResponse;
+import com.codecoach.module.interview.vo.InterviewSessionHistoryVO;
 import com.codecoach.module.interview.vo.InterviewSessionCreateResponse;
 import com.codecoach.module.interview.vo.InterviewSessionDetailVO;
 import jakarta.validation.Valid;
@@ -31,6 +34,11 @@ public class InterviewSessionController {
             @Valid @RequestBody InterviewSessionCreateRequest request
     ) {
         return Result.success(interviewSessionService.createSession(request));
+    }
+
+    @GetMapping
+    public Result<PageResult<InterviewSessionHistoryVO>> pageSessions(InterviewSessionPageRequest request) {
+        return Result.success(interviewSessionService.pageSessions(request));
     }
 
     @GetMapping("/{sessionId}")
