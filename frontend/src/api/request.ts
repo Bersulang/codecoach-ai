@@ -1,10 +1,11 @@
 import axios, { AxiosError } from 'axios'
+import type { AxiosRequestConfig } from 'axios'
 import { message } from 'antd'
 import type { Result } from '../types/api'
 
 const DEFAULT_BASE_URL = 'http://localhost:8080'
 
-const request = axios.create({
+const instance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || DEFAULT_BASE_URL,
   timeout: 10000,
   headers: {
@@ -39,7 +40,7 @@ function isResultPayload(data: unknown): data is Result<unknown> {
   )
 }
 
-request.interceptors.request.use((config) => {
+instance.interceptors.request.use((config) => {
   const token = localStorage.getItem('token')
   if (token) {
     config.headers = config.headers || {}
@@ -48,7 +49,7 @@ request.interceptors.request.use((config) => {
   return config
 })
 
-request.interceptors.response.use(
+instance.interceptors.response.use(
   (response) => {
     const payload = response.data
 
@@ -86,5 +87,26 @@ request.interceptors.response.use(
     return Promise.reject(error)
   },
 )
+
+const request = {
+  get: <T = unknown, D = unknown>(
+    url: string,
+    config?: AxiosRequestConfig<D>,
+  ) => instance.get<T, T, D>(url, config),
+  delete: <T = unknown, D = unknown>(
+    url: string,
+    config?: AxiosRequestConfig<D>,
+  ) => instance.delete<T, T, D>(url, config),
+  post: <T = unknown, D = unknown>(
+    url: string,
+    data?: D,
+    config?: AxiosRequestConfig<D>,
+  ) => instance.post<T, T, D>(url, data, config),
+  put: <T = unknown, D = unknown>(
+    url: string,
+    data?: D,
+    config?: AxiosRequestConfig<D>,
+  ) => instance.put<T, T, D>(url, data, config),
+}
 
 export default request
