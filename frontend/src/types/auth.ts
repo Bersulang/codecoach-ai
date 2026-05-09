@@ -6,8 +6,13 @@ export interface LoginRequest {
 export interface AuthUser {
   id?: number;
   username?: string;
+  nickname?: string;
+  avatarUrl?: string;
+  role?: string;
   [key: string]: unknown;
 }
+
+export interface CurrentUser extends AuthUser {}
 
 export interface LoginResponse {
   token: string;

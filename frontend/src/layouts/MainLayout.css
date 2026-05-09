@@ -22,6 +22,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  margin-right: auto;
 }
 
 .main-layout__nav-item {
@@ -47,6 +48,16 @@
   background: #f3f4f6;
   color: #111827;
   font-weight: 500;
+}
+
+.main-layout__user {
+  display: flex;
+  align-items: center;
+}
+
+.main-layout__username {
+  color: #374151;
+  font-size: 14px;
 }
 
 .main-layout__content {

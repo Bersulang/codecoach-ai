@@ -1,5 +1,6 @@
 import request from "./request";
 import type {
+  CurrentUser,
   LoginRequest,
   LoginResponse,
   RegisterRequest,
@@ -11,3 +12,5 @@ export const login = (payload: LoginRequest) =>
 
 export const register = (payload: RegisterRequest) =>
   request.post<RegisterResponse>("/api/auth/register", payload);
+
+export const getCurrentUser = () => request.get<CurrentUser>("/api/users/me");
