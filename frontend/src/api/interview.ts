@@ -1,10 +1,13 @@
 import request from './request'
+import type { PageResult } from '../types/api'
 import type {
   AnswerRequest,
   AnswerResponse,
   CreateInterviewSessionRequest,
   CreateInterviewSessionResponse,
   FinishResponse,
+  InterviewSessionHistoryItem,
+  InterviewSessionPageParams,
   InterviewSessionDetail,
 } from '../types/interview'
 
@@ -26,3 +29,9 @@ export const submitInterviewAnswer = (
 
 export const finishInterview = (sessionId: number | string) =>
   request.post<FinishResponse>(`/api/interview-sessions/${sessionId}/finish`)
+
+export const getInterviewSessions = (params: InterviewSessionPageParams) =>
+  request.get<PageResult<InterviewSessionHistoryItem>>(
+    '/api/interview-sessions',
+    { params },
+  )

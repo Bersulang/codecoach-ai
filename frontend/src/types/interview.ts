@@ -42,9 +42,9 @@ export interface AnswerRequest {
 }
 
 export interface AnswerResponse {
-  userAnswer: string
-  aiFeedback: string
-  nextQuestion?: string | null
+  userAnswer: InterviewMessage | string
+  aiFeedback: InterviewMessage | string
+  nextQuestion?: InterviewMessage | string | null
   finished?: boolean
 }
 
@@ -52,4 +52,28 @@ export interface FinishResponse {
   reportId: number
   sessionId: number
   totalScore?: number
+}
+
+export type InterviewStatus = 'IN_PROGRESS' | 'FINISHED' | 'FAILED'
+
+export interface InterviewSessionHistoryItem {
+  id: number
+  projectId: number
+  projectName: string
+  targetRole: string
+  difficulty: string
+  status: InterviewStatus
+  currentRound: number
+  maxRound: number
+  totalScore?: number | null
+  reportId?: number | null
+  createdAt?: string
+  endedAt?: string | null
+}
+
+export interface InterviewSessionPageParams {
+  projectId?: number
+  status?: InterviewStatus
+  pageNum?: number
+  pageSize?: number
 }

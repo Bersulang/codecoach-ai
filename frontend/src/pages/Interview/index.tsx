@@ -37,8 +37,42 @@ const MESSAGE_TYPE_LABELS: Record<InterviewMessageType, string> = {
 function normalizeMessages(messages: InterviewMessage[]) {
   return messages.map((message, index) => ({
     ...message,
+    content:
+      typeof message.content === 'string'
+        ? message.content
+        : String(message.content ?? ''),
     messageId: message.messageId ?? message.id ?? `msg-${index}`,
   }))
+}
+
+function buildMessage(
+  raw: InterviewMessage | string | null | undefined,
+  fallbackType: InterviewMessageType,
+  fallbackId: string,
+  roundNo?: number,
+): InterviewMessage | null {
+  if (!raw) {
+    return null
+  }
+
+  if (typeof raw === 'string') {
+    return {
+      messageId: fallbackId,
+      messageType: fallbackType,
+      content: raw,
+      roundNo,
+    }
+  }
+
+  return {
+    messageId: raw.messageId ?? raw.id ?? fallbackId,
+    messageType: raw.messageType ?? fallbackType,
+    content:
+      typeof raw.content === 'string' ? raw.content : String(raw.content ?? ''),
+    roundNo: raw.roundNo ?? roundNo,
+    createdAt: raw.createdAt,
+    role: raw.role,
+  }
 }
 
 function formatStatus(status?: string) {
@@ -119,29 +153,34 @@ function InterviewPage() {
     setMessages((prev) => {
       const next = [...prev]
       const baseRound = detail?.currentRound ?? 0
-      if (payload.userAnswer) {
-        next.push({
-          messageId: `user-${Date.now()}`,
-          messageType: 'USER_ANSWER',
-          content: payload.userAnswer,
-          roundNo: baseRound,
-        })
+      const userMessage = buildMessage(
+        payload.userAnswer,
+        'USER_ANSWER',
+        `user-${Date.now()}`,
+        baseRound,
+      )
+      if (userMessage) {
+        next.push(userMessage)
       }
-      if (payload.aiFeedback) {
-        next.push({
-          messageId: `feedback-${Date.now()}`,
-          messageType: 'AI_FEEDBACK',
-          content: payload.aiFeedback,
-          roundNo: baseRound,
-        })
+
+      const feedbackMessage = buildMessage(
+        payload.aiFeedback,
+        'AI_FEEDBACK',
+        `feedback-${Date.now()}`,
+        baseRound,
+      )
+      if (feedbackMessage) {
+        next.push(feedbackMessage)
       }
-      if (payload.nextQuestion) {
-        next.push({
-          messageId: `question-${Date.now()}`,
-          messageType: 'AI_FOLLOW_UP',
-          content: payload.nextQuestion,
-          roundNo: baseRound + 1,
-        })
+
+      const questionMessage = buildMessage(
+        payload.nextQuestion,
+        'AI_FOLLOW_UP',
+        `question-${Date.now()}`,
+        baseRound + 1,
+      )
+      if (questionMessage) {
+        next.push(questionMessage)
       }
       return next
     })
@@ -300,9 +339,11 @@ function InterviewPage() {
             <Empty description="暂无训练消息" />
           </div>
         ) : (
-          messages.map((messageItem) => (
+          messages.map((messageItem, index) => (
             <div
-              key={String(messageItem.messageId)}
+              key={String(
+                messageItem.messageId ?? messageItem.id ?? `msg-${index}`,
+              )}
               className={getMessageClass(messageItem.messageType)}
             >
               <div className="interview-message__header">
