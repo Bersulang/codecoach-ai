@@ -3,6 +3,7 @@ package com.codecoach.module.question.service;
 import com.codecoach.module.question.dto.QuestionSessionCreateRequest;
 import com.codecoach.module.question.dto.QuestionAnswerRequest;
 import com.codecoach.module.question.vo.QuestionAnswerResponse;
+import com.codecoach.module.question.vo.QuestionFinishResponse;
 import com.codecoach.module.question.vo.QuestionSessionCreateResponse;
 import com.codecoach.module.question.vo.QuestionSessionDetailVO;
 
@@ -13,4 +14,6 @@ public interface QuestionSessionService {
     QuestionSessionDetailVO getSessionDetail(Long sessionId);
 
     QuestionAnswerResponse submitAnswer(Long sessionId, QuestionAnswerRequest request);
+
+    QuestionFinishResponse finishSession(Long sessionId);
 }

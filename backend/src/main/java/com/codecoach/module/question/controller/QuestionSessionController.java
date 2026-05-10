@@ -5,6 +5,7 @@ import com.codecoach.module.question.dto.QuestionAnswerRequest;
 import com.codecoach.module.question.dto.QuestionSessionCreateRequest;
 import com.codecoach.module.question.service.QuestionSessionService;
 import com.codecoach.module.question.vo.QuestionAnswerResponse;
+import com.codecoach.module.question.vo.QuestionFinishResponse;
 import com.codecoach.module.question.vo.QuestionSessionCreateResponse;
 import com.codecoach.module.question.vo.QuestionSessionDetailVO;
 import jakarta.validation.Valid;
@@ -43,5 +44,10 @@ public class QuestionSessionController {
             @Valid @RequestBody QuestionAnswerRequest request
     ) {
         return Result.success(questionSessionService.submitAnswer(sessionId, request));
+    }
+
+    @PostMapping("/{sessionId}/finish")
+    public Result<QuestionFinishResponse> finishSession(@PathVariable Long sessionId) {
+        return Result.success(questionSessionService.finishSession(sessionId));
     }
 }

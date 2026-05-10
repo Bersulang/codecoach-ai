@@ -19,6 +19,7 @@ import com.codecoach.module.question.mapper.QuestionTrainingReportMapper;
 import com.codecoach.module.question.mapper.QuestionTrainingSessionMapper;
 import com.codecoach.module.question.service.QuestionSessionService;
 import com.codecoach.module.question.vo.QuestionAnswerResponse;
+import com.codecoach.module.question.vo.QuestionFinishResponse;
 import com.codecoach.module.question.vo.QuestionMessageVO;
 import com.codecoach.module.question.vo.QuestionSessionCreateResponse;
 import com.codecoach.module.question.vo.QuestionSessionDetailVO;
@@ -345,6 +346,34 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
                 report == null ? null : report.getId(),
                 report == null ? null : report.getTotalScore()
         );
+    }
+
+    @Override
+    @Transactional
+    public QuestionFinishResponse finishSession(Long sessionId) {
+        Long currentUserId = UserContext.getCurrentUserId();
+        QuestionTrainingSession session = questionTrainingSessionMapper.selectById(sessionId);
+        if (session == null || Integer.valueOf(DELETED).equals(session.getIsDeleted())) {
+            throw new BusinessException(SESSION_NOT_FOUND_CODE, "八股训练会话不存在");
+        }
+        if (!currentUserId.equals(session.getUserId())) {
+            throw new BusinessException(ResultCode.FORBIDDEN);
+        }
+
+        QuestionTrainingReport existingReport = getReportBySessionId(sessionId);
+        if (existingReport != null) {
+            session.setStatus(STATUS_FINISHED);
+            session.setEndedAt(session.getEndedAt() == null ? LocalDateTime.now() : session.getEndedAt());
+            session.setTotalScore(existingReport.getTotalScore());
+            session.setCurrentRound(session.getMaxRound());
+            questionTrainingSessionMapper.updateById(session);
+            return new QuestionFinishResponse(existingReport.getId(), sessionId, existingReport.getTotalScore());
+        }
+
+        KnowledgeTopic topic = knowledgeTopicMapper.selectById(session.getTopicId());
+        List<QuestionTrainingMessage> messages = listSessionMessages(sessionId);
+        QuestionTrainingReport report = finishSessionWithReport(session, topic, messages, LocalDateTime.now());
+        return new QuestionFinishResponse(report.getId(), sessionId, report.getTotalScore());
     }
 
     private QuestionPracticeContext buildQuestionPracticeContext(
