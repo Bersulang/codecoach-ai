@@ -1,6 +1,9 @@
 package com.codecoach.module.ai.support;
 
 import com.codecoach.common.exception.BusinessException;
+import com.codecoach.module.ai.model.QuestionFeedbackResult;
+import com.codecoach.module.ai.model.QuestionQaReviewItem;
+import com.codecoach.module.ai.model.QuestionReportGenerateResult;
 import com.codecoach.module.ai.vo.FeedbackAndQuestionResult;
 import com.codecoach.module.ai.vo.ReportGenerateResult;
 import java.util.ArrayList;
@@ -55,6 +58,50 @@ public class AiResponseValidator {
         result.setQaReview(validItems);
     }
 
+    public void validateQuestionFeedbackAndNextQuestion(QuestionFeedbackResult result) {
+        validateQuestionFeedbackOnly(result);
+        if (!StringUtils.hasText(result.getNextQuestion())) {
+            throw aiCallFailed();
+        }
+    }
+
+    public void validateQuestionFeedbackOnly(QuestionFeedbackResult result) {
+        if (result == null
+                || !StringUtils.hasText(result.getFeedback())
+                || !StringUtils.hasText(result.getReferenceAnswer())
+                || result.getScore() == null
+                || result.getScore() < MIN_SCORE
+                || result.getScore() > MAX_SCORE) {
+            throw aiCallFailed();
+        }
+    }
+
+    public void validateQuestionReport(QuestionReportGenerateResult result) {
+        if (result == null
+                || result.getTotalScore() == null
+                || result.getTotalScore() < MIN_SCORE
+                || result.getTotalScore() > MAX_SCORE
+                || !StringUtils.hasText(result.getSummary())
+                || isEmpty(result.getStrengths())
+                || isEmpty(result.getWeaknesses())
+                || isEmpty(result.getSuggestions())) {
+            throw aiCallFailed();
+        }
+
+        if (result.getKnowledgeGaps() == null) {
+            result.setKnowledgeGaps(new ArrayList<>());
+        }
+        if (result.getQaReview() == null) {
+            result.setQaReview(new ArrayList<>());
+            return;
+        }
+
+        List<QuestionQaReviewItem> validItems = result.getQaReview().stream()
+                .filter(this::isValidQuestionQaReviewItem)
+                .toList();
+        result.setQaReview(validItems);
+    }
+
     private boolean isEmpty(List<String> values) {
         if (values == null || values.isEmpty()) {
             return true;
@@ -66,6 +113,14 @@ public class AiResponseValidator {
         return item != null
                 && StringUtils.hasText(item.getQuestion())
                 && StringUtils.hasText(item.getAnswer())
+                && StringUtils.hasText(item.getFeedback());
+    }
+
+    private boolean isValidQuestionQaReviewItem(QuestionQaReviewItem item) {
+        return item != null
+                && StringUtils.hasText(item.getQuestion())
+                && StringUtils.hasText(item.getAnswer())
+                && StringUtils.hasText(item.getReferenceAnswer())
                 && StringUtils.hasText(item.getFeedback());
     }
 
