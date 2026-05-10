@@ -5,11 +5,11 @@ import com.codecoach.module.ai.config.AiProperties;
 import com.codecoach.module.ai.dto.InterviewContext;
 import com.codecoach.module.ai.service.AiInterviewService;
 import com.codecoach.module.ai.service.PromptTemplateService;
+import com.codecoach.module.ai.support.AiJsonParser;
+import com.codecoach.module.ai.support.AiResponseValidator;
 import com.codecoach.module.ai.vo.FeedbackAndQuestionResult;
 import com.codecoach.module.ai.vo.ReportGenerateResult;
 import com.codecoach.module.project.entity.Project;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -47,20 +47,24 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
 
     private final AiProperties aiProperties;
 
-    private final ObjectMapper objectMapper;
-
     private final PromptTemplateService promptTemplateService;
+
+    private final AiJsonParser aiJsonParser;
+
+    private final AiResponseValidator aiResponseValidator;
 
     private final RestClient restClient;
 
     public OpenAiCompatibleAiInterviewServiceImpl(
             AiProperties aiProperties,
-            ObjectMapper objectMapper,
-            PromptTemplateService promptTemplateService
+            PromptTemplateService promptTemplateService,
+            AiJsonParser aiJsonParser,
+            AiResponseValidator aiResponseValidator
     ) {
         this.aiProperties = aiProperties;
-        this.objectMapper = objectMapper;
         this.promptTemplateService = promptTemplateService;
+        this.aiJsonParser = aiJsonParser;
+        this.aiResponseValidator = aiResponseValidator;
 
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         Duration timeout = Duration.ofSeconds(resolveTimeoutSeconds(aiProperties));
@@ -91,10 +95,8 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
         );
 
         String content = chat(List.of(systemMessage(), userMessage(prompt)), 0.7);
-        FeedbackAndQuestionResult result = parseJson(content, FeedbackAndQuestionResult.class);
-        if (!StringUtils.hasText(result.getFeedback()) || !StringUtils.hasText(result.getNextQuestion())) {
-            throw aiCallFailed("AI feedback result is incomplete", null);
-        }
+        FeedbackAndQuestionResult result = aiJsonParser.parseObject(content, FeedbackAndQuestionResult.class);
+        aiResponseValidator.validateFeedbackAndNextQuestion(result);
         return result;
     }
 
@@ -103,8 +105,8 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
         String prompt = promptTemplateService.render(REPORT_TEMPLATE, buildContextVariables(context));
 
         String content = chat(List.of(systemMessage(), userMessage(prompt)), 0.7);
-        ReportGenerateResult result = parseJson(content, ReportGenerateResult.class);
-        validateReport(result);
+        ReportGenerateResult result = aiJsonParser.parseObject(content, ReportGenerateResult.class);
+        aiResponseValidator.validateReport(result);
         return result;
     }
 
@@ -147,26 +149,6 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
             throw aiCallFailed("AI response content is empty", null);
         }
         return choice.getMessage().getContent().trim();
-    }
-
-    private <T> T parseJson(String content, Class<T> clazz) {
-        try {
-            return objectMapper.readValue(normalizeJsonContent(content), clazz);
-        } catch (JsonProcessingException ex) {
-            throw aiCallFailed("AI response JSON parse failed", ex);
-        }
-    }
-
-    private void validateReport(ReportGenerateResult result) {
-        if (result == null
-                || result.getTotalScore() == null
-                || !StringUtils.hasText(result.getSummary())
-                || result.getStrengths() == null
-                || result.getWeaknesses() == null
-                || result.getSuggestions() == null
-                || result.getQaReview() == null) {
-            throw aiCallFailed("AI report result is incomplete", null);
-        }
     }
 
     private BusinessException aiCallFailed(String reason, Exception ex) {
@@ -255,24 +237,6 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
             ));
         }
         return String.join("\n", items);
-    }
-
-    private String normalizeJsonContent(String content) {
-        if (!StringUtils.hasText(content)) {
-            throw aiCallFailed("AI JSON response is empty", null);
-        }
-
-        String trimmed = content.trim();
-        if (trimmed.startsWith("```")) {
-            int firstLineEnd = trimmed.indexOf('\n');
-            if (firstLineEnd >= 0) {
-                trimmed = trimmed.substring(firstLineEnd + 1).trim();
-            }
-            if (trimmed.endsWith("```")) {
-                trimmed = trimmed.substring(0, trimmed.length() - 3).trim();
-            }
-        }
-        return trimmed;
     }
 
     private String projectValue(String value) {
