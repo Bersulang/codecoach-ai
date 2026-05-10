@@ -1,7 +1,5 @@
 import {
   Button,
-  Card,
-  Empty,
   Input,
   Popconfirm,
   Result,
@@ -17,6 +15,10 @@ import {
   getInterviewSession,
   submitInterviewAnswer,
 } from "../../api/interview";
+import EmptyState from "../../components/EmptyState";
+import PageHeader from "../../components/PageHeader";
+import PageShell from "../../components/PageShell";
+import SurfaceCard from "../../components/SurfaceCard";
 import type {
   AnswerResponse,
   InterviewMessage,
@@ -90,15 +92,15 @@ function formatStatus(status?: string) {
 
 function getMessageClass(type: InterviewMessageType) {
   if (type === "USER_ANSWER") {
-    return "interview-message interview-message--user";
+    return "interview-message is-user";
   }
   if (type === "AI_FEEDBACK") {
-    return "interview-message interview-message--feedback";
+    return "interview-message is-feedback";
   }
   if (type === "AI_FOLLOW_UP") {
-    return "interview-message interview-message--followup";
+    return "interview-message is-followup";
   }
-  return "interview-message interview-message--question";
+  return "interview-message is-question";
 }
 
 function InterviewPage() {
@@ -265,7 +267,7 @@ function InterviewPage() {
 
   if (!sessionId || (Number.isNaN(Number(sessionId)) && !sessionId)) {
     return (
-      <div className="interview-page">
+      <PageShell className="interview-page">
         <Result
           status="error"
           title="训练会话不存在"
@@ -276,13 +278,13 @@ function InterviewPage() {
             </Button>
           }
         />
-      </div>
+      </PageShell>
     );
   }
 
   if (loadError) {
     return (
-      <div className="interview-page">
+      <PageShell className="interview-page">
         <Result
           status="error"
           title="训练会话加载失败"
@@ -293,59 +295,57 @@ function InterviewPage() {
             </Button>
           }
         />
-      </div>
+      </PageShell>
     );
   }
 
   const trimmedAnswer = answer.trim();
 
   return (
-    <div className="interview-page">
-      <div className="interview-header">
-        <div>
-          <Typography.Title level={3} className="interview-title">
-            项目拷打训练
-          </Typography.Title>
-          <Typography.Text className="interview-subtitle">
-            回答问题，获取针对性的追问与反馈
-          </Typography.Text>
-        </div>
-        <Space>
-          <Tag color={isFinished ? "default" : "blue"}>
-            {formatStatus(detail?.status)}
-          </Tag>
-          <Popconfirm
-            title="确认结束训练吗？"
-            okText="结束"
-            cancelText="取消"
-            onConfirm={handleFinish}
-            disabled={finishing}
-          >
-            <Button danger loading={finishing} disabled={!detail || isFinished}>
-              结束训练
-            </Button>
-          </Popconfirm>
-        </Space>
-      </div>
+    <PageShell className="interview-page">
+      <PageHeader
+        title="Interview Studio"
+        description="沉浸式 AI 项目训练室，逐轮提升表达与思维。"
+        actions={
+          <Space>
+            <Tag color={isFinished ? "default" : "blue"}>
+              {formatStatus(detail?.status)}
+            </Tag>
+            <Popconfirm
+              title="确认结束训练吗？"
+              okText="结束"
+              cancelText="取消"
+              onConfirm={handleFinish}
+              disabled={finishing}
+            >
+              <Button
+                danger
+                loading={finishing}
+                disabled={!detail || isFinished}
+              >
+                结束训练
+              </Button>
+            </Popconfirm>
+          </Space>
+        }
+      />
 
-      <Card className="interview-meta-card" loading={loading}>
-        <div className="interview-meta">
+      <SurfaceCard className="interview-summary" loading={loading}>
+        <div className="interview-summary__grid">
           {metaItems.map((item) => (
             <div key={item.label}>
-              <span className="interview-meta-label">{item.label}</span>
-              <span className="interview-meta-value">{item.value}</span>
+              <span className="interview-summary__label">{item.label}</span>
+              <div className="interview-summary__value">{item.value}</div>
             </div>
           ))}
         </div>
-      </Card>
+      </SurfaceCard>
 
-      <div className="interview-messages">
+      <div className="interview-thread">
         {loading ? (
-          <Card className="interview-message" loading />
+          <SurfaceCard className="interview-message" loading />
         ) : messages.length === 0 ? (
-          <div className="interview-empty">
-            <Empty description="暂无训练消息" />
-          </div>
+          <EmptyState description="暂无训练消息" />
         ) : (
           messages.map((messageItem, index) => (
             <div
@@ -354,12 +354,12 @@ function InterviewPage() {
               )}
               className={getMessageClass(messageItem.messageType)}
             >
-              <div className="interview-message__header">
+              <div className="interview-message__meta">
                 <span className="interview-message__type">
                   {MESSAGE_TYPE_LABELS[messageItem.messageType]}
                 </span>
                 {messageItem.roundNo ? (
-                  <span className="interview-message__type">
+                  <span className="interview-message__round">
                     第 {messageItem.roundNo} 轮
                   </span>
                 ) : null}
@@ -372,26 +372,27 @@ function InterviewPage() {
         )}
       </div>
 
-      <Card className="interview-answer-card" bordered={false}>
-        <Typography.Text className="interview-status">
-          {isFinished
-            ? "训练已结束，你可以查看报告或返回项目列表。"
-            : "请输入你的回答，AI 将生成反馈与下一道问题。"}
-        </Typography.Text>
-        {!isFinished ? (
-          <Typography.Text className="interview-status-hint">
-            AI 回复可能需要数秒，请勿关闭页面
+      <SurfaceCard className="interview-composer" bordered={false}>
+        <div className="interview-composer__header">
+          <Typography.Text className="interview-status">
+            {isFinished
+              ? "训练已结束，你可以查看报告或返回项目列表。"
+              : "请输入你的回答，AI 将生成反馈与下一道问题。"}
           </Typography.Text>
-        ) : null}
+          {!isFinished ? (
+            <Typography.Text className="interview-status-hint">
+              AI 回复可能需要数秒，请勿关闭页面
+            </Typography.Text>
+          ) : null}
+        </div>
         <TextArea
           value={answer}
           onChange={(event) => setAnswer(event.target.value)}
-          rows={4}
+          autoSize={{ minRows: 3, maxRows: 6 }}
           placeholder="请填写你的回答"
           disabled={isFinished || loading || sending}
-          style={{ marginTop: 12 }}
         />
-        <div className="interview-answer-actions">
+        <div className="interview-composer__footer">
           <Space>
             <Button
               type="primary"
@@ -413,8 +414,8 @@ function InterviewPage() {
             </span>
           ) : null}
         </div>
-      </Card>
-    </div>
+      </SurfaceCard>
+    </PageShell>
   );
 }
 

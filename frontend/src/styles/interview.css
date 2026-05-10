@@ -1,146 +1,128 @@
 .interview-page {
-  max-width: 1080px;
-  margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--cc-space-5);
 }
 
-.interview-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-  flex-wrap: wrap;
+.interview-summary {
+  border: 1px solid var(--cc-border);
+  border-radius: var(--cc-radius-lg);
+  box-shadow: var(--cc-shadow-sm);
 }
 
-.interview-title {
-  margin: 0;
-  font-weight: 500;
-  color: #111827;
-}
-
-.interview-subtitle {
-  color: #6b7280;
-}
-
-.interview-meta {
+.interview-summary__grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
+  gap: var(--cc-space-4);
 }
 
-.interview-meta-card {
-  border: 1px solid #e5e7eb;
-  border-radius: 18px;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
-}
-
-.interview-meta-card .ant-card-body {
-  padding: 20px;
-}
-
-.interview-meta-label {
+.interview-summary__label {
   display: block;
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #94a3b8;
+  color: var(--cc-text-muted);
   margin-bottom: 4px;
 }
 
-.interview-meta-value {
-  color: #475569;
+.interview-summary__value {
+  color: var(--cc-text-primary);
   font-size: 15px;
 }
 
-.interview-messages {
+.interview-thread {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--cc-space-3);
 }
 
 .interview-message {
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--cc-border);
   border-radius: 16px;
-  background: #ffffff;
+  background: var(--cc-surface);
   padding: 16px 18px;
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
+  box-shadow: var(--cc-shadow-sm);
+  max-width: 860px;
 }
 
-.interview-message__header {
+.interview-message.is-user {
+  margin-left: auto;
+  background: var(--cc-accent-subtle);
+  border-color: #c7d2fe;
+}
+
+.interview-message.is-feedback {
+  border-color: #dbeafe;
+  background: #f8fbff;
+}
+
+.interview-message.is-followup {
+  border-color: #cbd5f5;
+  background: #f5f7ff;
+}
+
+.interview-message.is-question {
+  border-color: var(--cc-border);
+}
+
+.interview-message__meta {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
-  gap: 8px;
+  margin-bottom: var(--cc-space-2);
+  gap: var(--cc-space-2);
 }
 
 .interview-message__type {
   font-size: 12px;
-  color: #64748b;
+  color: var(--cc-text-muted);
+}
+
+.interview-message__round {
+  font-size: 12px;
+  color: var(--cc-text-muted);
 }
 
 .interview-message__content {
-  color: #1f2937;
+  color: var(--cc-text-primary);
   white-space: pre-wrap;
 }
 
-.interview-message--user {
-  border-color: #cbd5f5;
-  background: #f8fafc;
-}
-
-.interview-message--feedback {
-  border-color: #dbeafe;
-}
-
-.interview-message--followup {
-  border-color: #c7d2fe;
-}
-
-.interview-message--question {
-  border-color: #e2e8f0;
-}
-
-.interview-answer-card {
-  border: 1px solid #e5e7eb;
-  border-radius: 18px;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
-}
-
-.interview-answer-card .ant-card-body {
-  padding: 20px;
-}
-
-.interview-answer-actions {
-  margin-top: 12px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
 .interview-status {
-  color: #6b7280;
+  color: var(--cc-text-secondary);
 }
 
 .interview-status-hint {
   display: block;
-  margin-top: 8px;
-  color: #94a3b8;
+  margin-top: var(--cc-space-1);
+  color: var(--cc-text-muted);
 }
 
-.interview-empty {
-  border: 1px dashed #e5e7eb;
-  border-radius: 18px;
-  background: #ffffff;
-  padding: 32px 16px;
+.interview-composer {
+  border: 1px solid var(--cc-border);
+  border-radius: var(--cc-radius-lg);
+  box-shadow: var(--cc-shadow-sm);
+}
+
+.interview-composer .ant-card-body {
+  padding: var(--cc-space-5);
+}
+
+.interview-composer__header {
+  margin-bottom: var(--cc-space-3);
+}
+
+.interview-composer__footer {
+  margin-top: var(--cc-space-3);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--cc-space-3);
+  flex-wrap: wrap;
 }
 
 @media (max-width: 768px) {
-  .interview-answer-actions {
+  .interview-composer__footer {
     justify-content: flex-end;
   }
 }
