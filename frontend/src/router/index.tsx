@@ -1,19 +1,18 @@
 import { Navigate, createBrowserRouter } from "react-router-dom";
-import MainLayout from "../layouts/MainLayout";
 import RequireAuth from "../components/RequireAuth";
 import PublicOnlyRoute from "../components/PublicOnlyRoute";
-import LoginPage from "../pages/Login";
-import RegisterPage from "../pages/Register";
-import ProjectsPage from "../pages/Projects";
-import ProjectFormPage from "../pages/ProjectForm";
-import InterviewPage from "../pages/Interview";
-import ReportPage from "../pages/Report";
+import MainLayout from "../layouts/MainLayout";
+import DashboardPage from "../pages/Dashboard";
 import HistoryPage from "../pages/History";
-
-function RootRedirect() {
-  const hasToken = Boolean(localStorage.getItem("token"));
-  return <Navigate to={hasToken ? "/projects" : "/login"} replace />;
-}
+import InterviewPage from "../pages/Interview";
+import LandingPage from "../pages/Landing";
+import LoginPage from "../pages/Login";
+import ProfilePage from "../pages/Profile";
+import ProjectFormPage from "../pages/ProjectForm";
+import ProjectsPage from "../pages/Projects";
+import QuestionsPage from "../pages/Questions";
+import RegisterPage from "../pages/Register";
+import ReportPage from "../pages/Report";
 
 const router = createBrowserRouter([
   {
@@ -21,7 +20,7 @@ const router = createBrowserRouter([
     children: [
       {
         index: true,
-        element: <RootRedirect />,
+        element: <LandingPage />,
       },
       {
         element: (
@@ -47,6 +46,10 @@ const router = createBrowserRouter([
         ),
         children: [
           {
+            path: "dashboard",
+            element: <DashboardPage />,
+          },
+          {
             path: "projects",
             element: <ProjectsPage />,
           },
@@ -69,6 +72,14 @@ const router = createBrowserRouter([
           {
             path: "history",
             element: <HistoryPage />,
+          },
+          {
+            path: "questions",
+            element: <QuestionsPage />,
+          },
+          {
+            path: "profile",
+            element: <ProfilePage />,
           },
         ],
       },

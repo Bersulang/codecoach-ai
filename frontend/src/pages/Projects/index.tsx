@@ -47,8 +47,7 @@ const DIFFICULTY_OPTIONS: Array<{
   {
     value: "HARD",
     label: "深度拷打",
-    description:
-      "偏大厂深挖，重点追问高并发、一致性、性能瓶颈和架构权衡。",
+    description: "偏大厂深挖，重点追问高并发、一致性、性能瓶颈和架构权衡。",
   },
 ];
 

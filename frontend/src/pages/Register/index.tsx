@@ -13,8 +13,8 @@ function RegisterPage() {
     setLoading(true);
     try {
       await register(values);
-      message.success("注册成功，请登录");
-      navigate("/login");
+      message.success("注册成功，请登录后开始训练");
+      navigate("/");
     } catch {
       // Errors are handled by the request interceptor.
     } finally {

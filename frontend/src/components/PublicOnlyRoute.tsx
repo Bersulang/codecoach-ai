@@ -5,7 +5,7 @@ function PublicOnlyRoute({ children }: PropsWithChildren) {
   const hasToken = Boolean(localStorage.getItem("token"));
 
   if (hasToken) {
-    return <Navigate to="/projects" replace />;
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;

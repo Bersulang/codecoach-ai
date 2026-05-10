@@ -1,36 +1,32 @@
-import { Avatar, Button, Layout, Space, Typography, message } from "antd";
-import { useEffect, useMemo, useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Layout, message } from "antd";
+import { useEffect, useState } from "react";
+import { Outlet, useNavigate } from "react-router-dom";
 import { getCurrentUser } from "../api/auth";
+import ProductHeader from "../components/ProductHeader";
 import type { CurrentUser } from "../types/auth";
 import "./MainLayout.css";
 
-const { Header, Content } = Layout;
+const { Content } = Layout;
+
+function readStoredUser(): CurrentUser | null {
+  const storedUser = localStorage.getItem("user");
+  if (!storedUser) {
+    return null;
+  }
+  try {
+    return JSON.parse(storedUser) as CurrentUser;
+  } catch {
+    localStorage.removeItem("user");
+    return null;
+  }
+}
 
 function MainLayout() {
   const navigate = useNavigate();
-  const [user, setUser] = useState<CurrentUser | null>(null);
-
-  const displayName = useMemo(() => {
-    if (!user) {
-      return "";
-    }
-    return user.nickname || user.username || "";
-  }, [user]);
+  const [user, setUser] = useState<CurrentUser | null>(() => readStoredUser());
 
   useEffect(() => {
     const token = localStorage.getItem("token");
-    const storedUser = localStorage.getItem("user");
-
-    if (storedUser) {
-      try {
-        const parsed = JSON.parse(storedUser) as CurrentUser;
-        setUser(parsed);
-        return;
-      } catch {
-        localStorage.removeItem("user");
-      }
-    }
 
     if (!token) {
       return;
@@ -49,12 +45,9 @@ function MainLayout() {
         if (!active) {
           return;
         }
-        const hadToken = Boolean(localStorage.getItem("token"));
         localStorage.removeItem("token");
         localStorage.removeItem("user");
-        if (hadToken) {
-          message.error("登录状态失效，请重新登录");
-        }
+        message.error("登录状态失效，请重新登录");
         navigate("/login", { replace: true });
       });
 
@@ -63,57 +56,9 @@ function MainLayout() {
     };
   }, [navigate]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    message.success("已退出登录");
-    navigate("/login", { replace: true });
-  };
-
   return (
     <Layout className="main-layout">
-      <Header className="main-layout__header">
-        <div className="main-layout__inner">
-          <div className="main-layout__left">
-            <div className="main-layout__brand">CodeCoach AI</div>
-            <nav className="main-layout__nav">
-              <NavLink
-                to="/projects"
-                className={({ isActive }) =>
-                  `main-layout__nav-item${isActive ? " is-active" : ""}`
-                }
-              >
-                我的项目
-              </NavLink>
-              <NavLink
-                to="/history"
-                className={({ isActive }) =>
-                  `main-layout__nav-item${isActive ? " is-active" : ""}`
-                }
-              >
-                训练历史
-              </NavLink>
-            </nav>
-          </div>
-          <div className="main-layout__user">
-            <Space size={12} align="center">
-              <Avatar
-                size={28}
-                src={user?.avatarUrl}
-                className="main-layout__avatar"
-              >
-                {displayName ? displayName.slice(0, 1).toUpperCase() : "?"}
-              </Avatar>
-              <Typography.Text className="main-layout__username">
-                {displayName || "—"}
-              </Typography.Text>
-              <Button type="text" onClick={handleLogout}>
-                退出登录
-              </Button>
-            </Space>
-          </div>
-        </div>
-      </Header>
+      <ProductHeader user={user} onLogout={() => setUser(null)} />
       <Content className="main-layout__content">
         <Outlet />
       </Content>

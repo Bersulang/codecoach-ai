@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=Spline+Sans:wght@400;500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500;1,600&family=Space+Grotesk:wght@400;500;600;700&family=Spline+Sans:wght@400;500;600&display=swap");
 
 *,
 *::before,
@@ -43,20 +43,20 @@ textarea {
 }
 
 .ant-btn {
-  border-radius: var(--cc-radius-sm);
+  border-radius: 999px;
   font-weight: 500;
   box-shadow: none;
 }
 
 .ant-btn-primary {
-  background: var(--cc-accent);
-  border-color: var(--cc-accent);
+  background: var(--cc-primary);
+  border-color: var(--cc-primary);
 }
 
 .ant-btn-primary:hover,
 .ant-btn-primary:focus {
-  background: var(--cc-accent-hover);
-  border-color: var(--cc-accent-hover);
+  background: var(--cc-primary-hover);
+  border-color: var(--cc-primary-hover);
 }
 
 .ant-btn-default {

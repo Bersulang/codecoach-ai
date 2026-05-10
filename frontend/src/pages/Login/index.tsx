@@ -15,7 +15,7 @@ function LoginPage() {
       const data = await login(values);
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
-      navigate("/projects");
+      navigate("/");
     } catch {
       // Errors are handled by the request interceptor.
     } finally {

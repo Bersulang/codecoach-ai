@@ -6,7 +6,7 @@ interface EmptyStateProps {
   action?: ReactNode;
 }
 
-function EmptyState({ description = "No data", action }: EmptyStateProps) {
+function EmptyState({ description = "暂无数据", action }: EmptyStateProps) {
   return (
     <div className="cc-empty-state">
       <Empty description={description}>{action}</Empty>
