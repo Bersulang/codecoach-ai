@@ -14,6 +14,8 @@ public class InterviewContext {
 
     private Integer roundNo;
 
+    private Integer maxRound;
+
     private String currentQuestion;
 
     private String userAnswer;
@@ -50,6 +52,14 @@ public class InterviewContext {
 
     public void setRoundNo(Integer roundNo) {
         this.roundNo = roundNo;
+    }
+
+    public Integer getMaxRound() {
+        return maxRound;
+    }
+
+    public void setMaxRound(Integer maxRound) {
+        this.maxRound = maxRound;
     }
 
     public String getCurrentQuestion() {

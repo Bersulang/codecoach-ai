@@ -4,6 +4,7 @@ import com.codecoach.common.exception.BusinessException;
 import com.codecoach.module.ai.config.AiProperties;
 import com.codecoach.module.ai.dto.InterviewContext;
 import com.codecoach.module.ai.service.AiInterviewService;
+import com.codecoach.module.ai.service.PromptTemplateService;
 import com.codecoach.module.ai.vo.FeedbackAndQuestionResult;
 import com.codecoach.module.ai.vo.ReportGenerateResult;
 import com.codecoach.module.project.entity.Project;
@@ -11,7 +12,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -36,15 +39,28 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
     private static final String SYSTEM_PROMPT = "你是一个严厉但专业的 Java 后端面试官，"
             + "需要围绕候选人的项目经历进行追问、反馈和总结。回答必须准确、具体、直接。";
 
+    private static final String FIRST_QUESTION_TEMPLATE = "interview_first_question.md";
+
+    private static final String FEEDBACK_NEXT_QUESTION_TEMPLATE = "interview_feedback_next_question.md";
+
+    private static final String REPORT_TEMPLATE = "interview_report.md";
+
     private final AiProperties aiProperties;
 
     private final ObjectMapper objectMapper;
 
+    private final PromptTemplateService promptTemplateService;
+
     private final RestClient restClient;
 
-    public OpenAiCompatibleAiInterviewServiceImpl(AiProperties aiProperties, ObjectMapper objectMapper) {
+    public OpenAiCompatibleAiInterviewServiceImpl(
+            AiProperties aiProperties,
+            ObjectMapper objectMapper,
+            PromptTemplateService promptTemplateService
+    ) {
         this.aiProperties = aiProperties;
         this.objectMapper = objectMapper;
+        this.promptTemplateService = promptTemplateService;
 
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         Duration timeout = Duration.ofSeconds(resolveTimeoutSeconds(aiProperties));
@@ -55,31 +71,9 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
 
     @Override
     public String generateFirstQuestion(Project project, String targetRole, String difficulty) {
-        String prompt = """
-                请根据以下项目资料，为一次项目拷打训练生成第一道面试问题。
-
-                项目名称：%s
-                项目描述：%s
-                技术栈：%s
-                负责模块：%s
-                项目亮点：%s
-                项目难点：%s
-                目标岗位：%s
-                难度：%s
-
-                输出要求：
-                1. 只输出一道面试问题文本；
-                2. 不要输出 JSON；
-                3. 不要输出解释、编号或多余前后缀。
-                """.formatted(
-                projectValue(project == null ? null : project.getName()),
-                projectValue(project == null ? null : project.getDescription()),
-                projectValue(project == null ? null : project.getTechStack()),
-                projectValue(project == null ? null : project.getRole()),
-                projectValue(project == null ? null : project.getHighlights()),
-                projectValue(project == null ? null : project.getDifficulties()),
-                textValue(targetRole),
-                textValue(difficulty)
+        String prompt = promptTemplateService.render(
+                FIRST_QUESTION_TEMPLATE,
+                buildProjectVariables(project, targetRole, difficulty)
         );
 
         String content = chat(List.of(systemMessage(), userMessage(prompt)), 0.7);
@@ -91,39 +85,9 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
 
     @Override
     public FeedbackAndQuestionResult generateFeedbackAndNextQuestion(InterviewContext context) {
-        String prompt = """
-                请根据以下训练上下文，评价用户本轮回答，并给出下一轮追问。
-
-                项目资料：
-                %s
-
-                训练信息：
-                目标岗位：%s
-                难度：%s
-                当前轮次：%s
-
-                历史问答：
-                %s
-
-                本轮问题：%s
-                用户回答：%s
-
-                输出要求：
-                1. 只输出 JSON；
-                2. 不要输出 Markdown 代码块；
-                3. JSON 格式必须为：
-                {
-                  "feedback": "对用户本轮回答的评价",
-                  "nextQuestion": "下一轮追问"
-                }
-                """.formatted(
-                buildProjectText(context == null ? null : context.getProject()),
-                context == null ? "" : textValue(context.getTargetRole()),
-                context == null ? "" : textValue(context.getDifficulty()),
-                context == null ? "" : textValue(context.getRoundNo()),
-                buildQaRecordsText(context == null ? null : context.getQaRecords()),
-                context == null ? "" : textValue(context.getCurrentQuestion()),
-                context == null ? "" : textValue(context.getUserAnswer())
+        String prompt = promptTemplateService.render(
+                FEEDBACK_NEXT_QUESTION_TEMPLATE,
+                buildContextVariables(context)
         );
 
         String content = chat(List.of(systemMessage(), userMessage(prompt)), 0.7);
@@ -136,46 +100,7 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
 
     @Override
     public ReportGenerateResult generateReport(InterviewContext context) {
-        String prompt = """
-                请根据以下项目拷打训练上下文，生成结构化训练报告。
-
-                项目资料：
-                %s
-
-                训练信息：
-                目标岗位：%s
-                难度：%s
-                当前轮次：%s
-
-                历史问答：
-                %s
-
-                输出要求：
-                1. 只输出 JSON；
-                2. 不要输出 Markdown 代码块；
-                3. totalScore 为 0 到 100 的整数；
-                4. JSON 格式必须为：
-                {
-                  "totalScore": 78,
-                  "summary": "总体评价",
-                  "strengths": ["优点1", "优点2"],
-                  "weaknesses": ["薄弱点1", "薄弱点2"],
-                  "suggestions": ["建议1", "建议2"],
-                  "qaReview": [
-                    {
-                      "question": "问题",
-                      "answer": "回答",
-                      "feedback": "反馈"
-                    }
-                  ]
-                }
-                """.formatted(
-                buildProjectText(context == null ? null : context.getProject()),
-                context == null ? "" : textValue(context.getTargetRole()),
-                context == null ? "" : textValue(context.getDifficulty()),
-                context == null ? "" : textValue(context.getRoundNo()),
-                buildQaRecordsText(context == null ? null : context.getQaRecords())
-        );
+        String prompt = promptTemplateService.render(REPORT_TEMPLATE, buildContextVariables(context));
 
         String content = chat(List.of(systemMessage(), userMessage(prompt)), 0.7);
         ReportGenerateResult result = parseJson(content, ReportGenerateResult.class);
@@ -261,30 +186,57 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
         return new ChatMessage("user", content);
     }
 
-    private String buildProjectText(Project project) {
-        if (project == null) {
-            return "项目资料为空";
-        }
-        return """
-                项目名称：%s
-                项目描述：%s
-                技术栈：%s
-                负责模块：%s
-                项目亮点：%s
-                项目难点：%s
-                """.formatted(
-                projectValue(project.getName()),
-                projectValue(project.getDescription()),
-                projectValue(project.getTechStack()),
-                projectValue(project.getRole()),
-                projectValue(project.getHighlights()),
-                projectValue(project.getDifficulties())
+    private Map<String, Object> buildContextVariables(InterviewContext context) {
+        Map<String, Object> variables = buildProjectVariables(
+                context == null ? null : context.getProject(),
+                context == null ? null : context.getTargetRole(),
+                context == null ? null : context.getDifficulty()
         );
+        variables.put("currentRound", context == null ? "" : textValue(context.getRoundNo()));
+        variables.put("maxRound", context == null ? "" : textValue(context.getMaxRound()));
+        variables.put("currentQuestion", context == null ? "" : textValue(context.getCurrentQuestion()));
+        variables.put("historyMessages", buildHistoryMessages(context));
+        variables.put("userAnswer", context == null ? "" : textValue(context.getUserAnswer()));
+        return variables;
+    }
+
+    private Map<String, Object> buildProjectVariables(Project project, String targetRole, String difficulty) {
+        Map<String, Object> variables = new HashMap<>();
+        variables.put("projectName", projectValue(project == null ? null : project.getName()));
+        variables.put("projectDescription", projectValue(project == null ? null : project.getDescription()));
+        variables.put("techStack", projectValue(project == null ? null : project.getTechStack()));
+        variables.put("role", projectValue(project == null ? null : project.getRole()));
+        variables.put("highlights", projectValue(project == null ? null : project.getHighlights()));
+        variables.put("difficulties", projectValue(project == null ? null : project.getDifficulties()));
+        variables.put("targetRole", textValue(targetRole));
+        variables.put("difficulty", textValue(difficulty));
+        variables.put("currentRound", "");
+        variables.put("maxRound", "");
+        variables.put("historyMessages", "");
+        variables.put("userAnswer", "");
+        variables.put("currentQuestion", "");
+        return variables;
+    }
+
+    private String buildHistoryMessages(InterviewContext context) {
+        if (context == null) {
+            return "暂无历史消息";
+        }
+
+        String qaRecordsText = buildQaRecordsText(context.getQaRecords());
+        if (!StringUtils.hasText(context.getUserAnswer())) {
+            return qaRecordsText;
+        }
+
+        return qaRecordsText + "\n\n当前轮次：\n问题："
+                + textValue(context.getCurrentQuestion())
+                + "\n回答："
+                + textValue(context.getUserAnswer());
     }
 
     private String buildQaRecordsText(List<InterviewContext.QaRecord> qaRecords) {
         if (qaRecords == null || qaRecords.isEmpty()) {
-            return "暂无历史问答";
+            return "暂无历史消息";
         }
 
         List<String> items = new ArrayList<>();

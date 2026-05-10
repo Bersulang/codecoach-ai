@@ -523,6 +523,7 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         context.setTargetRole(session.getTargetRole());
         context.setDifficulty(session.getDifficulty());
         context.setRoundNo(session.getCurrentRound());
+        context.setMaxRound(session.getMaxRound());
         context.setCurrentQuestion(getCurrentQuestion(historyMessages, session.getCurrentRound()));
         context.setUserAnswer(answer);
         context.setQaRecords(buildQaRecords(historyMessages));
