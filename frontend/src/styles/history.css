@@ -1,9 +1,9 @@
 .history-page {
-  max-width: 1080px;
+  max-width: var(--cc-container-max);
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--cc-space-5);
 }
 
 .history-header {
@@ -17,11 +17,11 @@
 .history-title {
   margin: 0;
   font-weight: 500;
-  color: #111827;
+  color: var(--cc-text-primary);
 }
 
 .history-subtitle {
-  color: #6b7280;
+  color: var(--cc-text-secondary);
 }
 
 .history-actions {
@@ -34,17 +34,17 @@
 .history-list {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--cc-space-4);
 }
 
 .history-card {
-  border: 1px solid #e5e7eb;
-  border-radius: 18px;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+  border: 1px solid var(--cc-border);
+  border-radius: var(--cc-radius-lg);
+  box-shadow: var(--cc-shadow-sm);
 }
 
 .history-card .ant-card-body {
-  padding: 20px;
+  padding: var(--cc-space-5);
 }
 
 .history-card__header {
@@ -58,14 +58,14 @@
 .history-card__title {
   margin: 0;
   font-weight: 500;
-  color: #111827;
+  color: var(--cc-text-primary);
 }
 
 .history-card__meta {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
-  margin-top: 12px;
+  gap: var(--cc-space-3);
+  margin-top: var(--cc-space-3);
 }
 
 .history-card__label {
@@ -73,12 +73,12 @@
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #94a3b8;
+  color: var(--cc-text-muted);
   margin-bottom: 4px;
 }
 
 .history-card__value {
-  color: #475569;
+  color: var(--cc-text-secondary);
 }
 
 .history-actions-group .ant-btn {
@@ -91,10 +91,10 @@
 }
 
 .history-empty {
-  border: 1px dashed #e5e7eb;
-  border-radius: 18px;
-  background: #ffffff;
-  padding: 40px 16px;
+  border: 1px dashed var(--cc-border);
+  border-radius: var(--cc-radius-lg);
+  background: var(--cc-surface);
+  padding: var(--cc-space-6) var(--cc-space-4);
 }
 
 @media (max-width: 768px) {
