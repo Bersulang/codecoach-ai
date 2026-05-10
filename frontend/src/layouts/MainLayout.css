@@ -1,13 +1,13 @@
 .main-layout {
   min-height: 100vh;
-  background: #f5f5f5;
+  background: var(--cc-bg);
 }
 
 .main-layout__header {
   display: flex;
   align-items: center;
-  background: #ffffff;
-  border-bottom: 1px solid #e5e7eb;
+  background: var(--cc-surface);
+  border-bottom: 1px solid var(--cc-border);
   padding: 0 24px;
   gap: 24px;
 }
@@ -15,7 +15,7 @@
 .main-layout__brand {
   font-size: 18px;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--cc-text-primary);
 }
 
 .main-layout__nav {
@@ -32,7 +32,7 @@
   padding: 0 12px;
   border-radius: 8px;
   text-decoration: none;
-  color: #6b7280;
+  color: var(--cc-text-secondary);
   font-size: 14px;
   transition:
     background 0.2s ease,
@@ -40,13 +40,13 @@
 }
 
 .main-layout__nav-item:hover {
-  background: #f3f4f6;
-  color: #111827;
+  background: var(--cc-surface-muted);
+  color: var(--cc-text-primary);
 }
 
 .main-layout__nav-item.is-active {
-  background: #f3f4f6;
-  color: #111827;
+  background: var(--cc-surface-muted);
+  color: var(--cc-text-primary);
   font-weight: 500;
 }
 
@@ -56,7 +56,7 @@
 }
 
 .main-layout__username {
-  color: #374151;
+  color: var(--cc-text-secondary);
   font-size: 14px;
 }
 
