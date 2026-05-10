@@ -10,6 +10,7 @@ import com.codecoach.module.ai.service.AiInterviewService;
 import com.codecoach.module.ai.service.PromptTemplateService;
 import com.codecoach.module.ai.support.AiJsonParser;
 import com.codecoach.module.ai.support.AiResponseValidator;
+import com.codecoach.module.ai.support.InterviewDifficultyStrategy;
 import com.codecoach.module.ai.vo.FeedbackAndQuestionResult;
 import com.codecoach.module.ai.vo.ReportGenerateResult;
 import com.codecoach.module.project.entity.Project;
@@ -485,6 +486,7 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
 
     private Map<String, Object> buildProjectVariables(Project project, String targetRole, String difficulty) {
         Map<String, Object> variables = new HashMap<>();
+        InterviewDifficultyStrategy strategy = InterviewDifficultyStrategy.from(difficulty);
         variables.put("projectName", projectValue(project == null ? null : project.getName()));
         variables.put("projectDescription", projectValue(project == null ? null : project.getDescription()));
         variables.put("techStack", projectValue(project == null ? null : project.getTechStack()));
@@ -493,6 +495,12 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
         variables.put("difficulties", projectValue(project == null ? null : project.getDifficulties()));
         variables.put("targetRole", textValue(targetRole));
         variables.put("difficulty", textValue(difficulty));
+        variables.put("difficultyName", strategy.getDifficultyName());
+        variables.put("interviewerStyle", strategy.getInterviewerStyle());
+        variables.put("questionDepth", strategy.getQuestionDepth());
+        variables.put("focusAreas", strategy.getFocusAreas());
+        variables.put("feedbackStyle", strategy.getFeedbackStyle());
+        variables.put("scoringPolicy", strategy.getScoringPolicy());
         variables.put("currentRound", "");
         variables.put("maxRound", "");
         variables.put("historyMessages", "");

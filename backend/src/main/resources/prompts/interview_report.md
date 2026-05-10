@@ -11,8 +11,16 @@
 训练信息：
 - 目标岗位：{{targetRole}}
 - 难度：{{difficulty}}
+- 难度名称：{{difficultyName}}
 - 当前轮次：{{currentRound}}
 - 最大轮次：{{maxRound}}
+
+难度策略：
+- 面试官风格：{{interviewerStyle}}
+- 问题深度：{{questionDepth}}
+- 重点追问方向：{{focusAreas}}
+- 反馈方式：{{feedbackStyle}}
+- 评分标准：{{scoringPolicy}}
 
 完整问答记录：
 {{historyMessages}}
@@ -26,6 +34,10 @@
 6. qaReview 尽量覆盖用户回答过的轮次；
 7. qaReview 中的 feedback 要聚焦该轮回答质量，不要复制 summary；
 8. 不要编造训练记录中不存在的问答。
+9. 必须严格按照评分标准打分：
+   - EASY 更关注表达清晰度、项目参与度和基础理解；
+   - NORMAL 综合评估表达、技术深度、场景意识和实现可信度；
+   - HARD 更严格评估系统性、工程权衡、边界条件和线上问题处理能力，技术深度不足时不能给高分。
 
 输出要求：
 1. 必须输出合法 JSON；
