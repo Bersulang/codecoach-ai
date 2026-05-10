@@ -1,6 +1,8 @@
 package com.codecoach.module.question.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.codecoach.common.exception.BusinessException;
+import com.codecoach.common.result.ResultCode;
 import com.codecoach.module.ai.model.QuestionPracticeContext;
 import com.codecoach.module.ai.service.AiQuestionPracticeService;
 import com.codecoach.module.knowledge.entity.KnowledgeTopic;
@@ -13,8 +15,10 @@ import com.codecoach.module.question.mapper.QuestionTrainingSessionMapper;
 import com.codecoach.module.question.service.QuestionSessionService;
 import com.codecoach.module.question.vo.QuestionMessageVO;
 import com.codecoach.module.question.vo.QuestionSessionCreateResponse;
+import com.codecoach.module.question.vo.QuestionSessionDetailVO;
 import com.codecoach.security.UserContext;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Locale;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +28,8 @@ import org.springframework.util.StringUtils;
 public class QuestionSessionServiceImpl implements QuestionSessionService {
 
     private static final int TOPIC_NOT_FOUND_CODE = 5001;
+
+    private static final int SESSION_NOT_FOUND_CODE = 5002;
 
     private static final String STATUS_ENABLED = "ENABLED";
 
@@ -123,6 +129,44 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
         );
     }
 
+    @Override
+    public QuestionSessionDetailVO getSessionDetail(Long sessionId) {
+        Long currentUserId = UserContext.getCurrentUserId();
+        QuestionTrainingSession session = questionTrainingSessionMapper.selectById(sessionId);
+        if (session == null || Integer.valueOf(DELETED).equals(session.getIsDeleted())) {
+            throw new BusinessException(SESSION_NOT_FOUND_CODE, "八股训练会话不存在");
+        }
+        if (!currentUserId.equals(session.getUserId())) {
+            throw new BusinessException(ResultCode.FORBIDDEN);
+        }
+
+        KnowledgeTopic topic = knowledgeTopicMapper.selectById(session.getTopicId());
+        LambdaQueryWrapper<QuestionTrainingMessage> queryWrapper = new LambdaQueryWrapper<QuestionTrainingMessage>()
+                .eq(QuestionTrainingMessage::getSessionId, sessionId)
+                .orderByAsc(QuestionTrainingMessage::getCreatedAt)
+                .orderByAsc(QuestionTrainingMessage::getId);
+        List<QuestionMessageVO> messages = questionTrainingMessageMapper.selectList(queryWrapper).stream()
+                .map(this::toQuestionMessageVO)
+                .toList();
+
+        return new QuestionSessionDetailVO(
+                session.getId(),
+                session.getTopicId(),
+                topic == null ? null : topic.getCategory(),
+                topic == null ? null : topic.getName(),
+                topic == null ? null : topic.getDescription(),
+                session.getTargetRole(),
+                session.getDifficulty(),
+                session.getStatus(),
+                session.getCurrentRound(),
+                session.getMaxRound(),
+                session.getTotalScore(),
+                session.getCreatedAt(),
+                session.getEndedAt(),
+                messages
+        );
+    }
+
     private QuestionPracticeContext buildQuestionPracticeContext(
             Long userId,
             Long sessionId,
@@ -166,6 +210,7 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
                 message.getMessageType(),
                 message.getContent(),
                 message.getRoundNo(),
+                message.getScore(),
                 message.getCreatedAt()
         );
     }

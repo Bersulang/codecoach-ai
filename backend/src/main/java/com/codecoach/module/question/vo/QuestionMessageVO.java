@@ -15,6 +15,8 @@ public class QuestionMessageVO {
 
     private Integer roundNo;
 
+    private Integer score;
+
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     private LocalDateTime createdAt;
 
@@ -24,6 +26,7 @@ public class QuestionMessageVO {
             String messageType,
             String content,
             Integer roundNo,
+            Integer score,
             LocalDateTime createdAt
     ) {
         this.messageId = messageId;
@@ -31,6 +34,7 @@ public class QuestionMessageVO {
         this.messageType = messageType;
         this.content = content;
         this.roundNo = roundNo;
+        this.score = score;
         this.createdAt = createdAt;
     }
 
@@ -72,6 +76,14 @@ public class QuestionMessageVO {
 
     public void setRoundNo(Integer roundNo) {
         this.roundNo = roundNo;
+    }
+
+    public Integer getScore() {
+        return score;
+    }
+
+    public void setScore(Integer score) {
+        this.score = score;
     }
 
     public LocalDateTime getCreatedAt() {
