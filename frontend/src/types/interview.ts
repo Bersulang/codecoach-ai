@@ -1,7 +1,9 @@
+export type InterviewDifficulty = "EASY" | "NORMAL" | "HARD";
+
 export interface CreateInterviewSessionRequest {
   projectId: number;
   targetRole: string;
-  difficulty: string;
+  difficulty: InterviewDifficulty;
 }
 
 export interface CreateInterviewSessionResponse {
@@ -30,7 +32,7 @@ export interface InterviewSessionDetail {
   projectId: number;
   projectName: string;
   targetRole: string;
-  difficulty: string;
+  difficulty: InterviewDifficulty;
   status: string;
   currentRound: number;
   maxRound: number;
@@ -63,7 +65,7 @@ export interface InterviewSessionHistoryItem {
   projectId: number;
   projectName: string;
   targetRole: string;
-  difficulty: string;
+  difficulty: InterviewDifficulty;
   status: InterviewStatus;
   currentRound: number;
   maxRound: number;

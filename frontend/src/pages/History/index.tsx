@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getInterviewSessions } from "../../api/interview";
 import type {
+  InterviewDifficulty,
   InterviewSessionHistoryItem,
   InterviewStatus,
 } from "../../types/interview";
@@ -25,6 +26,19 @@ const STATUS_OPTIONS: Array<{ label: string; value: InterviewStatus }> = [
   { label: "已结束", value: "FINISHED" },
   { label: "失败", value: "FAILED" },
 ];
+
+const DIFFICULTY_LABELS: Record<InterviewDifficulty, string> = {
+  EASY: "入门引导",
+  NORMAL: "常规面试",
+  HARD: "深度拷打",
+};
+
+function formatDifficulty(value?: InterviewDifficulty) {
+  if (!value) {
+    return "—";
+  }
+  return DIFFICULTY_LABELS[value] ?? value;
+}
 
 function formatDate(value?: string | null) {
   if (!value) {
@@ -184,7 +198,9 @@ function HistoryPage() {
               <div className="history-card__meta">
                 <div>
                   <span className="history-card__label">难度</span>
-                  <span className="history-card__value">{item.difficulty}</span>
+                  <span className="history-card__value">
+                    {formatDifficulty(item.difficulty)}
+                  </span>
                 </div>
                 <div>
                   <span className="history-card__label">进度</span>

@@ -108,6 +108,71 @@
   justify-content: flex-end;
 }
 
+.training-modal .ant-modal-content {
+  border-radius: var(--cc-radius-lg);
+}
+
+.training-modal__project {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: var(--cc-space-4);
+}
+
+.training-modal__project-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--cc-text-primary);
+}
+
+.training-modal .difficulty-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cc-space-3);
+}
+
+.training-modal .difficulty-option {
+  margin-inline-start: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  border: 1px solid var(--cc-border);
+  border-radius: var(--cc-radius-md);
+  padding: 12px 14px;
+  width: 100%;
+  background: var(--cc-surface);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.training-modal .difficulty-option.ant-radio-wrapper-checked {
+  border-color: var(--cc-accent);
+  background: var(--cc-accent-subtle);
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.2);
+}
+
+.training-modal .difficulty-option .ant-radio {
+  align-self: flex-start;
+  margin-top: 3px;
+}
+
+.difficulty-option__content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.difficulty-option__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--cc-text-primary);
+}
+
+.difficulty-option__desc {
+  font-size: 12px;
+  color: var(--cc-text-secondary);
+}
+
 .projects-empty {
   border: 1px dashed var(--cc-border);
   border-radius: var(--cc-radius-lg);

@@ -13,11 +13,25 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getReportDetail } from "../../api/report";
 import { createInterviewSession } from "../../api/interview";
+import type { InterviewDifficulty } from "../../types/interview";
 import type { InterviewReport, QaReview } from "../../types/report";
 import "../../styles/report.css";
 
 const DEFAULT_TARGET_ROLE = "Java 后端实习";
-const DEFAULT_DIFFICULTY = "NORMAL";
+const DEFAULT_DIFFICULTY: InterviewDifficulty = "NORMAL";
+
+const DIFFICULTY_LABELS: Record<InterviewDifficulty, string> = {
+  EASY: "入门引导",
+  NORMAL: "常规面试",
+  HARD: "深度拷打",
+};
+
+function formatDifficulty(value?: InterviewDifficulty) {
+  if (!value) {
+    return "—";
+  }
+  return DIFFICULTY_LABELS[value] ?? value;
+}
 
 function formatDate(value?: string) {
   if (!value) {
@@ -118,7 +132,7 @@ function ReportPage() {
         ? [
             { label: "项目名称", value: report.projectName },
             { label: "目标岗位", value: report.targetRole },
-            { label: "难度", value: report.difficulty },
+            { label: "难度", value: formatDifficulty(report.difficulty) },
             { label: "报告生成", value: formatDate(report.createdAt) },
           ]
         : [],

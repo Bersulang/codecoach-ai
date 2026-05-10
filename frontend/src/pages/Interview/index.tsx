@@ -21,6 +21,7 @@ import PageShell from "../../components/PageShell";
 import SurfaceCard from "../../components/SurfaceCard";
 import type {
   AnswerResponse,
+  InterviewDifficulty,
   InterviewMessage,
   InterviewMessageType,
   InterviewSessionDetail,
@@ -35,6 +36,19 @@ const MESSAGE_TYPE_LABELS: Record<InterviewMessageType, string> = {
   AI_FEEDBACK: "AI 反馈",
   AI_FOLLOW_UP: "AI 追问",
 };
+
+const DIFFICULTY_LABELS: Record<InterviewDifficulty, string> = {
+  EASY: "入门引导",
+  NORMAL: "常规面试",
+  HARD: "深度拷打",
+};
+
+function formatDifficulty(value?: InterviewDifficulty) {
+  if (!value) {
+    return "—";
+  }
+  return DIFFICULTY_LABELS[value] ?? value;
+}
 
 function normalizeMessages(messages: InterviewMessage[]) {
   return messages.map((message, index) => ({
@@ -254,7 +268,7 @@ function InterviewPage() {
         ? [
             { label: "项目名称", value: detail.projectName },
             { label: "目标岗位", value: detail.targetRole },
-            { label: "难度", value: detail.difficulty },
+            { label: "难度", value: formatDifficulty(detail.difficulty) },
             {
               label: "进度",
               value: `${detail.currentRound}/${detail.maxRound}`,

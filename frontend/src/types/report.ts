@@ -4,13 +4,15 @@ export interface QaReview {
   feedback: string;
 }
 
+import type { InterviewDifficulty } from "./interview";
+
 export interface InterviewReport {
   id: number;
   sessionId: number;
   projectId: number;
   projectName: string;
   targetRole: string;
-  difficulty: string;
+  difficulty: InterviewDifficulty;
   totalScore: number;
   summary: string;
   strengths: string[];
