@@ -1,8 +1,10 @@
 package com.codecoach.module.question.controller;
 
 import com.codecoach.common.result.Result;
+import com.codecoach.module.question.dto.QuestionAnswerRequest;
 import com.codecoach.module.question.dto.QuestionSessionCreateRequest;
 import com.codecoach.module.question.service.QuestionSessionService;
+import com.codecoach.module.question.vo.QuestionAnswerResponse;
 import com.codecoach.module.question.vo.QuestionSessionCreateResponse;
 import com.codecoach.module.question.vo.QuestionSessionDetailVO;
 import jakarta.validation.Valid;
@@ -33,5 +35,13 @@ public class QuestionSessionController {
     @GetMapping("/{sessionId}")
     public Result<QuestionSessionDetailVO> getSessionDetail(@PathVariable Long sessionId) {
         return Result.success(questionSessionService.getSessionDetail(sessionId));
+    }
+
+    @PostMapping("/{sessionId}/answer")
+    public Result<QuestionAnswerResponse> submitAnswer(
+            @PathVariable Long sessionId,
+            @Valid @RequestBody QuestionAnswerRequest request
+    ) {
+        return Result.success(questionSessionService.submitAnswer(sessionId, request));
     }
 }

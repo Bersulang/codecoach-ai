@@ -4,10 +4,14 @@ import com.codecoach.common.exception.BusinessException;
 import com.codecoach.module.ai.config.AiProperties;
 import com.codecoach.module.ai.entity.AiCallLog;
 import com.codecoach.module.ai.enums.AiRequestType;
+import com.codecoach.module.ai.model.QuestionFeedbackResult;
 import com.codecoach.module.ai.model.QuestionPracticeContext;
+import com.codecoach.module.ai.model.QuestionReportGenerateResult;
 import com.codecoach.module.ai.service.AiCallLogService;
 import com.codecoach.module.ai.service.AiQuestionPracticeService;
 import com.codecoach.module.ai.service.PromptTemplateService;
+import com.codecoach.module.ai.support.AiJsonParser;
+import com.codecoach.module.ai.support.AiResponseValidator;
 import com.codecoach.module.ai.support.InterviewDifficultyStrategy;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -52,12 +56,20 @@ public class OpenAiCompatibleQuestionPracticeServiceImpl implements AiQuestionPr
 
     private static final String FIRST_QUESTION_TEMPLATE = "question_first_question.md";
 
+    private static final String FEEDBACK_NEXT_QUESTION_TEMPLATE = "question_feedback_next_question.md";
+
+    private static final String REPORT_TEMPLATE = "question_report.md";
+
     private static final String SYSTEM_PROMPT = "你是一个专业的 Java 后端八股问答面试官，"
             + "需要围绕指定知识点进行准确、具体、循序渐进的追问训练。";
 
     private final AiProperties aiProperties;
 
     private final PromptTemplateService promptTemplateService;
+
+    private final AiJsonParser aiJsonParser;
+
+    private final AiResponseValidator aiResponseValidator;
 
     private final AiCallLogService aiCallLogService;
 
@@ -68,11 +80,15 @@ public class OpenAiCompatibleQuestionPracticeServiceImpl implements AiQuestionPr
     public OpenAiCompatibleQuestionPracticeServiceImpl(
             AiProperties aiProperties,
             PromptTemplateService promptTemplateService,
+            AiJsonParser aiJsonParser,
+            AiResponseValidator aiResponseValidator,
             AiCallLogService aiCallLogService,
             ObjectMapper objectMapper
     ) {
         this.aiProperties = aiProperties;
         this.promptTemplateService = promptTemplateService;
+        this.aiJsonParser = aiJsonParser;
+        this.aiResponseValidator = aiResponseValidator;
         this.aiCallLogService = aiCallLogService;
         this.objectMapper = objectMapper;
 
@@ -104,6 +120,79 @@ public class OpenAiCompatibleQuestionPracticeServiceImpl implements AiQuestionPr
             }
             recordSuccess(callLog, chatResult, startTime);
             return content.trim();
+        } catch (AiCallException exception) {
+            recordFailure(callLog, exception, startTime);
+            throw aiCallFailed(exception.getMessage(), exception);
+        } catch (BusinessException exception) {
+            recordFailure(callLog, "PROMPT_RENDER_FAILED", "PROMPT_RENDER_FAILED", null, startTime);
+            throw exception;
+        }
+    }
+
+    @Override
+    public QuestionFeedbackResult generateFeedbackAndNextQuestion(
+            QuestionPracticeContext context,
+            boolean needNextQuestion
+    ) {
+        long startTime = System.currentTimeMillis();
+        AiCallLog callLog = buildCallLog(AiRequestType.QUESTION_FEEDBACK_NEXT_QUESTION, context);
+
+        try {
+            String prompt = promptTemplateService.render(FEEDBACK_NEXT_QUESTION_TEMPLATE, buildQuestionVariables(context));
+            ChatResult chatResult = chat(List.of(systemMessage(), userMessage(prompt)), 0.7);
+            QuestionFeedbackResult result;
+            try {
+                result = aiJsonParser.parseObject(chatResult.getContent(), QuestionFeedbackResult.class);
+                if (needNextQuestion) {
+                    aiResponseValidator.validateQuestionFeedbackAndNextQuestion(result);
+                } else {
+                    aiResponseValidator.validateQuestionFeedbackOnly(result);
+                }
+            } catch (BusinessException exception) {
+                throw new AiCallException(
+                        "JSON_PARSE_FAILED",
+                        "JSON_PARSE_FAILED",
+                        chatResult.getStatusCode(),
+                        chatResult.getRawResponse(),
+                        chatResult.getRequestId(),
+                        exception
+                );
+            }
+            recordSuccess(callLog, chatResult, startTime);
+            return result;
+        } catch (AiCallException exception) {
+            recordFailure(callLog, exception, startTime);
+            throw aiCallFailed(exception.getMessage(), exception);
+        } catch (BusinessException exception) {
+            recordFailure(callLog, "PROMPT_RENDER_FAILED", "PROMPT_RENDER_FAILED", null, startTime);
+            throw exception;
+        }
+    }
+
+    @Override
+    public QuestionReportGenerateResult generateReport(QuestionPracticeContext context) {
+        long startTime = System.currentTimeMillis();
+        AiCallLog callLog = buildCallLog(AiRequestType.QUESTION_REPORT, context);
+
+        try {
+            String prompt = promptTemplateService.render(REPORT_TEMPLATE, buildQuestionVariables(context));
+            ChatResult chatResult = chat(List.of(systemMessage(), userMessage(prompt)), 0.7);
+            QuestionReportGenerateResult result;
+            try {
+                result = aiJsonParser.parseObject(chatResult.getContent(), QuestionReportGenerateResult.class);
+                aiResponseValidator.validateQuestionReport(result);
+            } catch (BusinessException exception) {
+                throw new AiCallException(
+                        "JSON_PARSE_FAILED",
+                        "JSON_PARSE_FAILED",
+                        chatResult.getStatusCode(),
+                        chatResult.getRawResponse(),
+                        chatResult.getRequestId(),
+                        exception
+                );
+            }
+            recordSuccess(callLog, chatResult, startTime);
+            return result;
         } catch (AiCallException exception) {
             recordFailure(callLog, exception, startTime);
             throw aiCallFailed(exception.getMessage(), exception);
@@ -330,6 +419,11 @@ public class OpenAiCompatibleQuestionPracticeServiceImpl implements AiQuestionPr
         variables.put("focusAreas", strategy.getFocusAreas());
         variables.put("feedbackStyle", strategy.getFeedbackStyle());
         variables.put("scoringPolicy", strategy.getScoringPolicy());
+        variables.put("currentRound", textValue(context == null ? null : context.getCurrentRound()));
+        variables.put("maxRound", textValue(context == null ? null : context.getMaxRound()));
+        variables.put("historyMessages", textValue(context == null ? null : context.getHistoryMessages()));
+        variables.put("currentQuestion", textValue(context == null ? null : context.getCurrentQuestion()));
+        variables.put("userAnswer", textValue(context == null ? null : context.getUserAnswer()));
         return variables;
     }
 

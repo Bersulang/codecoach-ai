@@ -32,4 +32,10 @@ public class QuestionPracticeContext {
     private Integer currentRound;
 
     private Integer maxRound;
+
+    private String historyMessages;
+
+    private String currentQuestion;
+
+    private String userAnswer;
 }
