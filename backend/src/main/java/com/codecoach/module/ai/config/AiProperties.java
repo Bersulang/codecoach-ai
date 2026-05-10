@@ -45,7 +45,7 @@ public class AiProperties {
 
         private String model;
 
-        private Integer timeoutSeconds = 30;
+        private Integer timeoutSeconds = 120;
 
         public String getBaseUrl() {
             return baseUrl;

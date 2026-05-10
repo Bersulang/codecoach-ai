@@ -277,7 +277,6 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         Integer currentRound = session.getCurrentRound();
         Integer maxRound = session.getMaxRound();
         checkCurrentRoundAnswerNotSubmitted(sessionId, currentUserId, currentRound);
-        checkPreviousRoundSameAnswerNotSubmitted(sessionId, currentUserId, currentRound, request.getAnswer());
 
         List<InterviewMessage> historyMessages = listSessionMessages(sessionId);
         Project project = projectMapper.selectById(session.getProjectId());
@@ -441,27 +440,6 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
                 .eq(InterviewMessage::getUserId, userId)
                 .eq(InterviewMessage::getMessageType, MESSAGE_TYPE_USER_ANSWER)
                 .eq(InterviewMessage::getRoundNo, currentRound));
-        if (count != null && count > 0) {
-            throw new BusinessException(ANSWER_PROCESSING_CODE, "当前轮次已提交，请刷新页面查看最新结果");
-        }
-    }
-
-    private void checkPreviousRoundSameAnswerNotSubmitted(
-            Long sessionId,
-            Long userId,
-            Integer currentRound,
-            String answer
-    ) {
-        if (currentRound == null || currentRound <= FIRST_ROUND_NO || !StringUtils.hasText(answer)) {
-            return;
-        }
-
-        Long count = interviewMessageMapper.selectCount(new LambdaQueryWrapper<InterviewMessage>()
-                .eq(InterviewMessage::getSessionId, sessionId)
-                .eq(InterviewMessage::getUserId, userId)
-                .eq(InterviewMessage::getMessageType, MESSAGE_TYPE_USER_ANSWER)
-                .eq(InterviewMessage::getRoundNo, currentRound - 1)
-                .eq(InterviewMessage::getContent, answer));
         if (count != null && count > 0) {
             throw new BusinessException(ANSWER_PROCESSING_CODE, "当前轮次已提交，请刷新页面查看最新结果");
         }
