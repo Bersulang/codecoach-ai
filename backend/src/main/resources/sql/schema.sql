@@ -86,21 +86,37 @@ CREATE TABLE interview_report (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='训练报告表';
 
 CREATE TABLE ai_call_log (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '日志ID',
-    user_id BIGINT DEFAULT NULL COMMENT '用户ID',
-    session_id BIGINT DEFAULT NULL COMMENT '训练会话ID',
-    provider VARCHAR(64) NOT NULL COMMENT '模型服务商',
-    model_name VARCHAR(128) NOT NULL COMMENT '模型名称',
-    request_type VARCHAR(64) NOT NULL COMMENT '调用类型',
-    prompt_tokens INT DEFAULT NULL COMMENT '输入Token数',
-    completion_tokens INT DEFAULT NULL COMMENT '输出Token数',
-    total_tokens INT DEFAULT NULL COMMENT '总Token数',
-    latency_ms BIGINT DEFAULT NULL COMMENT '调用耗时毫秒',
-    success TINYINT NOT NULL DEFAULT 1 COMMENT '是否成功：1成功，0失败',
-    error_message TEXT DEFAULT NULL COMMENT '错误信息',
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    KEY idx_user_id (user_id),
-    KEY idx_session_id (session_id),
-    KEY idx_request_type (request_type),
-    KEY idx_created_at (created_at)
+                             id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '日志ID',
+
+                             user_id BIGINT DEFAULT NULL COMMENT '用户ID',
+                             project_id BIGINT DEFAULT NULL COMMENT '项目ID',
+                             session_id BIGINT DEFAULT NULL COMMENT '训练会话ID',
+
+                             provider VARCHAR(64) NOT NULL COMMENT '模型服务商',
+                             model_name VARCHAR(128) NOT NULL COMMENT '模型名称',
+                             request_type VARCHAR(64) NOT NULL COMMENT '调用类型',
+                             prompt_version VARCHAR(64) DEFAULT NULL COMMENT 'Prompt版本',
+
+                             prompt_tokens INT DEFAULT NULL COMMENT '输入Token数',
+                             completion_tokens INT DEFAULT NULL COMMENT '输出Token数',
+                             total_tokens INT DEFAULT NULL COMMENT '总Token数',
+
+                             latency_ms BIGINT DEFAULT NULL COMMENT '调用耗时毫秒',
+                             success TINYINT NOT NULL DEFAULT 1 COMMENT '是否成功：1成功，0失败',
+
+                             status_code INT DEFAULT NULL COMMENT '模型接口HTTP状态码',
+                             error_code VARCHAR(128) DEFAULT NULL COMMENT '模型接口错误码',
+                             error_message TEXT DEFAULT NULL COMMENT '错误信息',
+                             request_id VARCHAR(128) DEFAULT NULL COMMENT '模型服务请求ID',
+
+                             raw_response MEDIUMTEXT DEFAULT NULL COMMENT '模型原始响应',
+                             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+
+                             KEY idx_user_id (user_id),
+                             KEY idx_project_id (project_id),
+                             KEY idx_session_id (session_id),
+                             KEY idx_request_type (request_type),
+                             KEY idx_success_created (success, created_at),
+                             KEY idx_model_created (provider, model_name, created_at),
+                             KEY idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI调用日志表';
