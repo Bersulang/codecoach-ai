@@ -1,11 +1,10 @@
 import {
   Button,
-  Card,
-  Empty,
   Input,
   Pagination,
   Popconfirm,
   Space,
+  Tag,
   Typography,
   message,
 } from "antd";
@@ -13,6 +12,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getProjects, deleteProject } from "../../api/project";
 import { createInterviewSession } from "../../api/interview";
+import EmptyState from "../../components/EmptyState";
+import PageHeader from "../../components/PageHeader";
+import PageShell from "../../components/PageShell";
+import SurfaceCard from "../../components/SurfaceCard";
 import type { ProjectVO } from "../../types/project";
 import "../../styles/projects.css";
 
@@ -29,6 +32,16 @@ function formatDate(value?: string) {
     return value;
   }
   return date.toLocaleDateString();
+}
+
+function parseTechStack(value?: string) {
+  if (!value) {
+    return [];
+  }
+  return value
+    .split(/[,，;/|]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function ProjectsPage() {
@@ -81,11 +94,16 @@ function ProjectsPage() {
 
   const emptyState = useMemo(
     () => (
-      <div className="projects-empty">
-        <Empty description="暂无项目记录" />
-      </div>
+      <EmptyState
+        description="暂无项目记录"
+        action={
+          <Button type="primary" onClick={() => navigate("/projects/new")}>
+            新建项目
+          </Button>
+        }
+      />
     ),
-    [],
+    [navigate],
   );
 
   const handleSearch = (value: string) => {
@@ -149,96 +167,108 @@ function ProjectsPage() {
   };
 
   return (
-    <div className="projects-page">
-      <div className="projects-header">
-        <div>
-          <Typography.Title level={3} className="projects-title">
-            我的项目
-          </Typography.Title>
-          <Typography.Text className="projects-subtitle">
-            管理你的项目档案，并发起拷打训练
-          </Typography.Text>
-        </div>
-        <div className="projects-actions">
-          <Input.Search
-            className="projects-search"
-            placeholder="搜索项目"
-            allowClear
-            value={keyword}
-            onChange={(event) => handleKeywordChange(event.target.value)}
-            onSearch={handleSearch}
-            enterButton="搜索"
-          />
-          <Button type="primary" onClick={() => navigate("/projects/new")}>
-            新建项目
-          </Button>
-        </div>
-      </div>
+    <PageShell className="projects-page">
+      <PageHeader
+        title="项目档案库"
+        description="沉淀你的项目经验，用于 AI 面试训练。"
+        actions={
+          <div className="projects-actions">
+            <Input.Search
+              className="projects-search"
+              placeholder="搜索项目"
+              allowClear
+              value={keyword}
+              size="large"
+              onChange={(event) => handleKeywordChange(event.target.value)}
+              onSearch={handleSearch}
+              enterButton="搜索"
+            />
+            <Button
+              type="primary"
+              size="large"
+              onClick={() => navigate("/projects/new")}
+            >
+              新建项目
+            </Button>
+          </div>
+        }
+      />
 
       <div className="projects-list">
         {loading ? (
-          <Card className="project-card" loading />
+          <SurfaceCard className="project-card" loading />
         ) : !hasData ? (
           emptyState
         ) : (
-          projects.map((project) => (
-            <Card key={project.id} className="project-card">
-              <div className="project-card__header">
-                <div>
-                  <Typography.Title level={4} className="project-card__title">
-                    {project.name}
-                  </Typography.Title>
-                  <div className="project-card__updated">
-                    更新于 {formatDate(project.updatedAt)}
+          projects.map((project) => {
+            const tags = parseTechStack(project.techStack);
+            return (
+              <SurfaceCard key={project.id} className="project-card">
+                <div className="project-card__header">
+                  <div className="project-card__title-group">
+                    <Typography.Title level={4} className="project-card__title">
+                      {project.name}
+                    </Typography.Title>
+                    <div className="project-card__updated">
+                      更新于 {formatDate(project.updatedAt)}
+                    </div>
+                  </div>
+                  <Space className="project-card__actions" wrap>
+                    <Button
+                      type="primary"
+                      loading={startingId === project.id}
+                      onClick={() => handleStartInterview(project.id)}
+                    >
+                      开始拷打
+                    </Button>
+                    <Button
+                      onClick={() => navigate(`/projects/${project.id}/edit`)}
+                    >
+                      编辑
+                    </Button>
+                    <Popconfirm
+                      title="确认删除该项目吗？"
+                      okText="删除"
+                      cancelText="取消"
+                      onConfirm={() => handleDelete(project.id)}
+                    >
+                      <Button
+                        type="text"
+                        danger
+                        loading={deletingId === project.id}
+                      >
+                        删除
+                      </Button>
+                    </Popconfirm>
+                  </Space>
+                </div>
+                <Typography.Paragraph
+                  className="project-card__description"
+                  ellipsis={{ rows: 2 }}
+                >
+                  {project.description || "暂无项目描述"}
+                </Typography.Paragraph>
+                <div className="project-card__meta">
+                  <div>
+                    <span className="project-card__meta-label">技术栈</span>
+                    <div className="project-card__tags">
+                      {tags.length ? (
+                        tags.map((tag) => <Tag key={tag}>{tag}</Tag>)
+                      ) : (
+                        <span className="project-card__meta-value">—</span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="project-card__meta-label">负责模块</span>
+                    <span className="project-card__meta-value">
+                      {project.role || "—"}
+                    </span>
                   </div>
                 </div>
-                <Space className="project-card__actions" wrap>
-                  <Button
-                    type="primary"
-                    loading={startingId === project.id}
-                    onClick={() => handleStartInterview(project.id)}
-                  >
-                    开始拷打
-                  </Button>
-                  <Button
-                    onClick={() => navigate(`/projects/${project.id}/edit`)}
-                  >
-                    编辑
-                  </Button>
-                  <Popconfirm
-                    title="确认删除该项目吗？"
-                    okText="删除"
-                    cancelText="取消"
-                    onConfirm={() => handleDelete(project.id)}
-                  >
-                    <Button danger loading={deletingId === project.id}>
-                      删除
-                    </Button>
-                  </Popconfirm>
-                </Space>
-              </div>
-              <Typography.Paragraph
-                className="project-card__description"
-                ellipsis={{ rows: 2 }}
-              >
-                {project.description || "暂无项目描述"}
-              </Typography.Paragraph>
-              <div className="project-card__meta">
-                <div>
-                  <span className="project-card__meta-label">技术栈</span>
-                  <span className="project-card__meta-value">
-                    {project.techStack || "—"}
-                  </span>
-                </div>
-                <div>
-                  <span className="project-card__meta-label">负责模块</span>
-                  <span className="project-card__meta-value">
-                    {project.role || "—"}
-                  </span>
-                </div>
-              </div>
-            </Card>
-          ))
+              </SurfaceCard>
+            );
+          })
         )}
       </div>
 
@@ -253,7 +283,7 @@ function ProjectsPage() {
           />
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }
 

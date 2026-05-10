@@ -9,20 +9,36 @@
   background: var(--cc-surface);
   border-bottom: 1px solid var(--cc-border);
   padding: 0 24px;
+  height: 64px;
+}
+
+.main-layout__inner {
+  width: 100%;
+  max-width: var(--cc-container-max);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 24px;
+}
+
+.main-layout__left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
 }
 
 .main-layout__brand {
   font-size: 18px;
   font-weight: 600;
   color: var(--cc-text-primary);
+  letter-spacing: 0.02em;
 }
 
 .main-layout__nav {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-right: auto;
+  gap: 8px;
 }
 
 .main-layout__nav-item {
@@ -30,7 +46,7 @@
   align-items: center;
   height: 32px;
   padding: 0 12px;
-  border-radius: 8px;
+  border-radius: var(--cc-radius-sm);
   text-decoration: none;
   color: var(--cc-text-secondary);
   font-size: 14px;

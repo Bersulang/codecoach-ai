@@ -1,13 +1,12 @@
-import { Button, Card, Form, Input, Space, Typography } from "antd";
+import { Button, Form, Input, Space, Typography } from "antd";
 import type { FormInstance } from "antd";
 import type { ProjectCreateRequest } from "../types/project";
+import SectionHeader from "./SectionHeader";
 import "../styles/project-form.css";
 
 export interface ProjectFormValues extends ProjectCreateRequest {}
 
 interface ProjectFormProps {
-  title: string;
-  subtitle?: string;
   form: FormInstance<ProjectFormValues>;
   submitText: string;
   submitting: boolean;
@@ -17,8 +16,6 @@ interface ProjectFormProps {
 }
 
 function ProjectForm({
-  title,
-  subtitle,
   form,
   submitText,
   submitting,
@@ -27,24 +24,18 @@ function ProjectForm({
   onCancel,
 }: ProjectFormProps) {
   return (
-    <Card className="project-form-card" loading={loading} bordered={false}>
-      <div className="project-form-header">
-        <Typography.Title level={3} className="project-form-title">
-          {title}
-        </Typography.Title>
-        {subtitle ? (
-          <Typography.Text className="project-form-subtitle">
-            {subtitle}
-          </Typography.Text>
-        ) : null}
-      </div>
-      <Form
-        form={form}
-        layout="vertical"
-        onFinish={onSubmit}
-        disabled={loading}
-        className="project-form"
-      >
+    <Form
+      form={form}
+      layout="vertical"
+      onFinish={onSubmit}
+      disabled={loading}
+      className="project-form"
+    >
+      <div className="project-form-section">
+        <SectionHeader
+          title="基本信息"
+          description="AI 会基于项目信息生成整体背景与核心追问。"
+        />
         <Form.Item
           label="项目名称"
           name="name"
@@ -57,8 +48,18 @@ function ProjectForm({
           name="description"
           rules={[{ required: true, message: "请输入项目描述" }]}
         >
-          <Input.TextArea placeholder="简要描述项目背景与核心功能" rows={4} />
+          <Input.TextArea
+            placeholder="简要描述项目背景与核心功能"
+            autoSize={{ minRows: 3, maxRows: 6 }}
+          />
         </Form.Item>
+      </div>
+
+      <div className="project-form-section">
+        <SectionHeader
+          title="技术信息"
+          description="技术栈与负责模块会影响追问深度与方向。"
+        />
         <Form.Item
           label="技术栈"
           name="techStack"
@@ -66,26 +67,48 @@ function ProjectForm({
         >
           <Input.TextArea
             placeholder="例如：Java, Spring Boot, MySQL"
-            rows={3}
+            autoSize={{ minRows: 2, maxRows: 5 }}
           />
         </Form.Item>
         <Form.Item label="负责模块" name="role">
-          <Input.TextArea placeholder="例如：订单服务、支付模块" rows={3} />
+          <Input.TextArea
+            placeholder="例如：订单服务、支付模块"
+            autoSize={{ minRows: 2, maxRows: 5 }}
+          />
         </Form.Item>
+      </div>
+
+      <div className="project-form-section">
+        <SectionHeader
+          title="面试素材"
+          description="补充亮点与难点，AI 会更精准地模拟追问。"
+        />
         <Form.Item label="项目亮点" name="highlights">
-          <Input.TextArea placeholder="突出你负责的亮点" rows={3} />
+          <Input.TextArea
+            placeholder="突出你负责的亮点"
+            autoSize={{ minRows: 2, maxRows: 5 }}
+          />
         </Form.Item>
         <Form.Item label="项目难点" name="difficulties">
-          <Input.TextArea placeholder="描述项目中的挑战和解决方案" rows={3} />
+          <Input.TextArea
+            placeholder="描述项目中的挑战和解决方案"
+            autoSize={{ minRows: 2, maxRows: 5 }}
+          />
         </Form.Item>
-        <Space className="project-form-actions" size={12}>
+        <Typography.Text className="project-form-hint">
+          提示：描述越具体，AI 追问越贴近真实面试场景。
+        </Typography.Text>
+      </div>
+
+      <div className="project-form-actions">
+        <Space size={12}>
           <Button type="primary" htmlType="submit" loading={submitting}>
             {submitText}
           </Button>
           <Button onClick={onCancel}>取消</Button>
         </Space>
-      </Form>
-    </Card>
+      </div>
+    </Form>
   );
 }
 

@@ -1,42 +1,44 @@
 .project-form-page {
-  max-width: 820px;
-  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--cc-space-5);
 }
 
 .project-form-card {
-  border: 1px solid #e5e7eb;
-  border-radius: 20px;
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+  border: 1px solid var(--cc-border);
+  border-radius: var(--cc-radius-lg);
+  box-shadow: var(--cc-shadow-sm);
 }
 
 .project-form-card .ant-card-body {
-  padding: 32px;
-}
-
-.project-form-header {
-  margin-bottom: 24px;
-}
-
-.project-form-title {
-  margin: 0 0 6px 0;
-  font-weight: 500;
-  color: #111827;
-}
-
-.project-form-subtitle {
-  color: #6b7280;
+  padding: var(--cc-space-5);
 }
 
 .project-form .ant-form-item {
-  margin-bottom: 18px;
+  margin-bottom: var(--cc-space-4);
+}
+
+.project-form-section {
+  margin-bottom: var(--cc-space-6);
+}
+
+.project-form-section:last-of-type {
+  margin-bottom: var(--cc-space-5);
+}
+
+.project-form-hint {
+  color: var(--cc-text-muted);
+  font-size: 13px;
 }
 
 .project-form-actions {
-  margin-top: 8px;
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--cc-space-4);
 }
 
 @media (max-width: 768px) {
   .project-form-card .ant-card-body {
-    padding: 24px;
+    padding: var(--cc-space-4);
   }
 }

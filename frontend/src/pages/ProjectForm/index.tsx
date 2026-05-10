@@ -1,9 +1,12 @@
 import { Button, Form, Result, message } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import PageHeader from "../../components/PageHeader";
+import PageShell from "../../components/PageShell";
 import ProjectForm, {
   type ProjectFormValues,
 } from "../../components/ProjectForm";
+import SurfaceCard from "../../components/SurfaceCard";
 import {
   createProject,
   getProjectDetail,
@@ -91,7 +94,7 @@ function ProjectFormPage() {
 
   if (isEdit && Number.isNaN(projectId)) {
     return (
-      <div className="project-form-page">
+      <PageShell className="project-form-page" maxWidth={860}>
         <Result
           status="error"
           title="项目不存在"
@@ -102,13 +105,13 @@ function ProjectFormPage() {
             </Button>
           }
         />
-      </div>
+      </PageShell>
     );
   }
 
   if (isEdit && loadError) {
     return (
-      <div className="project-form-page">
+      <PageShell className="project-form-page" maxWidth={860}>
         <Result
           status="error"
           title="项目加载失败"
@@ -119,23 +122,27 @@ function ProjectFormPage() {
             </Button>
           }
         />
-      </div>
+      </PageShell>
     );
   }
 
   return (
-    <div className="project-form-page">
-      <ProjectForm
+    <PageShell className="project-form-page" maxWidth={860}>
+      <PageHeader
         title={isEdit ? "编辑项目" : "新建项目"}
-        subtitle={subtitle}
-        form={form}
-        submitText={isEdit ? "保存修改" : "保存项目"}
-        submitting={submitting}
-        loading={loading}
-        onSubmit={handleSubmit}
-        onCancel={handleCancel}
+        description={subtitle}
       />
-    </div>
+      <SurfaceCard className="project-form-card" loading={loading}>
+        <ProjectForm
+          form={form}
+          submitText={isEdit ? "保存修改" : "保存项目"}
+          submitting={submitting}
+          loading={loading}
+          onSubmit={handleSubmit}
+          onCancel={handleCancel}
+        />
+      </SurfaceCard>
+    </PageShell>
   );
 }
 

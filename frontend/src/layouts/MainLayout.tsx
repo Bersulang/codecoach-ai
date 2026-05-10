@@ -73,41 +73,45 @@ function MainLayout() {
   return (
     <Layout className="main-layout">
       <Header className="main-layout__header">
-        <div className="main-layout__brand">CodeCoach AI</div>
-        <nav className="main-layout__nav">
-          <NavLink
-            to="/projects"
-            className={({ isActive }) =>
-              `main-layout__nav-item${isActive ? " is-active" : ""}`
-            }
-          >
-            我的项目
-          </NavLink>
-          <NavLink
-            to="/history"
-            className={({ isActive }) =>
-              `main-layout__nav-item${isActive ? " is-active" : ""}`
-            }
-          >
-            训练历史
-          </NavLink>
-        </nav>
-        <div className="main-layout__user">
-          <Space size={12} align="center">
-            <Avatar
-              size={28}
-              src={user?.avatarUrl}
-              className="main-layout__avatar"
-            >
-              {displayName ? displayName.slice(0, 1).toUpperCase() : "?"}
-            </Avatar>
-            <Typography.Text className="main-layout__username">
-              {displayName || "—"}
-            </Typography.Text>
-            <Button type="text" onClick={handleLogout}>
-              退出登录
-            </Button>
-          </Space>
+        <div className="main-layout__inner">
+          <div className="main-layout__left">
+            <div className="main-layout__brand">CodeCoach AI</div>
+            <nav className="main-layout__nav">
+              <NavLink
+                to="/projects"
+                className={({ isActive }) =>
+                  `main-layout__nav-item${isActive ? " is-active" : ""}`
+                }
+              >
+                我的项目
+              </NavLink>
+              <NavLink
+                to="/history"
+                className={({ isActive }) =>
+                  `main-layout__nav-item${isActive ? " is-active" : ""}`
+                }
+              >
+                训练历史
+              </NavLink>
+            </nav>
+          </div>
+          <div className="main-layout__user">
+            <Space size={12} align="center">
+              <Avatar
+                size={28}
+                src={user?.avatarUrl}
+                className="main-layout__avatar"
+              >
+                {displayName ? displayName.slice(0, 1).toUpperCase() : "?"}
+              </Avatar>
+              <Typography.Text className="main-layout__username">
+                {displayName || "—"}
+              </Typography.Text>
+              <Button type="text" onClick={handleLogout}>
+                退出登录
+              </Button>
+            </Space>
+          </div>
         </div>
       </Header>
       <Content className="main-layout__content">
