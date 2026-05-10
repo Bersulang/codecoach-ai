@@ -13,6 +13,8 @@ spring:
 
 ai:
   provider: ${AI_PROVIDER:openai-compatible}
+  log:
+    save-raw-response: ${AI_LOG_SAVE_RAW_RESPONSE:false}
   openai-compatible:
     base-url: ${AI_BASE_URL:}
     api-key: ${AI_API_KEY:}

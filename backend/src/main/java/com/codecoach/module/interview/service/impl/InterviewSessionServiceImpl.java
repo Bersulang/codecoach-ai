@@ -520,6 +520,9 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
     ) {
         InterviewContext context = new InterviewContext();
         context.setProject(project);
+        context.setUserId(session.getUserId());
+        context.setProjectId(session.getProjectId());
+        context.setSessionId(session.getId());
         context.setTargetRole(session.getTargetRole());
         context.setDifficulty(session.getDifficulty());
         context.setRoundNo(session.getCurrentRound());

@@ -11,6 +11,8 @@ public class AiProperties {
 
     private OpenAiCompatible openAiCompatible = new OpenAiCompatible();
 
+    private Log log = new Log();
+
     public String getProvider() {
         return provider;
     }
@@ -25,6 +27,14 @@ public class AiProperties {
 
     public void setOpenAiCompatible(OpenAiCompatible openAiCompatible) {
         this.openAiCompatible = openAiCompatible;
+    }
+
+    public Log getLog() {
+        return log;
+    }
+
+    public void setLog(Log log) {
+        this.log = log;
     }
 
     public static class OpenAiCompatible {
@@ -67,6 +77,19 @@ public class AiProperties {
 
         public void setTimeoutSeconds(Integer timeoutSeconds) {
             this.timeoutSeconds = timeoutSeconds;
+        }
+    }
+
+    public static class Log {
+
+        private Boolean saveRawResponse = false;
+
+        public Boolean getSaveRawResponse() {
+            return saveRawResponse;
+        }
+
+        public void setSaveRawResponse(Boolean saveRawResponse) {
+            this.saveRawResponse = saveRawResponse;
         }
     }
 }

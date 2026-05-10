@@ -3,6 +3,9 @@ package com.codecoach.module.ai.service.impl;
 import com.codecoach.common.exception.BusinessException;
 import com.codecoach.module.ai.config.AiProperties;
 import com.codecoach.module.ai.dto.InterviewContext;
+import com.codecoach.module.ai.entity.AiCallLog;
+import com.codecoach.module.ai.enums.AiRequestType;
+import com.codecoach.module.ai.service.AiCallLogService;
 import com.codecoach.module.ai.service.AiInterviewService;
 import com.codecoach.module.ai.service.PromptTemplateService;
 import com.codecoach.module.ai.support.AiJsonParser;
@@ -10,7 +13,12 @@ import com.codecoach.module.ai.support.AiResponseValidator;
 import com.codecoach.module.ai.vo.FeedbackAndQuestionResult;
 import com.codecoach.module.ai.vo.ReportGenerateResult;
 import com.codecoach.module.project.entity.Project;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -20,11 +28,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 
 @Service
 @ConditionalOnProperty(prefix = "ai", name = "provider", havingValue = "openai-compatible")
@@ -35,6 +45,12 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
     private static final Integer AI_CALL_FAILED_CODE = 3003;
 
     private static final String AI_CALL_FAILED_MESSAGE = "AI 调用失败，请稍后重试";
+
+    private static final String PROMPT_VERSION = "v1";
+
+    private static final int SUCCESS = 1;
+
+    private static final int FAILURE = 0;
 
     private static final String SYSTEM_PROMPT = "你是一个严厉但专业的 Java 后端面试官，"
             + "需要围绕候选人的项目经历进行追问、反馈和总结。回答必须准确、具体、直接。";
@@ -53,18 +69,26 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
 
     private final AiResponseValidator aiResponseValidator;
 
+    private final AiCallLogService aiCallLogService;
+
+    private final ObjectMapper objectMapper;
+
     private final RestClient restClient;
 
     public OpenAiCompatibleAiInterviewServiceImpl(
             AiProperties aiProperties,
             PromptTemplateService promptTemplateService,
             AiJsonParser aiJsonParser,
-            AiResponseValidator aiResponseValidator
+            AiResponseValidator aiResponseValidator,
+            AiCallLogService aiCallLogService,
+            ObjectMapper objectMapper
     ) {
         this.aiProperties = aiProperties;
         this.promptTemplateService = promptTemplateService;
         this.aiJsonParser = aiJsonParser;
         this.aiResponseValidator = aiResponseValidator;
+        this.aiCallLogService = aiCallLogService;
+        this.objectMapper = objectMapper;
 
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         Duration timeout = Duration.ofSeconds(resolveTimeoutSeconds(aiProperties));
@@ -75,57 +99,140 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
 
     @Override
     public String generateFirstQuestion(Project project, String targetRole, String difficulty) {
+        long startTime = System.currentTimeMillis();
+        AiCallLog callLog = buildCallLog(AiRequestType.INTERVIEW_FIRST_QUESTION, project, null);
         String prompt = promptTemplateService.render(
                 FIRST_QUESTION_TEMPLATE,
                 buildProjectVariables(project, targetRole, difficulty)
         );
 
-        String content = chat(List.of(systemMessage(), userMessage(prompt)), 0.7);
-        if (!StringUtils.hasText(content)) {
-            throw aiCallFailed("AI returned empty first question", null);
+        try {
+            ChatResult chatResult = chat(List.of(systemMessage(), userMessage(prompt)), 0.7);
+            String content = chatResult.getContent();
+            if (!StringUtils.hasText(content)) {
+                throw new AiCallException(
+                        "EMPTY_CONTENT",
+                        "AI returned empty first question",
+                        chatResult.getStatusCode(),
+                        chatResult.getRawResponse(),
+                        chatResult.getRequestId(),
+                        null
+                );
+            }
+            recordSuccess(callLog, chatResult, startTime);
+            return content.trim();
+        } catch (AiCallException exception) {
+            recordFailure(callLog, exception, startTime);
+            throw aiCallFailed(exception.getMessage(), exception);
+        } catch (BusinessException exception) {
+            recordFailure(callLog, "AI_CALL_FAILED", exception.getMessage(), null, startTime);
+            throw exception;
         }
-        return content.trim();
     }
 
     @Override
     public FeedbackAndQuestionResult generateFeedbackAndNextQuestion(InterviewContext context) {
+        long startTime = System.currentTimeMillis();
+        AiCallLog callLog = buildCallLog(AiRequestType.INTERVIEW_FEEDBACK_NEXT_QUESTION, null, context);
         String prompt = promptTemplateService.render(
                 FEEDBACK_NEXT_QUESTION_TEMPLATE,
                 buildContextVariables(context)
         );
 
-        String content = chat(List.of(systemMessage(), userMessage(prompt)), 0.7);
-        FeedbackAndQuestionResult result = aiJsonParser.parseObject(content, FeedbackAndQuestionResult.class);
-        aiResponseValidator.validateFeedbackAndNextQuestion(result);
-        return result;
+        try {
+            ChatResult chatResult = chat(List.of(systemMessage(), userMessage(prompt)), 0.7);
+            FeedbackAndQuestionResult result;
+            try {
+                result = aiJsonParser.parseObject(chatResult.getContent(), FeedbackAndQuestionResult.class);
+                aiResponseValidator.validateFeedbackAndNextQuestion(result);
+            } catch (BusinessException exception) {
+                throw new AiCallException(
+                        "JSON_PARSE_OR_VALIDATE_FAILED",
+                        exception.getMessage(),
+                        chatResult.getStatusCode(),
+                        chatResult.getRawResponse(),
+                        chatResult.getRequestId(),
+                        exception
+                );
+            }
+            recordSuccess(callLog, chatResult, startTime);
+            return result;
+        } catch (AiCallException exception) {
+            recordFailure(callLog, exception, startTime);
+            throw aiCallFailed(exception.getMessage(), exception);
+        } catch (BusinessException exception) {
+            recordFailure(callLog, "JSON_PARSE_OR_VALIDATE_FAILED", exception.getMessage(), null, startTime);
+            throw exception;
+        }
     }
 
     @Override
     public ReportGenerateResult generateReport(InterviewContext context) {
+        long startTime = System.currentTimeMillis();
+        AiCallLog callLog = buildCallLog(AiRequestType.INTERVIEW_REPORT, null, context);
         String prompt = promptTemplateService.render(REPORT_TEMPLATE, buildContextVariables(context));
 
-        String content = chat(List.of(systemMessage(), userMessage(prompt)), 0.7);
-        ReportGenerateResult result = aiJsonParser.parseObject(content, ReportGenerateResult.class);
-        aiResponseValidator.validateReport(result);
-        return result;
+        try {
+            ChatResult chatResult = chat(List.of(systemMessage(), userMessage(prompt)), 0.7);
+            ReportGenerateResult result;
+            try {
+                result = aiJsonParser.parseObject(chatResult.getContent(), ReportGenerateResult.class);
+                aiResponseValidator.validateReport(result);
+            } catch (BusinessException exception) {
+                throw new AiCallException(
+                        "JSON_PARSE_OR_VALIDATE_FAILED",
+                        exception.getMessage(),
+                        chatResult.getStatusCode(),
+                        chatResult.getRawResponse(),
+                        chatResult.getRequestId(),
+                        exception
+                );
+            }
+            recordSuccess(callLog, chatResult, startTime);
+            return result;
+        } catch (AiCallException exception) {
+            recordFailure(callLog, exception, startTime);
+            throw aiCallFailed(exception.getMessage(), exception);
+        } catch (BusinessException exception) {
+            recordFailure(callLog, "JSON_PARSE_OR_VALIDATE_FAILED", exception.getMessage(), null, startTime);
+            throw exception;
+        }
     }
 
-    private String chat(List<ChatMessage> messages, double temperature) {
+    private ChatResult chat(List<ChatMessage> messages, double temperature) {
         AiProperties.OpenAiCompatible config = getConfig();
         String endpoint = resolveChatCompletionsEndpoint(config.getBaseUrl());
         OpenAiChatRequest request = new OpenAiChatRequest(config.getModel(), messages, temperature);
 
         try {
-            OpenAiChatResponse response = restClient.post()
+            ResponseEntity<String> responseEntity = restClient.post()
                     .uri(endpoint)
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + config.getApiKey())
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(request)
                     .retrieve()
-                    .body(OpenAiChatResponse.class);
-            return extractContent(response);
+                    .toEntity(String.class);
+            OpenAiChatResponse response = readChatResponse(responseEntity.getBody());
+            String content = extractContent(response);
+            return new ChatResult(
+                    content,
+                    responseEntity.getBody(),
+                    responseEntity.getStatusCode().value(),
+                    getRequestId(responseEntity.getHeaders(), response),
+                    response.getUsage()
+            );
+        } catch (RestClientResponseException ex) {
+            ErrorInfo errorInfo = parseErrorInfo(ex.getResponseBodyAsString());
+            throw new AiCallException(
+                    errorInfo.getErrorCode(),
+                    errorInfo.getErrorMessage(),
+                    ex.getStatusCode().value(),
+                    ex.getResponseBodyAsString(),
+                    null,
+                    ex
+            );
         } catch (RestClientException ex) {
-            throw aiCallFailed("OpenAI-compatible chat completions request failed", ex);
+            throw new AiCallException("HTTP_REQUEST_FAILED", "OpenAI-compatible chat completions request failed", ex);
         }
     }
 
@@ -142,13 +249,147 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
 
     private String extractContent(OpenAiChatResponse response) {
         if (response == null || response.getChoices() == null || response.getChoices().isEmpty()) {
-            throw aiCallFailed("AI response has no choices", null);
+            throw new AiCallException("EMPTY_CHOICES", "AI response has no choices");
         }
         OpenAiChoice choice = response.getChoices().get(0);
         if (choice == null || choice.getMessage() == null || !StringUtils.hasText(choice.getMessage().getContent())) {
-            throw aiCallFailed("AI response content is empty", null);
+            throw new AiCallException("EMPTY_CONTENT", "AI response content is empty");
         }
         return choice.getMessage().getContent().trim();
+    }
+
+    private OpenAiChatResponse readChatResponse(String rawResponse) {
+        if (!StringUtils.hasText(rawResponse)) {
+            throw new AiCallException("EMPTY_RESPONSE", "AI raw response is empty");
+        }
+        try {
+            return objectMapper.readValue(rawResponse, OpenAiChatResponse.class);
+        } catch (JsonProcessingException exception) {
+            throw new AiCallException("RESPONSE_PARSE_FAILED", "OpenAI-compatible response parse failed", exception);
+        }
+    }
+
+    private ErrorInfo parseErrorInfo(String rawResponse) {
+        if (!StringUtils.hasText(rawResponse)) {
+            return new ErrorInfo("HTTP_ERROR", "OpenAI-compatible chat completions request failed");
+        }
+        try {
+            JsonNode errorNode = objectMapper.readTree(rawResponse).path("error");
+            String errorCode = textOrDefault(errorNode.path("code"), "HTTP_ERROR");
+            String errorMessage = textOrDefault(errorNode.path("message"), "OpenAI-compatible chat completions request failed");
+            return new ErrorInfo(errorCode, errorMessage);
+        } catch (JsonProcessingException exception) {
+            return new ErrorInfo("HTTP_ERROR", abbreviate(rawResponse));
+        }
+    }
+
+    private String getRequestId(HttpHeaders headers, OpenAiChatResponse response) {
+        String requestId = headers.getFirst("x-request-id");
+        if (StringUtils.hasText(requestId)) {
+            return requestId;
+        }
+        requestId = headers.getFirst("x-correlation-id");
+        if (StringUtils.hasText(requestId)) {
+            return requestId;
+        }
+        if (response != null && StringUtils.hasText(response.getId())) {
+            return response.getId();
+        }
+        return null;
+    }
+
+    private AiCallLog buildCallLog(AiRequestType requestType, Project project, InterviewContext context) {
+        AiCallLog callLog = new AiCallLog();
+        callLog.setProvider(textValue(aiProperties.getProvider()));
+        callLog.setModelName(getModelName());
+        callLog.setRequestType(requestType.name());
+        callLog.setPromptVersion(PROMPT_VERSION);
+        callLog.setCreatedAt(LocalDateTime.now());
+        if (context != null) {
+            callLog.setUserId(context.getUserId());
+            callLog.setProjectId(context.getProjectId());
+            callLog.setSessionId(context.getSessionId());
+        } else if (project != null) {
+            callLog.setUserId(project.getUserId());
+            callLog.setProjectId(project.getId());
+        }
+        return callLog;
+    }
+
+    private void recordSuccess(AiCallLog callLog, ChatResult chatResult, long startTime) {
+        callLog.setLatencyMs(System.currentTimeMillis() - startTime);
+        callLog.setSuccess(SUCCESS);
+        callLog.setStatusCode(chatResult.getStatusCode());
+        callLog.setRequestId(chatResult.getRequestId());
+        setUsage(callLog, chatResult.getUsage());
+        callLog.setRawResponse(shouldSaveRawResponse() ? chatResult.getRawResponse() : null);
+        aiCallLogService.record(callLog);
+    }
+
+    private void recordFailure(AiCallLog callLog, AiCallException exception, long startTime) {
+        callLog.setLatencyMs(System.currentTimeMillis() - startTime);
+        callLog.setSuccess(FAILURE);
+        callLog.setStatusCode(exception.getStatusCode());
+        callLog.setErrorCode(exception.getErrorCode());
+        callLog.setErrorMessage(abbreviate(exception.getErrorMessage()));
+        callLog.setRequestId(exception.getRequestId());
+        callLog.setRawResponse(shouldSaveRawResponse() ? exception.getRawResponse() : null);
+        aiCallLogService.record(callLog);
+    }
+
+    private void recordFailure(
+            AiCallLog callLog,
+            String errorCode,
+            String errorMessage,
+            String rawResponse,
+            long startTime
+    ) {
+        callLog.setLatencyMs(System.currentTimeMillis() - startTime);
+        callLog.setSuccess(FAILURE);
+        callLog.setErrorCode(errorCode);
+        callLog.setErrorMessage(abbreviate(errorMessage));
+        callLog.setRawResponse(shouldSaveRawResponse() ? rawResponse : null);
+        aiCallLogService.record(callLog);
+    }
+
+    private void setUsage(AiCallLog callLog, OpenAiUsage usage) {
+        if (usage == null) {
+            return;
+        }
+        callLog.setPromptTokens(usage.getPromptTokens());
+        callLog.setCompletionTokens(usage.getCompletionTokens());
+        callLog.setTotalTokens(usage.getTotalTokens());
+    }
+
+    private boolean shouldSaveRawResponse() {
+        return aiProperties.getLog() != null && Boolean.TRUE.equals(aiProperties.getLog().getSaveRawResponse());
+    }
+
+    private String getModelName() {
+        AiProperties.OpenAiCompatible config = aiProperties.getOpenAiCompatible();
+        if (config == null) {
+            return "";
+        }
+        return textValue(config.getModel());
+    }
+
+    private String textOrDefault(JsonNode node, String defaultValue) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return defaultValue;
+        }
+        String value = node.asText();
+        return StringUtils.hasText(value) ? value : defaultValue;
+    }
+
+    private String abbreviate(String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.replaceAll("\\s+", " ").trim();
+        if (normalized.length() <= 500) {
+            return normalized;
+        }
+        return normalized.substring(0, 500);
     }
 
     private BusinessException aiCallFailed(String reason, Exception ex) {
@@ -282,6 +523,130 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
         return properties.getOpenAiCompatible().getTimeoutSeconds();
     }
 
+    private static class ChatResult {
+
+        private final String content;
+
+        private final String rawResponse;
+
+        private final Integer statusCode;
+
+        private final String requestId;
+
+        private final OpenAiUsage usage;
+
+        private ChatResult(
+                String content,
+                String rawResponse,
+                Integer statusCode,
+                String requestId,
+                OpenAiUsage usage
+        ) {
+            this.content = content;
+            this.rawResponse = rawResponse;
+            this.statusCode = statusCode;
+            this.requestId = requestId;
+            this.usage = usage;
+        }
+
+        public String getContent() {
+            return content;
+        }
+
+        public String getRawResponse() {
+            return rawResponse;
+        }
+
+        public Integer getStatusCode() {
+            return statusCode;
+        }
+
+        public String getRequestId() {
+            return requestId;
+        }
+
+        public OpenAiUsage getUsage() {
+            return usage;
+        }
+    }
+
+    private static class ErrorInfo {
+
+        private final String errorCode;
+
+        private final String errorMessage;
+
+        private ErrorInfo(String errorCode, String errorMessage) {
+            this.errorCode = errorCode;
+            this.errorMessage = errorMessage;
+        }
+
+        public String getErrorCode() {
+            return errorCode;
+        }
+
+        public String getErrorMessage() {
+            return errorMessage;
+        }
+    }
+
+    private static class AiCallException extends RuntimeException {
+
+        private final String errorCode;
+
+        private final String errorMessage;
+
+        private final Integer statusCode;
+
+        private final String rawResponse;
+
+        private final String requestId;
+
+        private AiCallException(String errorCode, String errorMessage) {
+            this(errorCode, errorMessage, null, null, null, null);
+        }
+
+        private AiCallException(String errorCode, String errorMessage, Throwable cause) {
+            this(errorCode, errorMessage, null, null, null, cause);
+        }
+
+        private AiCallException(
+                String errorCode,
+                String errorMessage,
+                Integer statusCode,
+                String rawResponse,
+                String requestId,
+                Throwable cause
+        ) {
+            super(errorMessage, cause);
+            this.errorCode = errorCode;
+            this.errorMessage = errorMessage;
+            this.statusCode = statusCode;
+            this.rawResponse = rawResponse;
+            this.requestId = requestId;
+        }
+
+        public String getErrorCode() {
+            return errorCode;
+        }
+
+        public String getErrorMessage() {
+            return errorMessage;
+        }
+
+        public Integer getStatusCode() {
+            return statusCode;
+        }
+
+        public String getRawResponse() {
+            return rawResponse;
+        }
+
+        public String getRequestId() {
+            return requestId;
+        }
+    }
+
     public static class OpenAiChatRequest {
 
         private String model;
@@ -354,7 +719,19 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
 
     public static class OpenAiChatResponse {
 
+        private String id;
+
         private List<OpenAiChoice> choices;
+
+        private OpenAiUsage usage;
+
+        public String getId() {
+            return id;
+        }
+
+        public void setId(String id) {
+            this.id = id;
+        }
 
         public List<OpenAiChoice> getChoices() {
             return choices;
@@ -362,6 +739,14 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
 
         public void setChoices(List<OpenAiChoice> choices) {
             this.choices = choices;
+        }
+
+        public OpenAiUsage getUsage() {
+            return usage;
+        }
+
+        public void setUsage(OpenAiUsage usage) {
+            this.usage = usage;
         }
     }
 
@@ -375,6 +760,42 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
 
         public void setMessage(ChatMessage message) {
             this.message = message;
+        }
+    }
+
+    public static class OpenAiUsage {
+
+        @JsonProperty("prompt_tokens")
+        private Integer promptTokens;
+
+        @JsonProperty("completion_tokens")
+        private Integer completionTokens;
+
+        @JsonProperty("total_tokens")
+        private Integer totalTokens;
+
+        public Integer getPromptTokens() {
+            return promptTokens;
+        }
+
+        public void setPromptTokens(Integer promptTokens) {
+            this.promptTokens = promptTokens;
+        }
+
+        public Integer getCompletionTokens() {
+            return completionTokens;
+        }
+
+        public void setCompletionTokens(Integer completionTokens) {
+            this.completionTokens = completionTokens;
+        }
+
+        public Integer getTotalTokens() {
+            return totalTokens;
+        }
+
+        public void setTotalTokens(Integer totalTokens) {
+            this.totalTokens = totalTokens;
         }
     }
 }
