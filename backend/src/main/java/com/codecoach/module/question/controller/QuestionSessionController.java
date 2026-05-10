@@ -1,11 +1,14 @@
 package com.codecoach.module.question.controller;
 
 import com.codecoach.common.result.Result;
+import com.codecoach.common.result.PageResult;
 import com.codecoach.module.question.dto.QuestionAnswerRequest;
 import com.codecoach.module.question.dto.QuestionSessionCreateRequest;
+import com.codecoach.module.question.dto.QuestionSessionPageRequest;
 import com.codecoach.module.question.service.QuestionSessionService;
 import com.codecoach.module.question.vo.QuestionAnswerResponse;
 import com.codecoach.module.question.vo.QuestionFinishResponse;
+import com.codecoach.module.question.vo.QuestionSessionHistoryVO;
 import com.codecoach.module.question.vo.QuestionSessionCreateResponse;
 import com.codecoach.module.question.vo.QuestionSessionDetailVO;
 import jakarta.validation.Valid;
@@ -31,6 +34,11 @@ public class QuestionSessionController {
             @Valid @RequestBody QuestionSessionCreateRequest request
     ) {
         return Result.success(questionSessionService.createSession(request));
+    }
+
+    @GetMapping
+    public Result<PageResult<QuestionSessionHistoryVO>> pageSessions(QuestionSessionPageRequest request) {
+        return Result.success(questionSessionService.pageSessions(request));
     }
 
     @GetMapping("/{sessionId}")

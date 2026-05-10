@@ -1,7 +1,9 @@
 package com.codecoach.module.question.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.codecoach.common.exception.BusinessException;
+import com.codecoach.common.result.PageResult;
 import com.codecoach.common.result.ResultCode;
 import com.codecoach.module.ai.model.QuestionFeedbackResult;
 import com.codecoach.module.ai.model.QuestionPracticeContext;
@@ -11,6 +13,7 @@ import com.codecoach.module.knowledge.entity.KnowledgeTopic;
 import com.codecoach.module.knowledge.mapper.KnowledgeTopicMapper;
 import com.codecoach.module.question.dto.QuestionAnswerRequest;
 import com.codecoach.module.question.dto.QuestionSessionCreateRequest;
+import com.codecoach.module.question.dto.QuestionSessionPageRequest;
 import com.codecoach.module.question.entity.QuestionTrainingMessage;
 import com.codecoach.module.question.entity.QuestionTrainingReport;
 import com.codecoach.module.question.entity.QuestionTrainingSession;
@@ -23,6 +26,7 @@ import com.codecoach.module.question.vo.QuestionFinishResponse;
 import com.codecoach.module.question.vo.QuestionMessageVO;
 import com.codecoach.module.question.vo.QuestionSessionCreateResponse;
 import com.codecoach.module.question.vo.QuestionSessionDetailVO;
+import com.codecoach.module.question.vo.QuestionSessionHistoryVO;
 import com.codecoach.security.UserContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -32,7 +36,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -90,6 +98,12 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
     private static final int NOT_DELETED = 0;
 
     private static final int DELETED = 1;
+
+    private static final long DEFAULT_PAGE_NUM = 1L;
+
+    private static final long DEFAULT_PAGE_SIZE = 10L;
+
+    private static final long MAX_PAGE_SIZE = 100L;
 
     private static final Duration ANSWER_LOCK_TTL = Duration.ofSeconds(120);
 
@@ -192,6 +206,39 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
                 session.getMaxRound(),
                 toQuestionMessageVO(message)
         );
+    }
+
+    @Override
+    public PageResult<QuestionSessionHistoryVO> pageSessions(QuestionSessionPageRequest request) {
+        Long currentUserId = UserContext.getCurrentUserId();
+        long pageNum = normalizePageNum(request.getPageNum());
+        long pageSize = normalizePageSize(request.getPageSize());
+
+        List<Long> categoryTopicIds = getTopicIdsByCategory(request.getCategory());
+        if (StringUtils.hasText(request.getCategory()) && categoryTopicIds.isEmpty()) {
+            return new PageResult<>(Collections.emptyList(), 0L, pageNum, pageSize, 0L);
+        }
+
+        LambdaQueryWrapper<QuestionTrainingSession> queryWrapper = new LambdaQueryWrapper<QuestionTrainingSession>()
+                .eq(QuestionTrainingSession::getUserId, currentUserId)
+                .eq(QuestionTrainingSession::getIsDeleted, NOT_DELETED)
+                .eq(request.getTopicId() != null, QuestionTrainingSession::getTopicId, request.getTopicId())
+                .eq(StringUtils.hasText(request.getStatus()), QuestionTrainingSession::getStatus, request.getStatus())
+                .in(StringUtils.hasText(request.getCategory()), QuestionTrainingSession::getTopicId, categoryTopicIds)
+                .orderByDesc(QuestionTrainingSession::getCreatedAt);
+
+        Page<QuestionTrainingSession> page = questionTrainingSessionMapper.selectPage(
+                new Page<>(pageNum, pageSize),
+                queryWrapper
+        );
+        List<QuestionTrainingSession> sessions = page.getRecords();
+        Map<Long, KnowledgeTopic> topicMap = getTopicMap(sessions);
+        Map<Long, Long> reportIdMap = getReportIdMap(sessions);
+        List<QuestionSessionHistoryVO> records = sessions.stream()
+                .map(session -> toQuestionSessionHistoryVO(session, topicMap, reportIdMap))
+                .toList();
+
+        return new PageResult<>(records, page.getTotal(), page.getCurrent(), page.getSize(), page.getPages());
     }
 
     @Override
@@ -555,6 +602,66 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
         return questionTrainingReportMapper.selectOne(queryWrapper);
     }
 
+    private List<Long> getTopicIdsByCategory(String category) {
+        if (!StringUtils.hasText(category)) {
+            return Collections.emptyList();
+        }
+        LambdaQueryWrapper<KnowledgeTopic> queryWrapper = new LambdaQueryWrapper<KnowledgeTopic>()
+                .eq(KnowledgeTopic::getCategory, category);
+        return knowledgeTopicMapper.selectList(queryWrapper).stream()
+                .map(KnowledgeTopic::getId)
+                .toList();
+    }
+
+    private Map<Long, KnowledgeTopic> getTopicMap(List<QuestionTrainingSession> sessions) {
+        Set<Long> topicIds = sessions.stream()
+                .map(QuestionTrainingSession::getTopicId)
+                .collect(Collectors.toSet());
+        if (topicIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        LambdaQueryWrapper<KnowledgeTopic> queryWrapper = new LambdaQueryWrapper<KnowledgeTopic>()
+                .in(KnowledgeTopic::getId, topicIds);
+        return knowledgeTopicMapper.selectList(queryWrapper).stream()
+                .collect(Collectors.toMap(KnowledgeTopic::getId, Function.identity()));
+    }
+
+    private Map<Long, Long> getReportIdMap(List<QuestionTrainingSession> sessions) {
+        Set<Long> sessionIds = sessions.stream()
+                .map(QuestionTrainingSession::getId)
+                .collect(Collectors.toSet());
+        if (sessionIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        LambdaQueryWrapper<QuestionTrainingReport> queryWrapper = new LambdaQueryWrapper<QuestionTrainingReport>()
+                .in(QuestionTrainingReport::getSessionId, sessionIds);
+        return questionTrainingReportMapper.selectList(queryWrapper).stream()
+                .collect(Collectors.toMap(QuestionTrainingReport::getSessionId, QuestionTrainingReport::getId));
+    }
+
+    private QuestionSessionHistoryVO toQuestionSessionHistoryVO(
+            QuestionTrainingSession session,
+            Map<Long, KnowledgeTopic> topicMap,
+            Map<Long, Long> reportIdMap
+    ) {
+        KnowledgeTopic topic = topicMap.get(session.getTopicId());
+        return new QuestionSessionHistoryVO(
+                session.getId(),
+                session.getTopicId(),
+                topic == null ? null : topic.getCategory(),
+                topic == null ? null : topic.getName(),
+                session.getTargetRole(),
+                session.getDifficulty(),
+                session.getStatus(),
+                session.getCurrentRound(),
+                session.getMaxRound(),
+                session.getTotalScore(),
+                reportIdMap.get(session.getId()),
+                session.getCreatedAt(),
+                session.getEndedAt()
+        );
+    }
+
     private String buildHistoryMessages(List<QuestionTrainingMessage> messages) {
         if (messages == null || messages.isEmpty()) {
             return "暂无历史消息";
@@ -606,6 +713,20 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
             return "";
         }
         return String.valueOf(value);
+    }
+
+    private long normalizePageNum(Long pageNum) {
+        if (pageNum == null || pageNum < DEFAULT_PAGE_NUM) {
+            return DEFAULT_PAGE_NUM;
+        }
+        return pageNum;
+    }
+
+    private long normalizePageSize(Long pageSize) {
+        if (pageSize == null || pageSize < 1) {
+            return DEFAULT_PAGE_SIZE;
+        }
+        return Math.min(pageSize, MAX_PAGE_SIZE);
     }
 
     private String normalizeDifficulty(String difficulty) {
