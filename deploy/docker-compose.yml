@@ -35,7 +35,17 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: codecoach-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    restart: unless-stopped
 
 volumes:
   mysql_data:
   redis_data:
+  qdrant_data:
