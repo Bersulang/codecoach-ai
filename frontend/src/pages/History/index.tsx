@@ -234,6 +234,26 @@ function HistoryPage() {
     setQuestionPageNum(1);
   };
 
+  const statusFilter =
+    activeTab === "project" ? (
+      <Select
+        placeholder="筛选状态"
+        allowClear
+        style={{ width: 160 }}
+        value={status}
+        onChange={handleStatusChange}
+        options={STATUS_OPTIONS}
+      />
+    ) : (
+      <Select
+        placeholder="筛选状态"
+        style={{ width: 160 }}
+        value={questionStatus}
+        onChange={handleQuestionStatusChange}
+        options={QUESTION_STATUS_OPTIONS}
+      />
+    );
+
   return (
     <div className="history-page">
       <div className="history-header">
@@ -250,22 +270,15 @@ function HistoryPage() {
         className="history-tabs"
         activeKey={activeTab}
         onChange={setActiveTab}
+        tabBarExtraContent={
+          <div className="history-tab-extra">{statusFilter}</div>
+        }
         items={[
           {
             key: "project",
             label: "项目训练",
             children: (
               <div className="history-tab">
-                <div className="history-actions">
-                  <Select
-                    placeholder="筛选状态"
-                    allowClear
-                    style={{ width: 160 }}
-                    value={status}
-                    onChange={handleStatusChange}
-                    options={STATUS_OPTIONS}
-                  />
-                </div>
                 <div className="history-list">
                   {loading ? (
                     <Card className="history-card" loading />
@@ -372,15 +385,6 @@ function HistoryPage() {
             label: "八股训练",
             children: (
               <div className="history-tab">
-                <div className="history-actions">
-                  <Select
-                    placeholder="筛选状态"
-                    style={{ width: 160 }}
-                    value={questionStatus}
-                    onChange={handleQuestionStatusChange}
-                    options={QUESTION_STATUS_OPTIONS}
-                  />
-                </div>
                 <div className="history-list">
                   {questionLoading ? (
                     <Card className="history-card" loading />

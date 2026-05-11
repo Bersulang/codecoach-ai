@@ -95,10 +95,6 @@ function QuestionReportPage() {
     navigate("/questions");
   };
 
-  const handleDashboard = () => {
-    navigate("/dashboard");
-  };
-
   const handleRestart = () => {
     navigate("/questions");
   };
@@ -178,7 +174,6 @@ function QuestionReportPage() {
         </div>
         <div className="question-report-actions">
           <Button onClick={handleBack}>返回八股问答</Button>
-          <Button onClick={handleDashboard}>返回工作台</Button>
           <Button type="primary" onClick={handleRestart} disabled={!report}>
             再练一次
           </Button>

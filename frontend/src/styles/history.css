@@ -33,6 +33,7 @@
 
 .history-tabs .ant-tabs-nav {
   margin: 0 0 var(--cc-space-4) 0;
+  align-items: center;
 }
 
 .history-tabs .ant-tabs-tab {
@@ -49,6 +50,16 @@
 
 .history-tabs .ant-tabs-ink-bar {
   display: none;
+}
+
+.history-tabs .ant-tabs-extra-content {
+  margin-left: auto;
+}
+
+.history-tab-extra {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .history-tab {
