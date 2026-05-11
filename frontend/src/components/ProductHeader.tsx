@@ -45,6 +45,10 @@ function ProductHeader({ user, onLogout }: ProductHeaderProps) {
       label: <Link to="/dashboard">工作台</Link>,
     },
     {
+      key: "insights",
+      label: <Link to="/insights">成长洞察</Link>,
+    },
+    {
       type: "divider",
     },
     {

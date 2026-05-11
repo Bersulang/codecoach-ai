@@ -9,6 +9,7 @@ import LandingPage from "../pages/Landing";
 import LearnArticlePage from "../pages/LearnArticle";
 import LearnPage from "../pages/Learn";
 import LoginPage from "../pages/Login";
+import InsightsPage from "../pages/Insights";
 import ProfilePage from "../pages/Profile";
 import ProjectFormPage from "../pages/ProjectForm";
 import ProjectsPage from "../pages/Projects";
@@ -80,6 +81,10 @@ const router = createBrowserRouter([
           {
             path: "questions",
             element: <QuestionsPage />,
+          },
+          {
+            path: "insights",
+            element: <InsightsPage />,
           },
           {
             path: "learn",

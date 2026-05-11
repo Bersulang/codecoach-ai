@@ -41,6 +41,18 @@ function DashboardPage() {
         ))}
       </section>
 
+      <section className="workspace-insight-card">
+        <div>
+          <div className="workspace-insight-card__title">成长洞察</div>
+          <p className="workspace-insight-card__desc">
+            查看训练趋势、能力维度和高频薄弱点，理解自己最近的面试准备状态。
+          </p>
+        </div>
+        <Button type="primary" size="large" href="/insights">
+          查看成长洞察
+        </Button>
+      </section>
+
       <section className="workspace-panel">
         <div>
           <span className="workspace-kicker">训练建议</span>

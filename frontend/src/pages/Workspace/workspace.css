@@ -88,6 +88,30 @@
   color: rgba(31, 29, 26, 0.55);
 }
 
+.workspace-insight-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  border: 1px solid rgba(31, 29, 26, 0.1);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.56);
+  padding: 28px 30px;
+  color: var(--cc-ink);
+  box-shadow: 0 16px 42px rgba(31, 29, 26, 0.06);
+}
+
+.workspace-insight-card__title {
+  font-size: 20px;
+  font-weight: 650;
+}
+
+.workspace-insight-card__desc {
+  margin: 12px 0 0;
+  color: rgba(31, 29, 26, 0.55);
+  max-width: 560px;
+}
+
 .workspace-panel {
   display: flex;
   justify-content: space-between;
@@ -137,6 +161,11 @@
 
   .workspace-panel,
   .profile-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .workspace-insight-card {
     align-items: flex-start;
     flex-direction: column;
   }
