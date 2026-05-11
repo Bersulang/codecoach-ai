@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.codecoach.common.exception.BusinessException;
 import com.codecoach.common.result.PageResult;
+import com.codecoach.common.result.ResultCode;
 import com.codecoach.module.knowledge.dto.KnowledgeArticlePageRequest;
 import com.codecoach.module.knowledge.entity.KnowledgeArticle;
 import com.codecoach.module.knowledge.entity.KnowledgeTopic;
@@ -25,10 +26,6 @@ import org.springframework.util.StringUtils;
 
 @Service
 public class KnowledgeArticleServiceImpl implements KnowledgeArticleService {
-
-    private static final int ARTICLE_NOT_FOUND_CODE = 5101;
-
-    private static final String ARTICLE_NOT_FOUND_MESSAGE = "知识文章不存在";
 
     private static final String STATUS_PUBLISHED = "PUBLISHED";
 
@@ -164,7 +161,7 @@ public class KnowledgeArticleServiceImpl implements KnowledgeArticleService {
                 || !STATUS_PUBLISHED.equals(article.getStatus())
                 || article.getIsDeleted() == null
                 || article.getIsDeleted() != NOT_DELETED) {
-            throw new BusinessException(ARTICLE_NOT_FOUND_CODE, ARTICLE_NOT_FOUND_MESSAGE);
+            throw new BusinessException(ResultCode.KNOWLEDGE_ARTICLE_NOT_FOUND);
         }
     }
 

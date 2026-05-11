@@ -8,6 +8,8 @@ public enum ResultCode {
     FORBIDDEN(403, "无权限"),
     NOT_FOUND(404, "资源不存在"),
     ANSWER_PROCESSING(3004, "当前回答正在处理中，请稍后"),
+    KNOWLEDGE_ARTICLE_NOT_FOUND(5101, "知识文章不存在"),
+    KNOWLEDGE_ARTICLE_CONTENT_NOT_FOUND(5102, "知识文章内容不存在"),
     INTERNAL_ERROR(500, "系统异常");
 
     private final Integer code;
