@@ -12,6 +12,7 @@ interface ProductHeaderProps {
 const productNavItems = [
   { label: "项目档案", to: "/projects" },
   { label: "八股问答", to: "/questions" },
+  { label: "知识学习", to: "/learn" },
   { label: "训练历史", to: "/history" },
 ];
 

@@ -6,6 +6,8 @@ import DashboardPage from "../pages/Dashboard";
 import HistoryPage from "../pages/History";
 import InterviewPage from "../pages/Interview";
 import LandingPage from "../pages/Landing";
+import LearnArticlePage from "../pages/LearnArticle";
+import LearnPage from "../pages/Learn";
 import LoginPage from "../pages/Login";
 import ProfilePage from "../pages/Profile";
 import ProjectFormPage from "../pages/ProjectForm";
@@ -78,6 +80,14 @@ const router = createBrowserRouter([
           {
             path: "questions",
             element: <QuestionsPage />,
+          },
+          {
+            path: "learn",
+            element: <LearnPage />,
+          },
+          {
+            path: "learn/articles/:articleId",
+            element: <LearnArticlePage />,
           },
           {
             path: "question-sessions/:sessionId",
