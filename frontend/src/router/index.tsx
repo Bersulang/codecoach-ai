@@ -10,6 +10,7 @@ import LoginPage from "../pages/Login";
 import ProfilePage from "../pages/Profile";
 import ProjectFormPage from "../pages/ProjectForm";
 import ProjectsPage from "../pages/Projects";
+import QuestionSessionPage from "../pages/QuestionSession";
 import QuestionsPage from "../pages/Questions";
 import RegisterPage from "../pages/Register";
 import ReportPage from "../pages/Report";
@@ -76,6 +77,10 @@ const router = createBrowserRouter([
           {
             path: "questions",
             element: <QuestionsPage />,
+          },
+          {
+            path: "question-sessions/:sessionId",
+            element: <QuestionSessionPage />,
           },
           {
             path: "profile",

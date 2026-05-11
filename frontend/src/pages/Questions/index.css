@@ -1,0 +1,222 @@
+.questions-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cc-space-5);
+}
+
+.questions-filters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cc-space-3);
+}
+
+.questions-categories {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.questions-category {
+  border: 1px solid var(--cc-border);
+  border-radius: 999px;
+  padding: 6px 14px;
+  background: var(--cc-surface);
+  color: var(--cc-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.questions-category.is-active {
+  border-color: var(--cc-border-strong);
+  background: var(--cc-accent-subtle);
+  color: var(--cc-text-primary);
+}
+
+.questions-toolbar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.questions-search {
+  flex: 1;
+  min-width: 220px;
+}
+
+.questions-select {
+  width: 180px;
+}
+
+.questions-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--cc-space-4);
+}
+
+.questions-card {
+  border: 1px solid var(--cc-border);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.questions-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--cc-shadow-md);
+}
+
+.questions-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.questions-card__category {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cc-text-muted);
+  margin-bottom: 6px;
+}
+
+.questions-card__title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--cc-text-primary);
+}
+
+.questions-card__difficulty {
+  font-size: 12px;
+  color: var(--cc-text-secondary);
+  background: var(--cc-surface-muted);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+
+.questions-card__desc {
+  margin: 12px 0 0;
+  color: var(--cc-text-secondary);
+}
+
+.questions-card__focus {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: var(--cc-radius-md);
+  background: var(--cc-surface-muted);
+  color: var(--cc-text-secondary);
+}
+
+.questions-card__focus span {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cc-text-muted);
+  margin-bottom: 4px;
+}
+
+.questions-card__focus p {
+  margin: 0;
+}
+
+.questions-card__tags {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.questions-card__actions {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.questions-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.questions-modal .ant-modal-content {
+  border-radius: var(--cc-radius-lg);
+}
+
+.questions-modal__topic {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: var(--cc-space-4);
+}
+
+.questions-modal__title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--cc-text-primary);
+}
+
+.questions-modal__meta {
+  color: var(--cc-text-secondary);
+}
+
+.questions-difficulty-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cc-space-3);
+}
+
+.questions-difficulty-option {
+  margin-inline-start: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  border: 1px solid var(--cc-border);
+  border-radius: var(--cc-radius-md);
+  padding: 12px 14px;
+  width: 100%;
+  background: var(--cc-surface);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.questions-difficulty-option.ant-radio-wrapper-checked {
+  border-color: var(--cc-accent);
+  background: var(--cc-accent-subtle);
+  box-shadow: 0 0 0 1px rgba(200, 120, 77, 0.24);
+}
+
+.questions-difficulty-option .ant-radio {
+  align-self: flex-start;
+  margin-top: 3px;
+}
+
+.questions-difficulty-option__content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.questions-difficulty-option__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--cc-text-primary);
+}
+
+.questions-difficulty-option__desc {
+  font-size: 12px;
+  color: var(--cc-text-secondary);
+}
+
+@media (max-width: 768px) {
+  .questions-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .questions-select {
+    width: 100%;
+  }
+
+  .questions-footer {
+    justify-content: center;
+  }
+}
