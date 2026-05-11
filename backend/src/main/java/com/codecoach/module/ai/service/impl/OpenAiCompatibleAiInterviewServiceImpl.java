@@ -59,6 +59,8 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
     private static final String SYSTEM_PROMPT = "你是一个严厉但专业的 Java 后端面试官，"
             + "需要围绕候选人的项目经历进行追问、反馈和总结。回答必须准确、具体、直接。";
 
+    private static final int DEFAULT_TIMEOUT_SECONDS = 120;
+
     private static final String FIRST_QUESTION_TEMPLATE = "interview_first_question.md";
 
     private static final String FEEDBACK_NEXT_QUESTION_TEMPLATE = "interview_feedback_next_question.md";
@@ -251,6 +253,9 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
             }
             throw new AiCallException("NETWORK_ERROR", "NETWORK_ERROR", ex);
         } catch (RestClientException ex) {
+            if (isTimeoutException(ex)) {
+                throw new AiCallException("TIMEOUT", "TIMEOUT", ex);
+            }
             throw new AiCallException("HTTP_REQUEST_FAILED", "HTTP_REQUEST_FAILED", ex);
         }
     }
@@ -586,9 +591,9 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
                 || properties.getOpenAiCompatible() == null
                 || properties.getOpenAiCompatible().getTimeoutSeconds() == null
                 || properties.getOpenAiCompatible().getTimeoutSeconds() <= 0) {
-            return 120;
+            return DEFAULT_TIMEOUT_SECONDS;
         }
-        return properties.getOpenAiCompatible().getTimeoutSeconds();
+        return Math.max(properties.getOpenAiCompatible().getTimeoutSeconds(), DEFAULT_TIMEOUT_SECONDS);
     }
 
     private static class ChatResult {

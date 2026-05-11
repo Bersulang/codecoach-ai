@@ -63,6 +63,8 @@ public class OpenAiCompatibleQuestionPracticeServiceImpl implements AiQuestionPr
     private static final String SYSTEM_PROMPT = "你是一个专业的 Java 后端八股问答面试官，"
             + "需要围绕指定知识点进行准确、具体、循序渐进的追问训练。";
 
+    private static final int DEFAULT_TIMEOUT_SECONDS = 120;
+
     private final AiProperties aiProperties;
 
     private final PromptTemplateService promptTemplateService;
@@ -250,6 +252,9 @@ public class OpenAiCompatibleQuestionPracticeServiceImpl implements AiQuestionPr
             }
             throw new AiCallException("NETWORK_ERROR", "NETWORK_ERROR", ex);
         } catch (RestClientException ex) {
+            if (isTimeoutException(ex)) {
+                throw new AiCallException("TIMEOUT", "TIMEOUT", ex);
+            }
             throw new AiCallException("HTTP_REQUEST_FAILED", "HTTP_REQUEST_FAILED", ex);
         }
     }
@@ -521,9 +526,9 @@ public class OpenAiCompatibleQuestionPracticeServiceImpl implements AiQuestionPr
                 || properties.getOpenAiCompatible() == null
                 || properties.getOpenAiCompatible().getTimeoutSeconds() == null
                 || properties.getOpenAiCompatible().getTimeoutSeconds() <= 0) {
-            return 120;
+            return DEFAULT_TIMEOUT_SECONDS;
         }
-        return properties.getOpenAiCompatible().getTimeoutSeconds();
+        return Math.max(properties.getOpenAiCompatible().getTimeoutSeconds(), DEFAULT_TIMEOUT_SECONDS);
     }
 
     private static class ChatResult {
