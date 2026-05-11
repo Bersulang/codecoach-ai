@@ -6,6 +6,7 @@ import { getKnowledgeArticleDetail } from "../../api/knowledge";
 import EmptyState from "../../components/EmptyState";
 import PageShell from "../../components/PageShell";
 import SurfaceCard from "../../components/SurfaceCard";
+import StartQuestionSessionModal from "../../components/question/StartQuestionSessionModal";
 import type { KnowledgeArticleDetail } from "../../types/knowledge";
 import "./index.css";
 
@@ -39,6 +40,7 @@ function LearnArticlePage() {
   const [loading, setLoading] = useState(false);
   const [errorState, setErrorState] = useState<ArticleErrorState>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const parsedArticleId = useMemo(() => {
     const id = Number(articleId);
@@ -106,8 +108,26 @@ function LearnArticlePage() {
     if (!article?.topicId) {
       return;
     }
-    navigate(`/questions?topicId=${article.topicId}`);
+    setSettingsOpen(true);
   };
+
+  const handleCloseSettings = () => {
+    setSettingsOpen(false);
+  };
+
+  const handleTrainingCreated = (sessionId: number) => {
+    setSettingsOpen(false);
+    navigate(`/question-sessions/${sessionId}`);
+  };
+
+  const trainingTopic = article
+    ? {
+        id: article.topicId,
+        category: article.category || "—",
+        name: article.topicName || "—",
+        description: article.summary || "",
+      }
+    : null;
 
   const errorDescription =
     errorState === "NOT_FOUND"
@@ -219,6 +239,13 @@ function LearnArticlePage() {
           }
         />
       )}
+
+      <StartQuestionSessionModal
+        open={settingsOpen}
+        topic={trainingTopic}
+        onCancel={handleCloseSettings}
+        onSuccess={handleTrainingCreated}
+      />
     </PageShell>
   );
 }

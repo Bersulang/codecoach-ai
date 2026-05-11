@@ -1,10 +1,7 @@
 import {
   Button,
-  Form,
   Input,
-  Modal,
   Pagination,
-  Radio,
   Select,
   Spin,
   Tag,
@@ -14,7 +11,6 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  createQuestionSession,
   getKnowledgeTopicCategories,
   getKnowledgeTopics,
 } from "../../api/question";
@@ -22,11 +18,11 @@ import EmptyState from "../../components/EmptyState";
 import PageHeader from "../../components/PageHeader";
 import PageShell from "../../components/PageShell";
 import SurfaceCard from "../../components/SurfaceCard";
+import StartQuestionSessionModal from "../../components/question/StartQuestionSessionModal";
 import type { InterviewDifficulty } from "../../types/interview";
 import type { KnowledgeTopic } from "../../types/question";
 import "./index.css";
 
-const DEFAULT_TARGET_ROLE = "Java 后端实习";
 const DEFAULT_PAGE_SIZE = 20;
 const DEFAULT_CATEGORIES = [
   "Java 基础",
@@ -47,34 +43,7 @@ const DIFFICULTY_LABELS: Record<InterviewDifficulty, string> = {
   HARD: "深度拷打",
 };
 
-const DIFFICULTY_OPTIONS: Array<{
-  value: InterviewDifficulty;
-  title: string;
-  description: string;
-}> = [
-  {
-    value: "EASY",
-    title: "入门引导",
-    description: "适合刚学完知识点，重点确认基础概念和表达。",
-  },
-  {
-    value: "NORMAL",
-    title: "常规面试",
-    description: "模拟常规实习 / 校招技术面，关注原理、场景和常见追问。",
-  },
-  {
-    value: "HARD",
-    title: "深度拷打",
-    description: "偏深度拷打，关注底层原理、边界条件、性能和工程权衡。",
-  },
-];
-
 type DifficultyFilter = "ALL" | InterviewDifficulty;
-
-type TrainingSettingsForm = {
-  targetRole: string;
-  difficulty: InterviewDifficulty;
-};
 
 function mergeCategories(base: string[], incoming: string[]) {
   return Array.from(new Set([...base, ...incoming]));
@@ -104,8 +73,6 @@ function QuestionsPage() {
   const [total, setTotal] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeTopic, setActiveTopic] = useState<KnowledgeTopic | null>(null);
-  const [startingId, setStartingId] = useState<number | null>(null);
-  const [settingsForm] = Form.useForm<TrainingSettingsForm>();
 
   const categoryOptions = useMemo(() => ["全部", ...categories], [categories]);
 
@@ -202,60 +169,16 @@ function QuestionsPage() {
   const openSettingsModal = (topic: KnowledgeTopic) => {
     setActiveTopic(topic);
     setSettingsOpen(true);
-    settingsForm.setFieldsValue({
-      targetRole: DEFAULT_TARGET_ROLE,
-      difficulty: "NORMAL",
-    });
   };
 
   const closeSettingsModal = () => {
-    if (startingId) {
-      return;
-    }
     setSettingsOpen(false);
     setActiveTopic(null);
   };
 
-  const handleStartTraining = async () => {
-    if (!activeTopic) {
-      return;
-    }
-    let values: TrainingSettingsForm;
-    try {
-      values = await settingsForm.validateFields();
-    } catch {
-      return;
-    }
-
-    const targetRole = values.targetRole.trim();
-    if (!targetRole) {
-      settingsForm.setFields([
-        { name: "targetRole", errors: ["请填写目标岗位"] },
-      ]);
-      return;
-    }
-
-    setStartingId(activeTopic.id);
-    try {
-      const data = await createQuestionSession({
-        topicId: activeTopic.id,
-        targetRole,
-        difficulty: values.difficulty,
-      });
-
-      if (!data?.sessionId) {
-        message.error("创建训练失败，请稍后重试");
-        return;
-      }
-
-      setSettingsOpen(false);
-      setActiveTopic(null);
-      navigate(`/question-sessions/${data.sessionId}`);
-    } catch {
-      // Errors are handled by the request interceptor.
-    } finally {
-      setStartingId(null);
-    }
+  const handleTrainingCreated = (sessionId: number) => {
+    closeSettingsModal();
+    navigate(`/question-sessions/${sessionId}`);
   };
 
   return (
@@ -345,7 +268,6 @@ function QuestionsPage() {
                   <Button
                     type="primary"
                     onClick={() => openSettingsModal(topic)}
-                    loading={startingId === topic.id}
                   >
                     开始训练
                   </Button>
@@ -371,67 +293,12 @@ function QuestionsPage() {
         </div>
       )}
 
-      <Modal
-        title="训练设置"
+      <StartQuestionSessionModal
         open={settingsOpen}
+        topic={activeTopic}
         onCancel={closeSettingsModal}
-        onOk={handleStartTraining}
-        okText="开始训练"
-        cancelText="取消"
-        okButtonProps={{ loading: startingId === activeTopic?.id }}
-        cancelButtonProps={{ disabled: startingId === activeTopic?.id }}
-        maskClosable={!startingId}
-        destroyOnClose
-        className="questions-modal"
-      >
-        <div className="questions-modal__topic">
-          <Typography.Text type="secondary">当前知识点</Typography.Text>
-          <div className="questions-modal__title">
-            {activeTopic?.name || "—"}
-          </div>
-          <div className="questions-modal__meta">{activeTopic?.category}</div>
-        </div>
-        <Form
-          form={settingsForm}
-          layout="vertical"
-          initialValues={{
-            targetRole: DEFAULT_TARGET_ROLE,
-            difficulty: "NORMAL",
-          }}
-        >
-          <Form.Item
-            label="目标岗位"
-            name="targetRole"
-            rules={[{ required: true, message: "请填写目标岗位" }]}
-          >
-            <Input placeholder="例如：Java 后端实习" />
-          </Form.Item>
-          <Form.Item
-            label="训练难度"
-            name="difficulty"
-            rules={[{ required: true, message: "请选择训练难度" }]}
-          >
-            <Radio.Group className="questions-difficulty-group">
-              {DIFFICULTY_OPTIONS.map((option) => (
-                <Radio
-                  key={option.value}
-                  value={option.value}
-                  className="questions-difficulty-option"
-                >
-                  <div className="questions-difficulty-option__content">
-                    <div className="questions-difficulty-option__title">
-                      {option.title}
-                    </div>
-                    <div className="questions-difficulty-option__desc">
-                      {option.description}
-                    </div>
-                  </div>
-                </Radio>
-              ))}
-            </Radio.Group>
-          </Form.Item>
-        </Form>
-      </Modal>
+        onSuccess={handleTrainingCreated}
+      />
     </PageShell>
   );
 }
