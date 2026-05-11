@@ -92,3 +92,28 @@ export interface QuestionFinishResponse {
   sessionId: number;
   totalScore?: number | null;
 }
+
+export interface QuestionReportQaReview {
+  question: string;
+  answer: string;
+  referenceAnswer: string;
+  feedback: string;
+}
+
+export interface QuestionReport {
+  id: number;
+  sessionId: number;
+  topicId: number;
+  category: string;
+  topicName: string;
+  targetRole: string;
+  difficulty: InterviewDifficulty;
+  totalScore?: number | null;
+  summary?: string;
+  strengths?: string[];
+  weaknesses?: string[];
+  suggestions?: string[];
+  knowledgeGaps?: string[];
+  qaReview?: QuestionReportQaReview[];
+  createdAt?: string;
+}

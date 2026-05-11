@@ -358,7 +358,11 @@ function QuestionSessionPage() {
               onConfirm={handleFinish}
               disabled={finishing}
             >
-              <Button danger loading={finishing} disabled={!detail || isFinished}>
+              <Button
+                danger
+                loading={finishing}
+                disabled={!detail || isFinished}
+              >
                 结束训练
               </Button>
             </Popconfirm>

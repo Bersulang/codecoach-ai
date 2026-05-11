@@ -8,6 +8,7 @@ import type {
   QuestionAnswerRequest,
   QuestionAnswerResponse,
   QuestionFinishResponse,
+  QuestionReport,
   QuestionSessionDetail,
 } from "../types/question";
 
@@ -39,3 +40,6 @@ export const finishQuestionSession = (sessionId: number | string) =>
   request.post<QuestionFinishResponse>(
     `/api/question-sessions/${sessionId}/finish`,
   );
+
+export const getQuestionReport = (reportId: number | string) =>
+  request.get<QuestionReport>(`/api/question-reports/${reportId}`);
