@@ -245,6 +245,58 @@ CREATE TABLE user_ability_snapshot (
     KEY idx_user_source_created (user_id, source_type, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户能力快照表';
 
+CREATE TABLE IF NOT EXISTS rag_document (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT 'RAG文档ID',
+    owner_type VARCHAR(32) NOT NULL COMMENT '归属类型：SYSTEM/USER',
+    owner_id BIGINT DEFAULT NULL COMMENT '归属ID，SYSTEM可为空，USER为用户ID',
+    user_id BIGINT DEFAULT NULL COMMENT '用户ID，系统文档为空',
+    title VARCHAR(255) NOT NULL COMMENT '文档标题',
+    source_type VARCHAR(64) NOT NULL COMMENT '来源类型：KNOWLEDGE_ARTICLE/PROJECT/INTERVIEW_REPORT/QUESTION_REPORT/USER_UPLOAD',
+    source_id BIGINT DEFAULT NULL COMMENT '来源ID',
+    source_path VARCHAR(512) DEFAULT NULL COMMENT '来源路径',
+    status VARCHAR(32) NOT NULL DEFAULT 'PENDING' COMMENT '状态：PENDING/INDEXED/FAILED/DISABLED',
+    chunk_count INT NOT NULL DEFAULT 0 COMMENT '切片数量',
+    error_message VARCHAR(512) DEFAULT NULL COMMENT '错误信息',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    UNIQUE KEY uk_source_owner (source_type, source_id, owner_type, owner_id),
+    KEY idx_owner (owner_type, owner_id),
+    KEY idx_user_id (user_id),
+    KEY idx_source (source_type, source_id),
+    KEY idx_status (status),
+    KEY idx_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='RAG文档表';
+
+CREATE TABLE IF NOT EXISTS rag_chunk (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT 'RAG切片ID',
+    document_id BIGINT NOT NULL COMMENT '文档ID',
+    user_id BIGINT DEFAULT NULL COMMENT '用户ID，系统文档为空',
+    chunk_index INT NOT NULL COMMENT '切片序号',
+    content TEXT NOT NULL COMMENT '切片内容',
+    token_count INT DEFAULT NULL COMMENT 'Token数量估算',
+    metadata JSON DEFAULT NULL COMMENT '元数据，保存知识文章、章节等来源信息',
+    embedding_status VARCHAR(32) NOT NULL DEFAULT 'PENDING' COMMENT '向量状态：PENDING/EMBEDDED/FAILED',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    UNIQUE KEY uk_document_chunk (document_id, chunk_index),
+    KEY idx_document_id (document_id),
+    KEY idx_user_id (user_id),
+    KEY idx_embedding_status (embedding_status),
+    KEY idx_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='RAG切片表';
+
+CREATE TABLE IF NOT EXISTS rag_embedding (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT 'RAG向量记录ID',
+    chunk_id BIGINT NOT NULL COMMENT '切片ID',
+    vector_id VARCHAR(128) NOT NULL COMMENT '向量库ID，对应 Qdrant point id',
+    embedding_model VARCHAR(128) NOT NULL COMMENT 'Embedding模型',
+    vector_store VARCHAR(64) NOT NULL DEFAULT 'QDRANT' COMMENT '向量库存储',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    UNIQUE KEY uk_chunk_model (chunk_id, embedding_model),
+    UNIQUE KEY uk_vector_id (vector_id),
+    KEY idx_chunk_id (chunk_id),
+    KEY idx_vector_store (vector_store)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='RAG向量记录表，MySQL只保存向量元数据，实际向量存储在Qdrant';
+
 INSERT IGNORE INTO knowledge_topic
     (category, name, description, difficulty, interview_focus, tags, sort_order)
 VALUES
