@@ -20,3 +20,18 @@ ai:
     api-key: ${AI_API_KEY:}
     model: ${AI_MODEL:}
     timeout-seconds: ${AI_TIMEOUT_SECONDS:120}
+rag:
+  enabled: ${RAG_ENABLED:true}
+  top-k: ${RAG_TOP_K:5}
+  max-context-chars: ${RAG_MAX_CONTEXT_CHARS:4000}
+  vector-store:
+    provider: ${RAG_VECTOR_STORE_PROVIDER:qdrant}
+    url: ${QDRANT_URL:http://localhost:6333}
+    collection: ${QDRANT_COLLECTION:codecoach_rag_chunks}
+  embedding:
+    provider: ${RAG_EMBEDDING_PROVIDER:zhipu}
+    base-url: ${ZHIPU_EMBEDDING_BASE_URL:https://open.bigmodel.cn/api/paas/v4}
+    api-key: ${ZHIPU_API_KEY:}
+    model: ${ZHIPU_EMBEDDING_MODEL:embedding-3}
+    dimensions: ${ZHIPU_EMBEDDING_DIMENSIONS:512}
+    timeout-seconds: ${ZHIPU_EMBEDDING_TIMEOUT_SECONDS:60}
