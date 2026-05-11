@@ -1,0 +1,313 @@
+package com.codecoach.module.rag.service.impl;
+
+import com.codecoach.common.exception.BusinessException;
+import com.codecoach.common.result.ResultCode;
+import com.codecoach.module.rag.config.RagProperties;
+import com.codecoach.module.rag.constant.RagConstants;
+import com.codecoach.module.rag.entity.RagChunk;
+import com.codecoach.module.rag.entity.RagDocument;
+import com.codecoach.module.rag.mapper.RagChunkMapper;
+import com.codecoach.module.rag.mapper.RagDocumentMapper;
+import com.codecoach.module.rag.model.EmbeddingResult;
+import com.codecoach.module.rag.model.RagRetrievedChunk;
+import com.codecoach.module.rag.model.RagSearchRequest;
+import com.codecoach.module.rag.model.RagSearchResponse;
+import com.codecoach.module.rag.model.VectorSearchRequest;
+import com.codecoach.module.rag.model.VectorSearchResult;
+import com.codecoach.module.rag.service.EmbeddingService;
+import com.codecoach.module.rag.service.RagRetrievalService;
+import com.codecoach.module.rag.service.VectorStoreService;
+import com.codecoach.security.UserContext;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
+
+@Service
+public class RagRetrievalServiceImpl implements RagRetrievalService {
+
+    private static final Logger log = LoggerFactory.getLogger(RagRetrievalServiceImpl.class);
+
+    private static final int DEFAULT_TOP_K = 5;
+
+    private static final int MAX_TOP_K = 20;
+
+    private final EmbeddingService embeddingService;
+
+    private final VectorStoreService vectorStoreService;
+
+    private final RagChunkMapper ragChunkMapper;
+
+    private final RagDocumentMapper ragDocumentMapper;
+
+    private final RagProperties ragProperties;
+
+    private final ObjectMapper objectMapper;
+
+    public RagRetrievalServiceImpl(
+            EmbeddingService embeddingService,
+            VectorStoreService vectorStoreService,
+            RagChunkMapper ragChunkMapper,
+            RagDocumentMapper ragDocumentMapper,
+            RagProperties ragProperties,
+            ObjectMapper objectMapper
+    ) {
+        this.embeddingService = embeddingService;
+        this.vectorStoreService = vectorStoreService;
+        this.ragChunkMapper = ragChunkMapper;
+        this.ragDocumentMapper = ragDocumentMapper;
+        this.ragProperties = ragProperties;
+        this.objectMapper = objectMapper;
+    }
+
+    @Override
+    public RagSearchResponse search(RagSearchRequest request) {
+        Long currentUserId = UserContext.getCurrentUserId();
+        String query = request == null ? null : request.getQuery();
+        if (!StringUtils.hasText(query)) {
+            throw new BusinessException(ResultCode.RAG_PARAM_ERROR);
+        }
+
+        int topK = normalizeTopK(request.getTopK());
+        try {
+            EmbeddingResult embedding = embeddingService.embed(query.trim());
+            List<VectorSearchResult> vectorResults = searchVectors(embedding, request, topK);
+            List<RagRetrievedChunk> chunks = toRetrievedChunks(vectorResults, currentUserId, topK);
+            return new RagSearchResponse(query.trim(), topK, chunks.size(), chunks);
+        } catch (BusinessException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            log.warn("RAG retrieval failed, queryLength={}, error={}", query.trim().length(), abbreviate(exception.getMessage()), exception);
+            throw new BusinessException(ResultCode.RAG_RETRIEVAL_FAILED);
+        }
+    }
+
+    @Override
+    public String buildContextBlock(List<RagRetrievedChunk> chunks, int maxChars) {
+        if (CollectionUtils.isEmpty(chunks)) {
+            return "";
+        }
+        int limit = maxChars > 0 ? maxChars : defaultMaxContextChars();
+        StringBuilder builder = new StringBuilder("【检索到的相关知识】\n");
+        int index = 1;
+        for (RagRetrievedChunk chunk : chunks) {
+            String source = safeText(chunk.getTitle());
+            String section = StringUtils.hasText(chunk.getSection()) ? " / " + chunk.getSection() : "";
+            String item = index + ". 来源：" + source + section + "\n内容：" + safeText(chunk.getContent()) + "\n\n";
+            if (builder.length() + item.length() > limit) {
+                int remaining = limit - builder.length();
+                if (remaining > 80) {
+                    builder.append(item, 0, remaining);
+                }
+                break;
+            }
+            builder.append(item);
+            index++;
+        }
+        return builder.toString().trim();
+    }
+
+    private List<VectorSearchResult> searchVectors(EmbeddingResult embedding, RagSearchRequest request, int topK) {
+        List<String> sourceTypes = normalizeSourceTypes(request.getSourceTypes());
+        if (sourceTypes.isEmpty()) {
+            VectorSearchRequest vectorSearchRequest = new VectorSearchRequest();
+            vectorSearchRequest.setVector(embedding.getVector());
+            vectorSearchRequest.setTopK(topK);
+            vectorSearchRequest.setFilter(buildFilter(request.getFilter(), null));
+            return vectorStoreService.search(vectorSearchRequest);
+        }
+
+        List<VectorSearchResult> merged = new ArrayList<>();
+        for (String sourceType : sourceTypes) {
+            VectorSearchRequest vectorSearchRequest = new VectorSearchRequest();
+            vectorSearchRequest.setVector(embedding.getVector());
+            vectorSearchRequest.setTopK(topK);
+            vectorSearchRequest.setFilter(buildFilter(request.getFilter(), sourceType));
+            merged.addAll(vectorStoreService.search(vectorSearchRequest));
+        }
+        return mergeAndLimit(merged, topK);
+    }
+
+    private Map<String, Object> buildFilter(Map<String, Object> requestFilter, String sourceType) {
+        Map<String, Object> filter = new LinkedHashMap<>();
+        if (requestFilter != null) {
+            filter.putAll(requestFilter);
+        }
+        if (StringUtils.hasText(sourceType)) {
+            filter.put("sourceType", sourceType);
+        }
+        // 当前第一版只开放系统知识文档检索；用户私有文档后续需要 OR(ownerType=SYSTEM, userId=currentUserId) 支持。
+        filter.put("ownerType", RagConstants.OWNER_TYPE_SYSTEM);
+        return filter;
+    }
+
+    private List<RagRetrievedChunk> toRetrievedChunks(List<VectorSearchResult> vectorResults, Long currentUserId, int topK) {
+        List<RagRetrievedChunk> chunks = new ArrayList<>();
+        for (VectorSearchResult vectorResult : vectorResults) {
+            Long chunkId = toLong(vectorResult.getPayload() == null ? null : vectorResult.getPayload().get("chunkId"));
+            if (chunkId == null) {
+                log.warn("RAG search result skipped because chunkId is missing, vectorId={}", vectorResult.getVectorId());
+                continue;
+            }
+
+            RagChunk chunk = ragChunkMapper.selectById(chunkId);
+            if (chunk == null) {
+                log.warn("RAG search result skipped because chunk does not exist, chunkId={}, vectorId={}", chunkId, vectorResult.getVectorId());
+                continue;
+            }
+
+            RagDocument document = ragDocumentMapper.selectById(chunk.getDocumentId());
+            if (document == null) {
+                log.warn("RAG search result skipped because document does not exist, chunkId={}, documentId={}", chunkId, chunk.getDocumentId());
+                continue;
+            }
+            if (!isReadableDocument(document, currentUserId)) {
+                log.warn("RAG search result skipped because document is not readable, chunkId={}, documentId={}", chunkId, document.getId());
+                continue;
+            }
+
+            Map<String, Object> metadata = parseMetadata(chunk);
+            RagRetrievedChunk retrievedChunk = new RagRetrievedChunk();
+            retrievedChunk.setChunkId(chunk.getId());
+            retrievedChunk.setDocumentId(document.getId());
+            retrievedChunk.setVectorId(vectorResult.getVectorId());
+            retrievedChunk.setScore(vectorResult.getScore());
+            retrievedChunk.setContent(chunk.getContent());
+            retrievedChunk.setSourceType(document.getSourceType());
+            retrievedChunk.setTitle(document.getTitle());
+            retrievedChunk.setMetadata(metadata);
+            retrievedChunk.setSection(toStringValue(metadata.get("section")));
+            retrievedChunk.setArticleId(toLong(metadata.get("articleId")));
+            retrievedChunk.setTopicId(toLong(metadata.get("topicId")));
+            retrievedChunk.setCategory(toStringValue(metadata.get("category")));
+            retrievedChunk.setTopicName(toStringValue(metadata.get("topicName")));
+            chunks.add(retrievedChunk);
+        }
+        return chunks.stream()
+                .sorted(Comparator.comparing(RagRetrievedChunk::getScore, Comparator.nullsLast(Comparator.reverseOrder())))
+                .limit(topK)
+                .toList();
+    }
+
+    private boolean isReadableDocument(RagDocument document, Long currentUserId) {
+        if (RagConstants.OWNER_TYPE_SYSTEM.equals(document.getOwnerType())) {
+            return true;
+        }
+        return RagConstants.OWNER_TYPE_USER.equals(document.getOwnerType())
+                && document.getUserId() != null
+                && document.getUserId().equals(currentUserId);
+    }
+
+    private Map<String, Object> parseMetadata(RagChunk chunk) {
+        if (!StringUtils.hasText(chunk.getMetadata())) {
+            return Map.of();
+        }
+        try {
+            return objectMapper.readValue(chunk.getMetadata(), new TypeReference<Map<String, Object>>() {
+            });
+        } catch (Exception exception) {
+            log.warn("RAG chunk metadata parse failed, chunkId={}, error={}", chunk.getId(), abbreviate(exception.getMessage()));
+            return Map.of();
+        }
+    }
+
+    private List<VectorSearchResult> mergeAndLimit(List<VectorSearchResult> results, int topK) {
+        Map<String, VectorSearchResult> resultMap = new LinkedHashMap<>();
+        for (VectorSearchResult result : results) {
+            if (!StringUtils.hasText(result.getVectorId())) {
+                continue;
+            }
+            VectorSearchResult existing = resultMap.get(result.getVectorId());
+            if (existing == null || compareScore(result.getScore(), existing.getScore()) > 0) {
+                resultMap.put(result.getVectorId(), result);
+            }
+        }
+        return resultMap.values().stream()
+                .sorted((left, right) -> compareScore(right.getScore(), left.getScore()))
+                .limit(topK)
+                .toList();
+    }
+
+    private int compareScore(Double left, Double right) {
+        if (left == null && right == null) {
+            return 0;
+        }
+        if (left == null) {
+            return -1;
+        }
+        if (right == null) {
+            return 1;
+        }
+        return left.compareTo(right);
+    }
+
+    private List<String> normalizeSourceTypes(List<String> sourceTypes) {
+        if (sourceTypes == null) {
+            return List.of();
+        }
+        return sourceTypes.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .distinct()
+                .toList();
+    }
+
+    private int normalizeTopK(Integer topK) {
+        int result = topK == null || topK <= 0 ? defaultTopK() : topK;
+        return Math.min(result, MAX_TOP_K);
+    }
+
+    private int defaultTopK() {
+        return ragProperties.getTopK() == null || ragProperties.getTopK() <= 0 ? DEFAULT_TOP_K : ragProperties.getTopK();
+    }
+
+    private int defaultMaxContextChars() {
+        return ragProperties.getMaxContextChars() == null || ragProperties.getMaxContextChars() <= 0
+                ? 4000
+                : ragProperties.getMaxContextChars();
+    }
+
+    private Long toLong(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        if (value instanceof String string && StringUtils.hasText(string)) {
+            try {
+                return Long.parseLong(string.trim());
+            } catch (NumberFormatException exception) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private String toStringValue(Object value) {
+        return value == null ? null : String.valueOf(value);
+    }
+
+    private String safeText(String value) {
+        return value == null ? "" : value;
+    }
+
+    private String abbreviate(String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.replaceAll("\\s+", " ").trim();
+        if (normalized.length() <= 500) {
+            return normalized;
+        }
+        return normalized.substring(0, 500);
+    }
+}

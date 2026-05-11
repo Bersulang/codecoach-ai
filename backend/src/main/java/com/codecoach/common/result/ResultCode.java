@@ -10,6 +10,8 @@ public enum ResultCode {
     ANSWER_PROCESSING(3004, "当前回答正在处理中，请稍后"),
     KNOWLEDGE_ARTICLE_NOT_FOUND(5101, "知识文章不存在"),
     KNOWLEDGE_ARTICLE_CONTENT_NOT_FOUND(5102, "知识文章内容不存在"),
+    RAG_RETRIEVAL_FAILED(5201, "RAG 检索失败"),
+    RAG_PARAM_ERROR(5202, "RAG 参数错误"),
     INTERNAL_ERROR(500, "系统异常");
 
     private final Integer code;
