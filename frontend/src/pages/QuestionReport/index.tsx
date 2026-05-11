@@ -11,8 +11,10 @@ import {
 } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { getKnowledgeArticleByTopicId } from "../../api/knowledge";
 import { getQuestionReport } from "../../api/question";
 import type { InterviewDifficulty } from "../../types/interview";
+import type { KnowledgeArticleDetail } from "../../types/knowledge";
 import type {
   QuestionReport,
   QuestionReportQaReview,
@@ -49,6 +51,11 @@ function QuestionReportPage() {
   const [report, setReport] = useState<QuestionReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const [recommendedArticle, setRecommendedArticle] =
+    useState<KnowledgeArticleDetail | null>(null);
+  const [recommendationLoading, setRecommendationLoading] = useState(false);
+  const [recommendationUnavailable, setRecommendationUnavailable] =
+    useState(false);
 
   useEffect(() => {
     if (!reportId) {
@@ -91,6 +98,47 @@ function QuestionReportPage() {
     };
   }, [reportId]);
 
+  useEffect(() => {
+    if (!report?.topicId) {
+      setRecommendedArticle(null);
+      setRecommendationUnavailable(false);
+      return;
+    }
+
+    let active = true;
+    setRecommendationLoading(true);
+    setRecommendationUnavailable(false);
+    setRecommendedArticle(null);
+    getKnowledgeArticleByTopicId(report.topicId)
+      .then((data) => {
+        if (!active) {
+          return;
+        }
+        setRecommendedArticle(data);
+      })
+      .catch((error: unknown) => {
+        if (!active) {
+          return;
+        }
+        const code = (error as { code?: number }).code;
+        setRecommendationUnavailable(true);
+        if (code !== 5101) {
+          // Keep the report usable even when the learning recommendation fails.
+          setRecommendedArticle(null);
+        }
+      })
+      .finally(() => {
+        if (!active) {
+          return;
+        }
+        setRecommendationLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [report?.topicId]);
+
   const handleBack = () => {
     navigate("/questions");
   };
@@ -126,6 +174,7 @@ function QuestionReportPage() {
   };
 
   const qaItems: QuestionReportQaReview[] = report?.qaReview || [];
+  const gapPreview = (report?.knowledgeGaps || []).slice(0, 3);
 
   if (!reportId) {
     return (
@@ -203,6 +252,87 @@ function QuestionReportPage() {
           {report?.summary || "暂无总体评价"}
         </Typography.Paragraph>
       </Card>
+
+      {report ? (
+        <Card
+          className="question-report-card question-report-learning-card"
+          loading={recommendationLoading}
+        >
+          <div className="question-report-learning">
+            <div>
+              <Typography.Title
+                level={4}
+                className="question-report-section-title"
+              >
+                推荐学习
+              </Typography.Title>
+              <Typography.Paragraph className="question-report-learning-subtitle">
+                根据本次训练主题，为你推荐对应的面试表达知识卡片。
+              </Typography.Paragraph>
+            </div>
+
+            {gapPreview.length > 0 ? (
+              <div className="question-report-gap-preview">
+                <div className="question-report-gap-preview__title">
+                  本次暴露的知识盲区
+                </div>
+                <div className="question-report-gap-preview__tags">
+                  {gapPreview.map((gap) => (
+                    <span key={gap}>{gap}</span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {recommendedArticle ? (
+              <div className="question-report-article">
+                <div className="question-report-article__meta">
+                  <span>{recommendedArticle.category || report.category}</span>
+                  <span>{recommendedArticle.topicName || report.topicName}</span>
+                </div>
+                <div className="question-report-article__title">
+                  {recommendedArticle.title}
+                </div>
+                <div className="question-report-article__summary">
+                  {recommendedArticle.summary || "暂无摘要"}
+                </div>
+                <div className="question-report-article__footer">
+                  <span>
+                    {recommendedArticle.version || "v1"} · 更新于{" "}
+                    {formatDate(recommendedArticle.updatedAt)}
+                  </span>
+                  <Space wrap>
+                    <Button
+                      type="primary"
+                      onClick={() =>
+                        navigate(`/learn/articles/${recommendedArticle.id}`)
+                      }
+                    >
+                      学习该知识点
+                    </Button>
+                    <Button
+                      onClick={() =>
+                        navigate(`/learn/articles/${recommendedArticle.id}`)
+                      }
+                    >
+                      再次专项训练
+                    </Button>
+                  </Space>
+                </div>
+              </div>
+            ) : recommendationUnavailable ? (
+              <div className="question-report-learning-empty">
+                <div>
+                  该知识点的学习卡片还在整理中，你可以先返回八股问答继续专项训练。
+                </div>
+                <Button onClick={() => navigate("/questions")}>
+                  返回八股问答
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        </Card>
+      ) : null}
 
       <Card className="question-report-card" loading={loading}>
         <Typography.Title level={4} className="question-report-section-title">

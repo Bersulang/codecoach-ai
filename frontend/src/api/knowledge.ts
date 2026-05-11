@@ -16,3 +16,9 @@ export const getKnowledgeTopicCategories = () =>
 
 export const getKnowledgeArticleDetail = (articleId: number | string) =>
   request.get<KnowledgeArticleDetail>(`/api/knowledge-articles/${articleId}`);
+
+export const getKnowledgeArticleByTopicId = (topicId: number | string) =>
+  request.get<KnowledgeArticleDetail>(
+    `/api/knowledge-topics/${topicId}/article`,
+    { silentError: true },
+  );

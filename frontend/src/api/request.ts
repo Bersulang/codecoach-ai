@@ -9,6 +9,10 @@ const BUSINESS_ERROR_MESSAGES: Record<number, string> = {
   3004: "当前回答正在处理中，请稍后刷新查看",
 };
 
+type RequestConfig<D = unknown> = AxiosRequestConfig<D> & {
+  silentError?: boolean;
+};
+
 const instance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || DEFAULT_BASE_URL,
   timeout: 120000,
@@ -56,6 +60,7 @@ instance.interceptors.request.use((config) => {
 instance.interceptors.response.use(
   (response) => {
     const payload = response.data;
+    const silentError = (response.config as RequestConfig).silentError;
 
     if (!isResultPayload(payload)) {
       return payload;
@@ -72,13 +77,17 @@ instance.interceptors.response.use(
 
     const businessMessage = BUSINESS_ERROR_MESSAGES[payload.code];
     if (businessMessage) {
-      message.error(businessMessage);
+      if (!silentError) {
+        message.error(businessMessage);
+      }
       const error = new Error(businessMessage) as Error & { code?: number };
       error.code = payload.code;
       return Promise.reject(error);
     }
 
-    message.error(payload.message || "请求失败");
+    if (!silentError) {
+      message.error(payload.message || "请求失败");
+    }
     const error = new Error(payload.message || "Request failed") as Error & {
       code?: number;
     };
@@ -88,6 +97,8 @@ instance.interceptors.response.use(
   (error: AxiosError) => {
     const status = error.response?.status;
     const data = error.response?.data as Result<unknown> | undefined;
+    const silentError = (error.config as RequestConfig | undefined)
+      ?.silentError;
 
     if (status === 401 || data?.code === 401) {
       handleUnauthorized(data?.message);
@@ -100,16 +111,22 @@ instance.interceptors.response.use(
         : undefined;
 
     if (businessMessage) {
-      message.error(businessMessage);
+      if (!silentError) {
+        message.error(businessMessage);
+      }
       return Promise.reject(error);
     }
 
     if (data?.message) {
-      message.error(data.message);
+      if (!silentError) {
+        message.error(data.message);
+      }
       return Promise.reject(error);
     }
 
-    message.error("网络异常，请稍后重试");
+    if (!silentError) {
+      message.error("网络异常，请稍后重试");
+    }
     return Promise.reject(error);
   },
 );
@@ -117,21 +134,21 @@ instance.interceptors.response.use(
 const request = {
   get: <T = unknown, D = unknown>(
     url: string,
-    config?: AxiosRequestConfig<D>,
+    config?: RequestConfig<D>,
   ) => instance.get<T, T, D>(url, config),
   delete: <T = unknown, D = unknown>(
     url: string,
-    config?: AxiosRequestConfig<D>,
+    config?: RequestConfig<D>,
   ) => instance.delete<T, T, D>(url, config),
   post: <T = unknown, D = unknown>(
     url: string,
     data?: D,
-    config?: AxiosRequestConfig<D>,
+    config?: RequestConfig<D>,
   ) => instance.post<T, T, D>(url, data, config),
   put: <T = unknown, D = unknown>(
     url: string,
     data?: D,
-    config?: AxiosRequestConfig<D>,
+    config?: RequestConfig<D>,
   ) => instance.put<T, T, D>(url, data, config),
 };
 

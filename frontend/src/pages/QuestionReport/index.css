@@ -66,6 +66,107 @@
   color: var(--cc-text-primary);
 }
 
+.question-report-learning-card {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(250, 244, 234, 0.9)),
+    var(--cc-surface);
+}
+
+.question-report-learning {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cc-space-4);
+}
+
+.question-report-learning-subtitle {
+  margin: 0;
+  color: var(--cc-text-secondary);
+}
+
+.question-report-gap-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: var(--cc-radius-md);
+  border: 1px solid var(--cc-border);
+  background: rgba(255, 255, 255, 0.52);
+}
+
+.question-report-gap-preview__title {
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cc-text-muted);
+}
+
+.question-report-gap-preview__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.question-report-gap-preview__tags span,
+.question-report-article__meta span {
+  border: 1px solid var(--cc-border);
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: var(--cc-surface);
+  color: var(--cc-text-secondary);
+  font-size: 12px;
+}
+
+.question-report-article {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: var(--cc-space-4);
+  border: 1px solid var(--cc-border);
+  border-radius: var(--cc-radius-lg);
+  background: var(--cc-surface);
+  box-shadow: var(--cc-shadow-sm);
+}
+
+.question-report-article__meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.question-report-article__title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--cc-text-primary);
+}
+
+.question-report-article__summary {
+  color: var(--cc-text-secondary);
+  line-height: 1.7;
+}
+
+.question-report-article__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  color: var(--cc-text-muted);
+  font-size: 12px;
+}
+
+.question-report-learning-empty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: var(--cc-space-4);
+  border: 1px dashed var(--cc-border);
+  border-radius: var(--cc-radius-lg);
+  background: rgba(255, 255, 255, 0.52);
+  color: var(--cc-text-secondary);
+}
+
 .question-report-qa-card {
   border: 1px solid var(--cc-border);
   border-radius: var(--cc-radius-md);
