@@ -117,3 +117,29 @@ export interface QuestionReport {
   qaReview?: QuestionReportQaReview[];
   createdAt?: string;
 }
+
+export type QuestionSessionStatus = "IN_PROGRESS" | "FINISHED" | "FAILED";
+
+export interface QuestionSessionHistoryItem {
+  id: number;
+  topicId: number;
+  category: string;
+  topicName: string;
+  targetRole: string;
+  difficulty: InterviewDifficulty;
+  status: QuestionSessionStatus;
+  currentRound: number;
+  maxRound: number;
+  totalScore?: number | null;
+  reportId?: number | null;
+  createdAt?: string;
+  endedAt?: string | null;
+}
+
+export interface QuestionSessionHistoryParams {
+  topicId?: number;
+  category?: string;
+  status?: QuestionSessionStatus;
+  pageNum?: number;
+  pageSize?: number;
+}

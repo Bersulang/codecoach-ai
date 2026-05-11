@@ -13,7 +13,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getQuestionReport } from "../../api/question";
 import type { InterviewDifficulty } from "../../types/interview";
-import type { QuestionReport, QuestionReportQaReview } from "../../types/question";
+import type {
+  QuestionReport,
+  QuestionReportQaReview,
+} from "../../types/question";
 import "./index.css";
 
 const DIFFICULTY_LABELS: Record<InterviewDifficulty, string> = {
@@ -186,9 +189,7 @@ function QuestionReportPage() {
         <div className="question-report-meta">
           {metaItems.map((item) => (
             <div key={item.label}>
-              <span className="question-report-meta-label">
-                {item.label}
-              </span>
+              <span className="question-report-meta-label">{item.label}</span>
               <span className="question-report-meta-value">{item.value}</span>
             </div>
           ))}

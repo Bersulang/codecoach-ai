@@ -9,6 +9,8 @@ import type {
   QuestionAnswerResponse,
   QuestionFinishResponse,
   QuestionReport,
+  QuestionSessionHistoryItem,
+  QuestionSessionHistoryParams,
   QuestionSessionDetail,
 } from "../types/question";
 
@@ -43,3 +45,11 @@ export const finishQuestionSession = (sessionId: number | string) =>
 
 export const getQuestionReport = (reportId: number | string) =>
   request.get<QuestionReport>(`/api/question-reports/${reportId}`);
+
+export const getQuestionSessionHistory = (
+  params: QuestionSessionHistoryParams,
+) =>
+  request.get<PageResult<QuestionSessionHistoryItem>>(
+    "/api/question-sessions",
+    { params },
+  );
