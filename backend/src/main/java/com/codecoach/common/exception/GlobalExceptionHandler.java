@@ -2,6 +2,7 @@ package com.codecoach.common.exception;
 
 import com.codecoach.common.result.Result;
 import com.codecoach.common.result.ResultCode;
+import com.codecoach.module.rag.exception.VectorStoreException;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.validation.BindException;
@@ -37,6 +38,11 @@ public class GlobalExceptionHandler {
                 .map(ConstraintViolation::getMessage)
                 .orElse(ResultCode.BAD_REQUEST.getMessage());
         return Result.fail(ResultCode.BAD_REQUEST.getCode(), message);
+    }
+
+    @ExceptionHandler(VectorStoreException.class)
+    public Result<Void> handleVectorStoreException(VectorStoreException exception) {
+        return Result.fail(ResultCode.INTERNAL_ERROR.getCode(), exception.getErrorMessage());
     }
 
     @ExceptionHandler(Exception.class)
