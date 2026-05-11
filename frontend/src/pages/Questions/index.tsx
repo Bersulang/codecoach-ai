@@ -107,10 +107,7 @@ function QuestionsPage() {
   const [startingId, setStartingId] = useState<number | null>(null);
   const [settingsForm] = Form.useForm<TrainingSettingsForm>();
 
-  const categoryOptions = useMemo(
-    () => ["全部", ...categories],
-    [categories],
-  );
+  const categoryOptions = useMemo(() => ["全部", ...categories], [categories]);
 
   useEffect(() => {
     let active = true;
@@ -389,7 +386,9 @@ function QuestionsPage() {
       >
         <div className="questions-modal__topic">
           <Typography.Text type="secondary">当前知识点</Typography.Text>
-          <div className="questions-modal__title">{activeTopic?.name || "—"}</div>
+          <div className="questions-modal__title">
+            {activeTopic?.name || "—"}
+          </div>
           <div className="questions-modal__meta">{activeTopic?.category}</div>
         </div>
         <Form

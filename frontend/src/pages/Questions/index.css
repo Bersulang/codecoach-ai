@@ -24,7 +24,10 @@
   color: var(--cc-text-secondary);
   font-size: 12px;
   cursor: pointer;
-  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    color 0.2s ease;
 }
 
 .questions-category.is-active {
@@ -57,7 +60,9 @@
 
 .questions-card {
   border: 1px solid var(--cc-border);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .questions-card:hover {
@@ -175,7 +180,10 @@
   padding: 12px 14px;
   width: 100%;
   background: var(--cc-surface);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
 }
 
 .questions-difficulty-option.ant-radio-wrapper-checked {
