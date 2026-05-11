@@ -142,6 +142,29 @@ CREATE TABLE knowledge_topic (
     KEY idx_category_status_deleted (category, status, is_deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='知识点目录表';
 
+CREATE TABLE knowledge_article (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '文章ID',
+    topic_id BIGINT NOT NULL COMMENT '知识点ID',
+    title VARCHAR(128) NOT NULL COMMENT '文章标题',
+    summary VARCHAR(512) DEFAULT NULL COMMENT '文章摘要',
+    content_path VARCHAR(512) NOT NULL COMMENT 'Markdown正文路径',
+    source_type VARCHAR(32) NOT NULL DEFAULT 'ORIGINAL' COMMENT '来源类型：ORIGINAL/AI_ASSISTED/EXTERNAL_REFERENCE',
+    source_name VARCHAR(128) DEFAULT NULL COMMENT '来源名称',
+    source_url VARCHAR(512) DEFAULT NULL COMMENT '参考链接',
+    version VARCHAR(32) NOT NULL DEFAULT 'v1' COMMENT '内容版本',
+    status VARCHAR(32) NOT NULL DEFAULT 'PUBLISHED' COMMENT '状态：DRAFT/PUBLISHED/DISABLED',
+    sort_order INT NOT NULL DEFAULT 0 COMMENT '排序',
+    is_deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除：0未删除，1已删除',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    deleted_at DATETIME DEFAULT NULL COMMENT '删除时间',
+    UNIQUE KEY uk_topic_title (topic_id, title),
+    KEY idx_topic_id (topic_id),
+    KEY idx_status (status),
+    KEY idx_sort_order (sort_order),
+    KEY idx_topic_status_deleted (topic_id, status, is_deleted)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='知识文章表';
+
 CREATE TABLE question_training_session (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '八股训练会话ID',
     user_id BIGINT NOT NULL COMMENT '所属用户ID',
@@ -260,3 +283,173 @@ VALUES
     ('分布式', '幂等性', '幂等性用于保证重复请求或重复消息不会造成重复业务效果。', 'NORMAL', '常见追问包括唯一请求号、去重表、唯一索引、状态机、Token 机制和接口重试。', '分布式,幂等,重复请求', 1003),
     ('分布式', '限流降级', '限流降级用于在高流量或故障场景下保护系统核心链路。', 'HARD', '常见追问包括令牌桶、漏桶、滑动窗口、熔断、降级策略、热点参数限流和灰度控制。', '分布式,限流,降级', 1004),
     ('分布式', '分布式 ID', '分布式 ID 用于在多节点环境下生成全局唯一标识。', 'NORMAL', '常见追问包括雪花算法、号段模式、数据库自增、时钟回拨、趋势递增和业务可读性。', '分布式,ID,雪花算法', 1005);
+
+INSERT IGNORE INTO knowledge_article
+    (topic_id, title, summary, content_path, source_type, version, status, sort_order)
+SELECT
+    kt.id,
+    'Redis 缓存击穿面试表达指南',
+    '围绕缓存击穿的定义、解决方案、常见追问和项目表达进行面试导向整理。',
+    'knowledge/redis/cache-breakdown.md',
+    'AI_ASSISTED',
+    'v1',
+    'PUBLISHED',
+    1
+FROM knowledge_topic kt
+WHERE kt.category = 'Redis'
+  AND kt.name = '缓存击穿'
+  AND kt.is_deleted = 0
+LIMIT 1;
+
+INSERT IGNORE INTO knowledge_article
+    (topic_id, title, summary, content_path, source_type, version, status, sort_order)
+SELECT
+    kt.id,
+    'Redis 缓存穿透面试表达指南',
+    '围绕缓存穿透的定义、空值缓存、布隆过滤器和恶意请求防护进行面试导向整理。',
+    'knowledge/redis/cache-penetration.md',
+    'AI_ASSISTED',
+    'v1',
+    'PUBLISHED',
+    2
+FROM knowledge_topic kt
+WHERE kt.category = 'Redis'
+  AND kt.name = '缓存穿透'
+  AND kt.is_deleted = 0
+LIMIT 1;
+
+INSERT IGNORE INTO knowledge_article
+    (topic_id, title, summary, content_path, source_type, version, status, sort_order)
+SELECT
+    kt.id,
+    'Redis 分布式锁面试表达指南',
+    '围绕 Redis 分布式锁的加锁释放、续期、误删锁和异常场景进行面试导向整理。',
+    'knowledge/redis/distributed-lock.md',
+    'AI_ASSISTED',
+    'v1',
+    'PUBLISHED',
+    3
+FROM knowledge_topic kt
+WHERE kt.category = 'Redis'
+  AND kt.name = '分布式锁'
+  AND kt.is_deleted = 0
+LIMIT 1;
+
+INSERT IGNORE INTO knowledge_article
+    (topic_id, title, summary, content_path, source_type, version, status, sort_order)
+SELECT
+    kt.id,
+    'MySQL 索引面试表达指南',
+    '围绕 MySQL 索引类型、联合索引、回表、覆盖索引和索引失效进行面试导向整理。',
+    'knowledge/mysql/index.md',
+    'AI_ASSISTED',
+    'v1',
+    'PUBLISHED',
+    4
+FROM knowledge_topic kt
+WHERE kt.category = 'MySQL'
+  AND kt.name = '索引'
+  AND kt.is_deleted = 0
+LIMIT 1;
+
+INSERT IGNORE INTO knowledge_article
+    (topic_id, title, summary, content_path, source_type, version, status, sort_order)
+SELECT
+    kt.id,
+    'MySQL MVCC 面试表达指南',
+    '围绕 MVCC 的版本链、ReadView、快照读、当前读和隔离级别差异进行面试导向整理。',
+    'knowledge/mysql/mvcc.md',
+    'AI_ASSISTED',
+    'v1',
+    'PUBLISHED',
+    5
+FROM knowledge_topic kt
+WHERE kt.category = 'MySQL'
+  AND kt.name = 'MVCC'
+  AND kt.is_deleted = 0
+LIMIT 1;
+
+INSERT IGNORE INTO knowledge_article
+    (topic_id, title, summary, content_path, source_type, version, status, sort_order)
+SELECT
+    kt.id,
+    'JVM 内存区域面试表达指南',
+    '围绕 JVM 运行时数据区、线程私有与共享区域、堆栈关系和常见追问进行面试导向整理。',
+    'knowledge/jvm/memory-area.md',
+    'AI_ASSISTED',
+    'v1',
+    'PUBLISHED',
+    6
+FROM knowledge_topic kt
+WHERE kt.category = 'JVM'
+  AND kt.name = 'JVM 内存区域'
+  AND kt.is_deleted = 0
+LIMIT 1;
+
+INSERT IGNORE INTO knowledge_article
+    (topic_id, title, summary, content_path, source_type, version, status, sort_order)
+SELECT
+    kt.id,
+    'JVM 垃圾回收面试表达指南',
+    '围绕垃圾回收算法、可达性分析、分代收集和常见 GC 追问进行面试导向整理。',
+    'knowledge/jvm/gc.md',
+    'AI_ASSISTED',
+    'v1',
+    'PUBLISHED',
+    7
+FROM knowledge_topic kt
+WHERE kt.category = 'JVM'
+  AND kt.name = '垃圾回收算法'
+  AND kt.is_deleted = 0
+LIMIT 1;
+
+INSERT IGNORE INTO knowledge_article
+    (topic_id, title, summary, content_path, source_type, version, status, sort_order)
+SELECT
+    kt.id,
+    'JUC 线程池面试表达指南',
+    '围绕线程池核心参数、任务提交流程、拒绝策略、队列选择和生产配置进行面试导向整理。',
+    'knowledge/juc/thread-pool.md',
+    'AI_ASSISTED',
+    'v1',
+    'PUBLISHED',
+    8
+FROM knowledge_topic kt
+WHERE kt.category = 'JUC'
+  AND kt.name = '线程池'
+  AND kt.is_deleted = 0
+LIMIT 1;
+
+INSERT IGNORE INTO knowledge_article
+    (topic_id, title, summary, content_path, source_type, version, status, sort_order)
+SELECT
+    kt.id,
+    'Spring AOP 面试表达指南',
+    '围绕 Spring AOP 的代理机制、切面模型、调用失效和典型业务场景进行面试导向整理。',
+    'knowledge/spring/aop.md',
+    'AI_ASSISTED',
+    'v1',
+    'PUBLISHED',
+    9
+FROM knowledge_topic kt
+WHERE kt.category = 'Spring'
+  AND kt.name = 'AOP'
+  AND kt.is_deleted = 0
+LIMIT 1;
+
+INSERT IGNORE INTO knowledge_article
+    (topic_id, title, summary, content_path, source_type, version, status, sort_order)
+SELECT
+    kt.id,
+    'Spring 事务传播面试表达指南',
+    '围绕 Spring 事务传播行为、事务失效、异常回滚和代理边界进行面试导向整理。',
+    'knowledge/spring/transaction-propagation.md',
+    'AI_ASSISTED',
+    'v1',
+    'PUBLISHED',
+    10
+FROM knowledge_topic kt
+WHERE kt.category = 'Spring'
+  AND kt.name = '事务传播'
+  AND kt.is_deleted = 0
+LIMIT 1;
