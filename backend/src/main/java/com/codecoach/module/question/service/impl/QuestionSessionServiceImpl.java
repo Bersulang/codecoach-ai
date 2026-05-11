@@ -9,6 +9,7 @@ import com.codecoach.module.ai.model.QuestionFeedbackResult;
 import com.codecoach.module.ai.model.QuestionPracticeContext;
 import com.codecoach.module.ai.model.QuestionReportGenerateResult;
 import com.codecoach.module.ai.service.AiQuestionPracticeService;
+import com.codecoach.module.insight.service.UserAbilitySnapshotService;
 import com.codecoach.module.knowledge.entity.KnowledgeTopic;
 import com.codecoach.module.knowledge.mapper.KnowledgeTopicMapper;
 import com.codecoach.module.question.dto.QuestionAnswerRequest;
@@ -132,6 +133,8 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
 
     private final TransactionTemplate transactionTemplate;
 
+    private final UserAbilitySnapshotService userAbilitySnapshotService;
+
     public QuestionSessionServiceImpl(
             KnowledgeTopicMapper knowledgeTopicMapper,
             QuestionTrainingSessionMapper questionTrainingSessionMapper,
@@ -140,7 +143,8 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
             AiQuestionPracticeService aiQuestionPracticeService,
             ObjectMapper objectMapper,
             StringRedisTemplate stringRedisTemplate,
-            TransactionTemplate transactionTemplate
+            TransactionTemplate transactionTemplate,
+            UserAbilitySnapshotService userAbilitySnapshotService
     ) {
         this.knowledgeTopicMapper = knowledgeTopicMapper;
         this.questionTrainingSessionMapper = questionTrainingSessionMapper;
@@ -150,6 +154,7 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
         this.objectMapper = objectMapper;
         this.stringRedisTemplate = stringRedisTemplate;
         this.transactionTemplate = transactionTemplate;
+        this.userAbilitySnapshotService = userAbilitySnapshotService;
     }
 
     @Override
@@ -414,6 +419,8 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
             session.setTotalScore(existingReport.getTotalScore());
             session.setCurrentRound(session.getMaxRound());
             questionTrainingSessionMapper.updateById(session);
+            KnowledgeTopic topic = knowledgeTopicMapper.selectById(session.getTopicId());
+            userAbilitySnapshotService.createQuestionReportSnapshot(existingReport, session, topic);
             return new QuestionFinishResponse(existingReport.getId(), sessionId, existingReport.getTotalScore());
         }
 
@@ -559,6 +566,7 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
             session.setTotalScore(existingReport.getTotalScore());
             session.setCurrentRound(session.getMaxRound());
             questionTrainingSessionMapper.updateById(session);
+            userAbilitySnapshotService.createQuestionReportSnapshot(existingReport, session, topic);
             return existingReport;
         }
 
@@ -583,6 +591,8 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
         session.setTotalScore(reportResult.getTotalScore());
         session.setCurrentRound(session.getMaxRound());
         questionTrainingSessionMapper.updateById(session);
+
+        userAbilitySnapshotService.createQuestionReportSnapshot(report, session, topic);
 
         return report;
     }

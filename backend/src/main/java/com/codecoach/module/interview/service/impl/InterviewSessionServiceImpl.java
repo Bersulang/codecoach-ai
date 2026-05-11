@@ -23,6 +23,7 @@ import com.codecoach.module.interview.vo.InterviewMessageVO;
 import com.codecoach.module.interview.vo.InterviewSessionCreateResponse;
 import com.codecoach.module.interview.vo.InterviewSessionDetailVO;
 import com.codecoach.module.interview.vo.InterviewSessionHistoryVO;
+import com.codecoach.module.insight.service.UserAbilitySnapshotService;
 import com.codecoach.module.project.entity.Project;
 import com.codecoach.module.project.mapper.ProjectMapper;
 import com.codecoach.module.report.entity.InterviewReport;
@@ -123,6 +124,8 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
 
     private final TransactionTemplate transactionTemplate;
 
+    private final UserAbilitySnapshotService userAbilitySnapshotService;
+
     public InterviewSessionServiceImpl(
             InterviewSessionMapper interviewSessionMapper,
             InterviewMessageMapper interviewMessageMapper,
@@ -131,7 +134,8 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
             AiInterviewService aiInterviewService,
             ObjectMapper objectMapper,
             StringRedisTemplate stringRedisTemplate,
-            TransactionTemplate transactionTemplate
+            TransactionTemplate transactionTemplate,
+            UserAbilitySnapshotService userAbilitySnapshotService
     ) {
         this.interviewSessionMapper = interviewSessionMapper;
         this.interviewMessageMapper = interviewMessageMapper;
@@ -141,6 +145,7 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         this.objectMapper = objectMapper;
         this.stringRedisTemplate = stringRedisTemplate;
         this.transactionTemplate = transactionTemplate;
+        this.userAbilitySnapshotService = userAbilitySnapshotService;
     }
 
     @Override
@@ -356,6 +361,7 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
 
         InterviewReport existingReport = getReportBySessionId(sessionId);
         if (existingReport != null) {
+            userAbilitySnapshotService.createProjectReportSnapshots(existingReport, session);
             return new InterviewFinishResponse(existingReport.getId(), sessionId, existingReport.getTotalScore());
         }
         if (STATUS_FINISHED.equals(session.getStatus())) {
@@ -407,6 +413,7 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
             session.setTotalScore(existingReport.getTotalScore());
             session.setCurrentRound(session.getMaxRound());
             interviewSessionMapper.updateById(session);
+            userAbilitySnapshotService.createProjectReportSnapshots(existingReport, session);
             return new InterviewFinishResponse(existingReport.getId(), session.getId(), existingReport.getTotalScore());
         }
 
@@ -430,6 +437,8 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         session.setTotalScore(reportResult.getTotalScore());
         session.setCurrentRound(session.getMaxRound());
         interviewSessionMapper.updateById(session);
+
+        userAbilitySnapshotService.createProjectReportSnapshots(report, session);
 
         return new InterviewFinishResponse(report.getId(), session.getId(), report.getTotalScore());
     }
