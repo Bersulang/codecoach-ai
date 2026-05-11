@@ -223,6 +223,28 @@ CREATE TABLE question_training_report (
     KEY idx_user_created (user_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='八股问答训练报告表';
 
+CREATE TABLE user_ability_snapshot (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '能力快照ID',
+    user_id BIGINT NOT NULL COMMENT '用户ID',
+    source_type VARCHAR(32) NOT NULL COMMENT '来源类型：PROJECT_REPORT / QUESTION_REPORT',
+    source_id BIGINT NOT NULL COMMENT '来源报告ID',
+    dimension_code VARCHAR(64) NOT NULL COMMENT '能力维度编码',
+    dimension_name VARCHAR(128) NOT NULL COMMENT '能力维度名称',
+    category VARCHAR(64) DEFAULT NULL COMMENT '知识分类或能力分类',
+    score INT DEFAULT NULL COMMENT '能力分数',
+    difficulty VARCHAR(32) DEFAULT NULL COMMENT '训练难度',
+    evidence TEXT DEFAULT NULL COMMENT '证据摘要',
+    weakness_tags JSON DEFAULT NULL COMMENT '薄弱点标签',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    UNIQUE KEY uk_source_dimension (source_type, source_id, dimension_code),
+    KEY idx_user_id (user_id),
+    KEY idx_source (source_type, source_id),
+    KEY idx_dimension (dimension_code),
+    KEY idx_user_dimension_created (user_id, dimension_code, created_at),
+    KEY idx_user_created (user_id, created_at),
+    KEY idx_user_source_created (user_id, source_type, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户能力快照表';
+
 INSERT IGNORE INTO knowledge_topic
     (category, name, description, difficulty, interview_focus, tags, sort_order)
 VALUES
