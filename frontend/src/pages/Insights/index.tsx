@@ -160,7 +160,6 @@ function InsightsPage() {
     void loadInsights();
   }, [loadInsights]);
 
-
   const overviewMetrics = useMemo(() => {
     if (!overview) {
       return [];
@@ -319,7 +318,9 @@ function InsightsPage() {
                 <div className="insights-dimension-grid">
                   {dimensions.map((item) => {
                     const scoreText =
-                      item.score === null ? "暂无评分" : formatScore(item.score);
+                      item.score === null
+                        ? "暂无评分"
+                        : formatScore(item.score);
                     const trendLabel =
                       TREND_LABELS[item.trend] || TREND_LABELS.UNKNOWN;
                     const trendClass =
@@ -359,9 +360,7 @@ function InsightsPage() {
                           />
                         </div>
                         <div className="insights-dimension-meta">
-                          <span>
-                            近 {item.evidenceCount} 次训练记录
-                          </span>
+                          <span>近 {item.evidenceCount} 次训练记录</span>
                           <p>{item.latestEvidence || "暂无最新记录"}</p>
                         </div>
                       </SurfaceCard>
@@ -481,7 +480,8 @@ function InsightsPage() {
                 <div>
                   <h2 className="cc-section-title">智能学习推荐即将接入</h2>
                   <p className="cc-section-description">
-                    当前页面已经沉淀了你的训练趋势和薄弱点，后续会结合 RAG 知识库推荐更精准的学习路径。
+                    当前页面已经沉淀了你的训练趋势和薄弱点，后续会结合 RAG
+                    知识库推荐更精准的学习路径。
                   </p>
                 </div>
               </div>
