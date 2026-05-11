@@ -18,3 +18,15 @@ export interface KnowledgeArticlePageRequest {
   pageNum?: number;
   pageSize?: number;
 }
+
+export interface KnowledgeArticleDetail {
+  id: number;
+  topicId: number;
+  category: string;
+  topicName: string;
+  title: string;
+  summary: string;
+  content: string;
+  version: string;
+  updatedAt: string;
+}

@@ -73,11 +73,17 @@ instance.interceptors.response.use(
     const businessMessage = BUSINESS_ERROR_MESSAGES[payload.code];
     if (businessMessage) {
       message.error(businessMessage);
-      return Promise.reject(new Error(businessMessage));
+      const error = new Error(businessMessage) as Error & { code?: number };
+      error.code = payload.code;
+      return Promise.reject(error);
     }
 
     message.error(payload.message || "请求失败");
-    return Promise.reject(new Error(payload.message || "Request failed"));
+    const error = new Error(payload.message || "Request failed") as Error & {
+      code?: number;
+    };
+    error.code = payload.code;
+    return Promise.reject(error);
   },
   (error: AxiosError) => {
     const status = error.response?.status;
