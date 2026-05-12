@@ -2,6 +2,7 @@ import { Navigate, createBrowserRouter } from "react-router-dom";
 import RequireAuth from "../components/RequireAuth";
 import PublicOnlyRoute from "../components/PublicOnlyRoute";
 import MainLayout from "../layouts/MainLayout";
+import AgentReviewPage from "../pages/AgentReview";
 import DashboardPage from "../pages/Dashboard";
 import DocumentsPage from "../pages/Documents";
 import HistoryPage from "../pages/History";
@@ -95,6 +96,10 @@ const router = createBrowserRouter([
           {
             path: "insights",
             element: <InsightsPage />,
+          },
+          {
+            path: "agent-review",
+            element: <AgentReviewPage />,
           },
           {
             path: "learn",

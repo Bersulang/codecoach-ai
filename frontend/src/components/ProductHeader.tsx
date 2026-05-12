@@ -42,6 +42,10 @@ function ProductHeader({ user, onLogout }: ProductHeaderProps) {
       label: <Link to="/insights">成长洞察</Link>,
     },
     {
+      key: "agent-review",
+      label: <Link to="/agent-review">复盘 Agent</Link>,
+    },
+    {
       key: "documents",
       label: <Link to="/documents">我的文档</Link>,
     },

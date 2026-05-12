@@ -37,6 +37,12 @@ const entries = [
     action: "分析简历",
   },
   {
+    title: "复盘 Agent",
+    desc: "把最近训练报告、能力画像和简历风险串起来，生成下一步训练动作。",
+    to: "/agent-review",
+    action: "生成复盘",
+  },
+  {
     title: "训练历史",
     desc: "回看训练记录和报告，把每一次回答变成下一次的改进线索。",
     to: "/history",

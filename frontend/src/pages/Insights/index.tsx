@@ -285,8 +285,13 @@ function InsightsPage() {
         title="成长洞察"
         description="从训练记录中沉淀能力画像，查看你的项目表达、八股知识和追问应对能力变化。"
         actions={
-          <div className="insights-header-note">
-            已接入 RAG 知识库，推荐会随训练数据持续更新。
+          <div className="insights-header-actions">
+            <div className="insights-header-note">
+              已接入 RAG 知识库，推荐会随训练数据持续更新。
+            </div>
+            <Button type="primary" onClick={() => navigate("/agent-review")}>
+              生成复盘
+            </Button>
           </div>
         }
       />

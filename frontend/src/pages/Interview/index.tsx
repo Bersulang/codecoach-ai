@@ -7,7 +7,7 @@ import {
   Typography,
   message,
 } from "antd";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   finishInterview,
@@ -143,6 +143,16 @@ function InterviewPage() {
 
   const isFinished = detail?.status === "FINISHED";
 
+  const refreshDetail = useCallback(async () => {
+    if (!sessionId) {
+      return null;
+    }
+    const data = await getInterviewSession(sessionId);
+    setDetail(data);
+    setMessages(normalizeMessages(data.messages || []));
+    return data;
+  }, [sessionId]);
+
   useEffect(() => {
     if (!sessionId) {
       return;
@@ -151,13 +161,14 @@ function InterviewPage() {
     let active = true;
     setLoading(true);
     setLoadError(false);
-    getInterviewSession(sessionId)
+    refreshDetail()
       .then((data) => {
         if (!active) {
           return;
         }
-        setDetail(data);
-        setMessages(normalizeMessages(data.messages || []));
+        if (!data) {
+          setLoadError(true);
+        }
       })
       .catch(() => {
         if (!active) {
@@ -176,7 +187,7 @@ function InterviewPage() {
     return () => {
       active = false;
     };
-  }, [sessionId]);
+  }, [sessionId, refreshDetail]);
 
   useEffect(() => {
     threadEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -223,7 +234,7 @@ function InterviewPage() {
         return prev;
       }
       if (payload.finished) {
-        return { ...prev, status: "FINISHED" };
+        return { ...prev, status: "FINISHED", currentRound: prev.maxRound };
       }
       if (payload.nextQuestion) {
         return {
@@ -238,6 +249,10 @@ function InterviewPage() {
   const handleSubmitAnswer = async () => {
     const trimmed = answer.trim();
     if (!trimmed || !sessionId || sending || loading || isFinished) {
+      return;
+    }
+    if (detail && detail.currentRound > detail.maxRound) {
+      message.warning("训练已到达最大轮次，请刷新后查看报告");
       return;
     }
     setSending(true);
@@ -339,9 +354,28 @@ function InterviewPage() {
           setStreamingMessageId(null);
         }
       } else {
-        setStreamingStage("连接中断，AI 可能仍在生成。请稍后刷新训练记录查看结果。");
+        setMessages((prev) =>
+          prev.filter(
+            (item) =>
+              item.messageId !== optimisticUserId &&
+              item.messageId !== optimisticAiId,
+          ),
+        );
+        setStreamingMessageId(null);
+        setStreamingStage("");
         setStreamingContent("");
-        message.warning("连接中断，请稍后刷新训练记录查看结果");
+        message.warning("连接中断，已刷新训练状态");
+        try {
+          const latest = await refreshDetail();
+          if (latest?.status === "FINISHED") {
+            const finished = await finishInterview(sessionId);
+            if (typeof finished?.reportId === "number") {
+              navigate(`/reports/${finished.reportId}`);
+            }
+          }
+        } catch {
+          // Keep the cleaned UI; the user can retry or refresh manually.
+        }
       }
     } finally {
       setSending(false);
