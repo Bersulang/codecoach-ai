@@ -76,12 +76,12 @@
 
 .history-card {
   border: 1px solid var(--cc-border);
-  border-radius: var(--cc-radius-lg);
+  border-radius: 16px;
   box-shadow: var(--cc-shadow-sm);
 }
 
 .history-card .ant-card-body {
-  padding: var(--cc-space-5);
+  padding: 18px;
 }
 
 .history-card__header {
@@ -102,7 +102,7 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: var(--cc-space-3);
-  margin-top: var(--cc-space-3);
+  margin-top: 10px;
 }
 
 .history-card__kicker {

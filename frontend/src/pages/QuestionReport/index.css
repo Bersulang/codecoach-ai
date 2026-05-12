@@ -33,12 +33,12 @@
 
 .question-report-card {
   border: 1px solid var(--cc-border);
-  border-radius: var(--cc-radius-lg);
+  border-radius: 16px;
   box-shadow: var(--cc-shadow-sm);
 }
 
 .question-report-card .ant-card-body {
-  padding: var(--cc-space-5);
+  padding: 18px;
 }
 
 .question-report-meta {
@@ -169,8 +169,8 @@
 
 .question-report-qa-card {
   border: 1px solid var(--cc-border);
-  border-radius: var(--cc-radius-md);
-  padding: 16px;
+  border-radius: 12px;
+  padding: 12px;
   background: var(--cc-surface);
 }
 

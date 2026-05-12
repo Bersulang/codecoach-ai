@@ -1,7 +1,7 @@
 .insights-page {
   display: flex;
   flex-direction: column;
-  gap: var(--cc-space-6);
+  gap: var(--cc-space-4);
 }
 
 .insights-header-note {
@@ -18,7 +18,7 @@
 .insights-content {
   display: flex;
   flex-direction: column;
-  gap: var(--cc-space-6);
+  gap: var(--cc-space-5);
 }
 
 .insights-skeleton-card .ant-card-body {
@@ -62,15 +62,17 @@
 
 .insights-overview-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: var(--cc-space-3);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .insights-metric .ant-card-body {
-  padding: var(--cc-space-4);
+  min-height: 86px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
+  justify-content: space-between;
 }
 
 .insights-metric__label {
@@ -79,7 +81,7 @@
 }
 
 .insights-metric__value {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 600;
   color: var(--cc-text-primary);
 }
@@ -90,14 +92,14 @@
 
 .insights-dimension-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: var(--cc-space-4);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .insights-dimension-card .ant-card-body {
   display: flex;
   flex-direction: column;
-  gap: var(--cc-space-3);
+  gap: 10px;
 }
 
 .insights-dimension-header {
@@ -108,7 +110,7 @@
 }
 
 .insights-dimension-name {
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--cc-text-primary);
 }
@@ -167,14 +169,14 @@
 
 .insights-weakness-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: var(--cc-space-4);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .insights-weakness-card .ant-card-body {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .insights-weakness-header {
@@ -185,7 +187,7 @@
 }
 
 .insights-weakness-keyword {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--cc-text-primary);
 }
@@ -218,7 +220,7 @@
 .insights-trend-list {
   display: flex;
   flex-direction: column;
-  gap: var(--cc-space-3);
+  gap: 10px;
 }
 
 .insights-trend-card .ant-card-body {
@@ -277,14 +279,14 @@
 
 .insights-recommendation-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: var(--cc-space-4);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .insights-recommendation-card .ant-card-body {
   display: flex;
   flex-direction: column;
-  gap: var(--cc-space-3);
+  gap: 10px;
 }
 
 .insights-recommendation-tags {
@@ -304,7 +306,7 @@
 
 .insights-recommendation-title {
   color: var(--cc-text-primary);
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   line-height: 1.35;
 }

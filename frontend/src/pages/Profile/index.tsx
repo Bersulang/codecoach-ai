@@ -3,7 +3,6 @@ import type { ChangeEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getCurrentUser, uploadAvatar } from "../../api/auth";
-import UserAvatar from "../../components/UserAvatar";
 import type { CurrentUser } from "../../types/auth";
 import "../Workspace/workspace.css";
 
@@ -112,7 +111,6 @@ function ProfilePage() {
   return (
     <div className="workspace-page profile-page">
       <section className="profile-hero-card">
-        <UserAvatar user={user} size="lg" />
         <div className="profile-hero-card__body">
           <p className="workspace-kicker">个人中心</p>
           <h1>{displayName}</h1>
@@ -127,8 +125,8 @@ function ProfilePage() {
         <div className="profile-panel profile-avatar-panel">
           <div>
             <span className="workspace-kicker">头像</span>
-            <h2>上传你的个人头像</h2>
-            <p>支持 JPG、PNG、WEBP，文件大小不超过 2MB。</p>
+            <h2>更新右上角头像</h2>
+            <p>上传后会同步显示在导航栏头像。支持 JPG、PNG、WEBP，文件大小不超过 2MB。</p>
           </div>
           <div className="profile-avatar-panel__actions">
             <input

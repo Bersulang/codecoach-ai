@@ -90,7 +90,7 @@ textarea {
 }
 
 .ant-card {
-  border-radius: var(--cc-radius-lg);
+  border-radius: 16px;
   border-color: var(--cc-border);
   background: var(--cc-surface);
   box-shadow: var(--cc-shadow-sm);
@@ -109,7 +109,7 @@ textarea {
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: var(--cc-space-5);
+  gap: var(--cc-space-4);
 }
 
 .cc-page-header {
@@ -122,8 +122,8 @@ textarea {
 
 .cc-page-title {
   margin: 0;
-  font-size: 28px;
-  font-weight: 600;
+  font-size: 24px;
+  font-weight: 650;
   color: var(--cc-text-primary);
 }
 
@@ -141,13 +141,13 @@ textarea {
 
 .cc-surface-card {
   border: 1px solid var(--cc-border);
-  border-radius: var(--cc-radius-lg);
+  border-radius: 16px;
   background: var(--cc-surface);
   box-shadow: var(--cc-shadow-sm);
 }
 
 .cc-surface-card .ant-card-body {
-  padding: var(--cc-space-5);
+  padding: 18px;
 }
 
 .cc-empty-state {
