@@ -35,3 +35,10 @@ rag:
     model: ${ZHIPU_EMBEDDING_MODEL:embedding-3}
     dimensions: ${ZHIPU_EMBEDDING_DIMENSIONS:512}
     timeout-seconds: ${ZHIPU_EMBEDDING_TIMEOUT_SECONDS:60}
+
+alioss:
+  endpoint: ${ALIOSS_ENDPOINT:oss-cn-beijing.aliyuncs.com}
+  bucket-name: ${ALIOSS_BUCKET_NAME:}
+  region: ${ALIOSS_REGION:cn-beijing}
+  access-key-id: ${ALIOSS_ACCESS_KEY_ID:}
+  access-key-secret: ${ALIOSS_ACCESS_KEY_SECRET:}
