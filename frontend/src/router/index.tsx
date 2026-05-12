@@ -3,6 +3,7 @@ import RequireAuth from "../components/RequireAuth";
 import PublicOnlyRoute from "../components/PublicOnlyRoute";
 import MainLayout from "../layouts/MainLayout";
 import DashboardPage from "../pages/Dashboard";
+import DocumentsPage from "../pages/Documents";
 import HistoryPage from "../pages/History";
 import InterviewPage from "../pages/Interview";
 import LandingPage from "../pages/Landing";
@@ -77,6 +78,10 @@ const router = createBrowserRouter([
           {
             path: "history",
             element: <HistoryPage />,
+          },
+          {
+            path: "documents",
+            element: <DocumentsPage />,
           },
           {
             path: "questions",

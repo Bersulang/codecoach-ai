@@ -25,6 +25,12 @@ const entries = [
     action: "开始学习",
   },
   {
+    title: "我的文档",
+    desc: "上传简历、README 和项目材料，让 AI 训练更贴近你的真实经历。",
+    to: "/documents",
+    action: "管理文档",
+  },
+  {
     title: "训练历史",
     desc: "回看训练记录和报告，把每一次回答变成下一次的改进线索。",
     to: "/history",
