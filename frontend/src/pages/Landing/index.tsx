@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import GuideWidget from "../../components/guide/GuideWidget";
 import ProductHeader from "../../components/ProductHeader";
 import type { CurrentUser } from "../../types/auth";
 import "./index.css";
@@ -170,6 +171,7 @@ function LandingPage() {
         </nav>
         <p>Built for Java backend candidates.</p>
       </footer>
+      <GuideWidget />
     </div>
   );
 }

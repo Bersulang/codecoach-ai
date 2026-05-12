@@ -2,6 +2,7 @@ import { Layout, message } from "antd";
 import { useEffect, useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import { getCurrentUser } from "../api/auth";
+import GuideWidget from "../components/guide/GuideWidget";
 import ProductHeader from "../components/ProductHeader";
 import type { CurrentUser } from "../types/auth";
 import "./MainLayout.css";
@@ -72,6 +73,7 @@ function MainLayout() {
       <Content className="main-layout__content">
         <Outlet />
       </Content>
+      <GuideWidget />
     </Layout>
   );
 }

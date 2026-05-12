@@ -190,8 +190,20 @@ function InterviewPage() {
   }, [sessionId, refreshDetail]);
 
   useEffect(() => {
-    threadEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages, streamingStage, streamingContent]);
+    window.requestAnimationFrame(() => {
+      threadEndRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "end",
+      });
+    });
+  }, [
+    messages,
+    streamingMessageId,
+    streamingStage,
+    streamingContent,
+    sending,
+    loading,
+  ]);
 
   const handleAppend = (payload: AnswerResponse) => {
     setMessages((prev) => {
