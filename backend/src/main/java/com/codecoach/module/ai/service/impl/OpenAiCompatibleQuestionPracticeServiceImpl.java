@@ -198,7 +198,7 @@ public class OpenAiCompatibleQuestionPracticeServiceImpl implements AiQuestionPr
             ChatResult chatResult = chatStream(
                     List.of(systemMessage(), userMessage(prompt)),
                     0.7,
-                    visibleQuestionFeedbackStream(streamHandler)
+                    visibleQuestionFeedbackStream(streamHandler, needNextQuestion)
             );
             QuestionFeedbackResult result;
             try {
@@ -446,15 +446,17 @@ public class OpenAiCompatibleQuestionPracticeServiceImpl implements AiQuestionPr
         }
     }
 
-    private AiTokenStreamHandler visibleQuestionFeedbackStream(AiTokenStreamHandler delegate) {
+    private AiTokenStreamHandler visibleQuestionFeedbackStream(AiTokenStreamHandler delegate, boolean needNextQuestion) {
         if (delegate == null) {
             return null;
         }
-        JsonFieldStreamProjector projector = new JsonFieldStreamProjector(List.of(
-                new StreamField("feedback", "本轮回答反馈"),
-                new StreamField("referenceAnswer", "结构化参考答案"),
-                new StreamField("nextQuestion", "下一轮追问")
-        ));
+        List<StreamField> fields = new java.util.ArrayList<>();
+        fields.add(new StreamField("feedback", "本轮回答反馈"));
+        fields.add(new StreamField("referenceAnswer", "结构化参考答案"));
+        if (needNextQuestion) {
+            fields.add(new StreamField("nextQuestion", "下一轮追问"));
+        }
+        JsonFieldStreamProjector projector = new JsonFieldStreamProjector(fields);
         return rawDelta -> {
             String visibleDelta = projector.append(rawDelta);
             if (visibleDelta != null && !visibleDelta.isEmpty()) {

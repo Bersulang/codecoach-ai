@@ -84,7 +84,7 @@ public class QuestionSessionController {
             try {
                 writer.start("AI 正在分析你的回答");
                 writer.stage("正在检索相关知识");
-                writer.stage("正在生成反馈、参考答案和追问");
+                writer.stage("正在生成反馈和参考答案");
                 QuestionAnswerRequest answerRequest = new QuestionAnswerRequest();
                 answerRequest.setAnswer(request.getContent());
                 QuestionAnswerResponse response = questionSessionService.submitAnswerStream(

@@ -292,6 +292,24 @@ CREATE TABLE user_ability_snapshot (
     KEY idx_user_source_created (user_id, source_type, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户能力快照表';
 
+CREATE TABLE IF NOT EXISTS agent_review (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '复盘Agent结果ID',
+    user_id BIGINT NOT NULL COMMENT '所属用户ID',
+    scope_type VARCHAR(32) NOT NULL DEFAULT 'RECENT_10' COMMENT '复盘范围：RECENT_10/RECENT_7_DAYS',
+    summary TEXT DEFAULT NULL COMMENT '整体总结',
+    key_findings JSON DEFAULT NULL COMMENT '关键发现',
+    recurring_weaknesses JSON DEFAULT NULL COMMENT '反复薄弱点',
+    cause_analysis JSON DEFAULT NULL COMMENT '原因分析',
+    resume_risks JSON DEFAULT NULL COMMENT '简历风险提醒',
+    next_actions JSON DEFAULT NULL COMMENT '下一步行动',
+    confidence VARCHAR(32) NOT NULL DEFAULT 'LOW' COMMENT '复盘可信度：LOW/MEDIUM/HIGH',
+    source_snapshot JSON DEFAULT NULL COMMENT '本次复盘使用的数据源快照',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    KEY idx_user_id (user_id),
+    KEY idx_user_created (user_id, created_at),
+    KEY idx_confidence (confidence)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='面试复盘Agent结果表';
+
 CREATE TABLE IF NOT EXISTS user_document (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '用户文档ID',
     user_id BIGINT NOT NULL COMMENT '用户ID',

@@ -163,7 +163,11 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
             FeedbackAndQuestionResult result;
             try {
                 result = aiJsonParser.parseObject(chatResult.getContent(), FeedbackAndQuestionResult.class);
-                aiResponseValidator.validateFeedbackAndNextQuestion(result);
+                if (needNextQuestion(context)) {
+                    aiResponseValidator.validateFeedbackAndNextQuestion(result);
+                } else {
+                    aiResponseValidator.validateFeedbackOnly(result);
+                }
             } catch (BusinessException exception) {
                 throw new AiCallException(
                         "JSON_PARSE_FAILED",
@@ -201,12 +205,16 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
             ChatResult chatResult = chatStream(
                     List.of(systemMessage(), userMessage(prompt)),
                     0.7,
-                    visibleInterviewFeedbackStream(streamHandler)
+                    visibleInterviewFeedbackStream(streamHandler, needNextQuestion(context))
             );
             FeedbackAndQuestionResult result;
             try {
                 result = aiJsonParser.parseObject(chatResult.getContent(), FeedbackAndQuestionResult.class);
-                aiResponseValidator.validateFeedbackAndNextQuestion(result);
+                if (needNextQuestion(context)) {
+                    aiResponseValidator.validateFeedbackAndNextQuestion(result);
+                } else {
+                    aiResponseValidator.validateFeedbackOnly(result);
+                }
             } catch (BusinessException exception) {
                 throw new AiCallException(
                         "JSON_PARSE_FAILED",
@@ -445,20 +453,29 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
         }
     }
 
-    private AiTokenStreamHandler visibleInterviewFeedbackStream(AiTokenStreamHandler delegate) {
+    private AiTokenStreamHandler visibleInterviewFeedbackStream(AiTokenStreamHandler delegate, boolean needNextQuestion) {
         if (delegate == null) {
             return null;
         }
-        JsonFieldStreamProjector projector = new JsonFieldStreamProjector(List.of(
-                new StreamField("feedback", "本轮回答反馈"),
-                new StreamField("nextQuestion", "下一轮追问")
-        ));
+        List<StreamField> fields = new ArrayList<>();
+        fields.add(new StreamField("feedback", "本轮回答反馈"));
+        if (needNextQuestion) {
+            fields.add(new StreamField("nextQuestion", "下一轮追问"));
+        }
+        JsonFieldStreamProjector projector = new JsonFieldStreamProjector(fields);
         return rawDelta -> {
             String visibleDelta = projector.append(rawDelta);
             if (visibleDelta != null && !visibleDelta.isEmpty()) {
                 delegate.onDelta(visibleDelta);
             }
         };
+    }
+
+    private boolean needNextQuestion(InterviewContext context) {
+        if (context == null || context.getRoundNo() == null || context.getMaxRound() == null) {
+            return true;
+        }
+        return context.getRoundNo() < context.getMaxRound();
     }
 
     private AiProperties.OpenAiCompatible getConfig() {

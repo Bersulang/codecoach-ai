@@ -84,7 +84,7 @@ public class InterviewSessionController {
             try {
                 writer.start("AI 正在分析你的项目表达");
                 writer.stage("正在检索项目上下文");
-                writer.stage("正在生成反馈和下一轮追问");
+                writer.stage("正在生成反馈");
                 InterviewAnswerRequest answerRequest = new InterviewAnswerRequest();
                 answerRequest.setAnswer(request.getContent());
                 InterviewAnswerResponse response = interviewSessionService.submitAnswerStream(
