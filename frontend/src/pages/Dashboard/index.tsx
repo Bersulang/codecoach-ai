@@ -31,6 +31,12 @@ const entries = [
     action: "管理文档",
   },
   {
+    title: "简历训练",
+    desc: "从简历项目经历出发，提前发现面试官最可能追问的问题。",
+    to: "/resumes",
+    action: "分析简历",
+  },
+  {
     title: "训练历史",
     desc: "回看训练记录和报告，把每一次回答变成下一次的改进线索。",
     to: "/history",

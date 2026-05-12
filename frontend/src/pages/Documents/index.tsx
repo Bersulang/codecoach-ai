@@ -10,11 +10,13 @@ import {
 import {
   DeleteOutlined,
   FileTextOutlined,
+  FileSearchOutlined,
   InboxOutlined,
   ReloadOutlined,
   UploadOutlined,
 } from "@ant-design/icons";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { getProjects } from "../../api/project";
 import {
   deleteUserDocument,
@@ -100,6 +102,7 @@ function validateFile(file: File) {
 }
 
 function DocumentsPage() {
+  const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [documents, setDocuments] = useState<UserDocument[]>([]);
   const [projects, setProjects] = useState<ProjectVO[]>([]);
@@ -391,6 +394,13 @@ function DocumentsPage() {
                 ) : null}
 
                 <div className="document-card__actions">
+                  <Button
+                    icon={<FileSearchOutlined />}
+                    disabled={document.parseStatus !== "PARSED"}
+                    onClick={() => navigate(`/resumes?documentId=${document.id}`)}
+                  >
+                    作为简历分析
+                  </Button>
                   <Button
                     icon={<ReloadOutlined />}
                     loading={reindexingId === document.id}

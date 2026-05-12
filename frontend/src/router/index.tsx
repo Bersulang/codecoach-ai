@@ -19,6 +19,7 @@ import QuestionSessionPage from "../pages/QuestionSession";
 import QuestionsPage from "../pages/Questions";
 import RegisterPage from "../pages/Register";
 import ReportPage from "../pages/Report";
+import ResumesPage from "../pages/Resumes";
 
 const router = createBrowserRouter([
   {
@@ -82,6 +83,10 @@ const router = createBrowserRouter([
           {
             path: "documents",
             element: <DocumentsPage />,
+          },
+          {
+            path: "resumes",
+            element: <ResumesPage />,
           },
           {
             path: "questions",

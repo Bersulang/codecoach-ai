@@ -46,6 +46,10 @@ function ProductHeader({ user, onLogout }: ProductHeaderProps) {
       label: <Link to="/documents">我的文档</Link>,
     },
     {
+      key: "resumes",
+      label: <Link to="/resumes">简历训练</Link>,
+    },
+    {
       type: "divider",
     },
     {

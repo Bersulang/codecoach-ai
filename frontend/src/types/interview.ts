@@ -2,6 +2,8 @@ export type InterviewDifficulty = "EASY" | "NORMAL" | "HARD";
 
 export interface CreateInterviewSessionRequest {
   projectId: number;
+  resumeId?: number;
+  resumeProjectId?: number;
   targetRole: string;
   difficulty: InterviewDifficulty;
 }
