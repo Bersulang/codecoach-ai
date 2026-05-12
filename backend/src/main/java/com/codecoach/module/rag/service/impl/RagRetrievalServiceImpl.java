@@ -79,7 +79,7 @@ public class RagRetrievalServiceImpl implements RagRetrievalService {
         int topK = normalizeTopK(request.getTopK());
         try {
             EmbeddingResult embedding = embeddingService.embed(query.trim());
-            List<VectorSearchResult> vectorResults = searchVectors(embedding, request, topK);
+            List<VectorSearchResult> vectorResults = searchVectors(embedding, request, topK, currentUserId);
             List<RagRetrievedChunk> chunks = toRetrievedChunks(vectorResults, currentUserId, topK);
             return new RagSearchResponse(query.trim(), topK, chunks.size(), chunks);
         } catch (BusinessException exception) {
@@ -129,13 +129,13 @@ public class RagRetrievalServiceImpl implements RagRetrievalService {
         return builder.toString().trim();
     }
 
-    private List<VectorSearchResult> searchVectors(EmbeddingResult embedding, RagSearchRequest request, int topK) {
+    private List<VectorSearchResult> searchVectors(EmbeddingResult embedding, RagSearchRequest request, int topK, Long currentUserId) {
         List<String> sourceTypes = normalizeSourceTypes(request.getSourceTypes());
         if (sourceTypes.isEmpty()) {
             VectorSearchRequest vectorSearchRequest = new VectorSearchRequest();
             vectorSearchRequest.setVector(embedding.getVector());
             vectorSearchRequest.setTopK(topK);
-            vectorSearchRequest.setFilter(buildFilter(request.getFilter(), null));
+            vectorSearchRequest.setFilter(buildFilter(request.getFilter(), null, currentUserId));
             return vectorStoreService.search(vectorSearchRequest);
         }
 
@@ -144,22 +144,29 @@ public class RagRetrievalServiceImpl implements RagRetrievalService {
             VectorSearchRequest vectorSearchRequest = new VectorSearchRequest();
             vectorSearchRequest.setVector(embedding.getVector());
             vectorSearchRequest.setTopK(topK);
-            vectorSearchRequest.setFilter(buildFilter(request.getFilter(), sourceType));
+            vectorSearchRequest.setFilter(buildFilter(request.getFilter(), sourceType, currentUserId));
             merged.addAll(vectorStoreService.search(vectorSearchRequest));
         }
         return mergeAndLimit(merged, topK);
     }
 
-    private Map<String, Object> buildFilter(Map<String, Object> requestFilter, String sourceType) {
+    private Map<String, Object> buildFilter(Map<String, Object> requestFilter, String sourceType, Long currentUserId) {
         Map<String, Object> filter = new LinkedHashMap<>();
         if (requestFilter != null) {
             filter.putAll(requestFilter);
         }
+        filter.remove("userId");
+        filter.remove("ownerType");
         if (StringUtils.hasText(sourceType)) {
             filter.put("sourceType", sourceType);
         }
-        // 当前第一版只开放系统知识文档检索；用户私有文档后续需要 OR(ownerType=SYSTEM, userId=currentUserId) 支持。
-        filter.put("ownerType", RagConstants.OWNER_TYPE_SYSTEM);
+        String effectiveSourceType = toStringValue(filter.get("sourceType"));
+        if (RagConstants.SOURCE_TYPE_PROJECT.equals(effectiveSourceType)) {
+            filter.put("ownerType", RagConstants.OWNER_TYPE_USER);
+            filter.put("userId", currentUserId);
+        } else {
+            filter.put("ownerType", RagConstants.OWNER_TYPE_SYSTEM);
+        }
         return filter;
     }
 

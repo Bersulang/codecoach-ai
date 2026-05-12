@@ -4,6 +4,10 @@ public class RagIndexResult {
 
     private Long articleId;
 
+    private String sourceType;
+
+    private Long sourceId;
+
     private Long documentId;
 
     private Integer chunkCount;
@@ -43,6 +47,22 @@ public class RagIndexResult {
 
     public void setArticleId(Long articleId) {
         this.articleId = articleId;
+    }
+
+    public String getSourceType() {
+        return sourceType;
+    }
+
+    public void setSourceType(String sourceType) {
+        this.sourceType = sourceType;
+    }
+
+    public Long getSourceId() {
+        return sourceId;
+    }
+
+    public void setSourceId(Long sourceId) {
+        this.sourceId = sourceId;
     }
 
     public Long getDocumentId() {

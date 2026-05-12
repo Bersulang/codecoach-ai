@@ -8,6 +8,8 @@ import com.codecoach.module.knowledge.entity.KnowledgeTopic;
 import com.codecoach.module.knowledge.mapper.KnowledgeArticleMapper;
 import com.codecoach.module.knowledge.mapper.KnowledgeTopicMapper;
 import com.codecoach.module.knowledge.support.KnowledgeMarkdownReader;
+import com.codecoach.module.project.entity.Project;
+import com.codecoach.module.project.mapper.ProjectMapper;
 import com.codecoach.module.rag.constant.RagConstants;
 import com.codecoach.module.rag.entity.RagChunk;
 import com.codecoach.module.rag.entity.RagDocument;
@@ -23,8 +25,10 @@ import com.codecoach.module.rag.model.RagIndexResult;
 import com.codecoach.module.rag.model.VectorUpsertRequest;
 import com.codecoach.module.rag.service.EmbeddingService;
 import com.codecoach.module.rag.service.MarkdownChunkService;
+import com.codecoach.module.rag.service.ProjectChunkService;
 import com.codecoach.module.rag.service.RagIndexService;
 import com.codecoach.module.rag.service.VectorStoreService;
+import com.codecoach.security.UserContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
@@ -59,6 +63,10 @@ public class RagIndexServiceImpl implements RagIndexService {
 
     private final MarkdownChunkService markdownChunkService;
 
+    private final ProjectChunkService projectChunkService;
+
+    private final ProjectMapper projectMapper;
+
     private final EmbeddingService embeddingService;
 
     private final VectorStoreService vectorStoreService;
@@ -76,6 +84,8 @@ public class RagIndexServiceImpl implements RagIndexService {
             KnowledgeTopicMapper knowledgeTopicMapper,
             KnowledgeMarkdownReader knowledgeMarkdownReader,
             MarkdownChunkService markdownChunkService,
+            ProjectChunkService projectChunkService,
+            ProjectMapper projectMapper,
             EmbeddingService embeddingService,
             VectorStoreService vectorStoreService,
             RagDocumentMapper ragDocumentMapper,
@@ -87,6 +97,8 @@ public class RagIndexServiceImpl implements RagIndexService {
         this.knowledgeTopicMapper = knowledgeTopicMapper;
         this.knowledgeMarkdownReader = knowledgeMarkdownReader;
         this.markdownChunkService = markdownChunkService;
+        this.projectChunkService = projectChunkService;
+        this.projectMapper = projectMapper;
         this.embeddingService = embeddingService;
         this.vectorStoreService = vectorStoreService;
         this.ragDocumentMapper = ragDocumentMapper;
@@ -107,27 +119,33 @@ public class RagIndexServiceImpl implements RagIndexService {
             if (candidates.isEmpty()) {
                 document = prepareDocument(article);
                 updateDocumentStatus(document, RagConstants.DOCUMENT_STATUS_FAILED, 0, "知识文章没有可索引切片");
-                return failedResult(articleId, document.getId(), "知识文章没有可索引切片");
+                return withSource(failedResult(articleId, document.getId(), "知识文章没有可索引切片"),
+                        RagConstants.SOURCE_TYPE_KNOWLEDGE_ARTICLE,
+                        articleId);
             }
 
             vectorStoreService.ensureCollection();
             document = prepareDocument(article);
-            return indexChunks(article, document, candidates);
+            return withSource(indexChunks(article.getId(), document, candidates),
+                    RagConstants.SOURCE_TYPE_KNOWLEDGE_ARTICLE,
+                    article.getId());
         } catch (Exception ex) {
             String errorMessage = toErrorMessage(ex);
             log.warn("Knowledge article RAG indexing failed, articleId={}, error={}", articleId, errorMessage);
             if (document != null) {
                 updateDocumentStatus(document, RagConstants.DOCUMENT_STATUS_FAILED, 0, errorMessage);
             }
-            return new RagIndexResult(
-                    articleId,
-                    document == null ? null : document.getId(),
-                    0,
-                    0,
-                    0,
-                    RagConstants.DOCUMENT_STATUS_FAILED,
-                    errorMessage
-            );
+            return withSource(new RagIndexResult(
+                            articleId,
+                            document == null ? null : document.getId(),
+                            0,
+                            0,
+                            0,
+                            RagConstants.DOCUMENT_STATUS_FAILED,
+                            errorMessage
+                    ),
+                    RagConstants.SOURCE_TYPE_KNOWLEDGE_ARTICLE,
+                    articleId);
         }
     }
 
@@ -154,6 +172,72 @@ public class RagIndexServiceImpl implements RagIndexService {
         return new RagBatchIndexResult(articles.size(), indexedCount, failedCount, results);
     }
 
+    @Override
+    public RagIndexResult indexProject(Long projectId) {
+        Long currentUserId = UserContext.getCurrentUserId();
+        Project project = getCurrentUserProject(projectId, currentUserId);
+        RagDocument document = null;
+        try {
+            List<RagChunkCandidate> candidates = projectChunkService.chunkProject(project);
+            if (candidates.isEmpty()) {
+                document = prepareProjectDocument(project);
+                updateDocumentStatus(document, RagConstants.DOCUMENT_STATUS_FAILED, 0, "项目档案没有可索引内容");
+                return withSource(failedResult(null, document.getId(), "项目档案没有可索引内容"),
+                        RagConstants.SOURCE_TYPE_PROJECT,
+                        project.getId());
+            }
+
+            vectorStoreService.ensureCollection();
+            document = prepareProjectDocument(project);
+            return withSource(indexChunks(project.getId(), document, candidates),
+                    RagConstants.SOURCE_TYPE_PROJECT,
+                    project.getId());
+        } catch (BusinessException exception) {
+            throw exception;
+        } catch (Exception ex) {
+            String errorMessage = toErrorMessage(ex);
+            log.warn("Project RAG indexing failed, projectId={}, userId={}, error={}", projectId, currentUserId, errorMessage);
+            if (document != null) {
+                updateDocumentStatus(document, RagConstants.DOCUMENT_STATUS_FAILED, 0, errorMessage);
+            }
+            return withSource(new RagIndexResult(
+                            null,
+                            document == null ? null : document.getId(),
+                            0,
+                            0,
+                            0,
+                            RagConstants.DOCUMENT_STATUS_FAILED,
+                            errorMessage
+                    ),
+                    RagConstants.SOURCE_TYPE_PROJECT,
+                    projectId);
+        }
+    }
+
+    @Override
+    public RagBatchIndexResult indexCurrentUserProjects() {
+        Long currentUserId = UserContext.getCurrentUserId();
+        List<Project> projects = projectMapper.selectList(new LambdaQueryWrapper<Project>()
+                .eq(Project::getUserId, currentUserId)
+                .eq(Project::getIsDeleted, NOT_DELETED)
+                .orderByDesc(Project::getUpdatedAt)
+                .orderByDesc(Project::getId));
+
+        List<RagIndexResult> results = new ArrayList<>();
+        int indexedCount = 0;
+        int failedCount = 0;
+        for (Project project : projects) {
+            RagIndexResult result = indexProject(project.getId());
+            results.add(result);
+            if (RagConstants.DOCUMENT_STATUS_INDEXED.equals(result.getStatus())) {
+                indexedCount++;
+            } else {
+                failedCount++;
+            }
+        }
+        return new RagBatchIndexResult(projects.size(), indexedCount, failedCount, results);
+    }
+
     private KnowledgeArticle getPublishedArticle(Long articleId) {
         KnowledgeArticle article = articleId == null ? null : knowledgeArticleMapper.selectById(articleId);
         if (article == null
@@ -162,6 +246,17 @@ public class RagIndexServiceImpl implements RagIndexService {
             throw new BusinessException(ResultCode.KNOWLEDGE_ARTICLE_NOT_FOUND);
         }
         return article;
+    }
+
+    private Project getCurrentUserProject(Long projectId, Long currentUserId) {
+        Project project = projectId == null ? null : projectMapper.selectById(projectId);
+        if (project == null || !NOT_DELETED.equals(project.getIsDeleted())) {
+            throw new BusinessException(2001, "项目不存在");
+        }
+        if (!currentUserId.equals(project.getUserId())) {
+            throw new BusinessException(ResultCode.FORBIDDEN);
+        }
+        return project;
     }
 
     private List<RagChunkCandidate> chunkArticle(KnowledgeArticle article, KnowledgeTopic topic, String markdown) {
@@ -206,12 +301,53 @@ public class RagIndexServiceImpl implements RagIndexService {
         return document;
     }
 
+    private RagDocument prepareProjectDocument(Project project) {
+        RagDocument document = findProjectDocument(project.getId(), project.getUserId());
+        if (document == null) {
+            document = new RagDocument();
+            document.setOwnerType(RagConstants.OWNER_TYPE_USER);
+            document.setOwnerId(project.getUserId());
+            document.setUserId(project.getUserId());
+            document.setTitle(project.getName());
+            document.setSourceType(RagConstants.SOURCE_TYPE_PROJECT);
+            document.setSourceId(project.getId());
+            document.setSourcePath(null);
+            document.setStatus(RagConstants.DOCUMENT_STATUS_PENDING);
+            document.setChunkCount(0);
+            document.setErrorMessage(null);
+            document.setCreatedAt(LocalDateTime.now());
+            document.setUpdatedAt(LocalDateTime.now());
+            ragDocumentMapper.insert(document);
+            return document;
+        }
+
+        cleanupExistingIndex(document);
+        document.setTitle(project.getName());
+        document.setSourcePath(null);
+        document.setStatus(RagConstants.DOCUMENT_STATUS_PENDING);
+        document.setChunkCount(0);
+        document.setErrorMessage(null);
+        document.setUpdatedAt(LocalDateTime.now());
+        ragDocumentMapper.updateById(document);
+        return document;
+    }
+
     private RagDocument findKnowledgeArticleDocument(Long articleId) {
         return ragDocumentMapper.selectOne(new LambdaQueryWrapper<RagDocument>()
                 .eq(RagDocument::getSourceType, RagConstants.SOURCE_TYPE_KNOWLEDGE_ARTICLE)
                 .eq(RagDocument::getSourceId, articleId)
                 .eq(RagDocument::getOwnerType, RagConstants.OWNER_TYPE_SYSTEM)
                 .isNull(RagDocument::getOwnerId)
+                .last("LIMIT 1"));
+    }
+
+    private RagDocument findProjectDocument(Long projectId, Long userId) {
+        return ragDocumentMapper.selectOne(new LambdaQueryWrapper<RagDocument>()
+                .eq(RagDocument::getSourceType, RagConstants.SOURCE_TYPE_PROJECT)
+                .eq(RagDocument::getSourceId, projectId)
+                .eq(RagDocument::getOwnerType, RagConstants.OWNER_TYPE_USER)
+                .eq(RagDocument::getOwnerId, userId)
+                .eq(RagDocument::getUserId, userId)
                 .last("LIMIT 1"));
     }
 
@@ -242,11 +378,7 @@ public class RagIndexServiceImpl implements RagIndexService {
         deleteByIds(ragChunkMapper, chunkIds);
     }
 
-    private RagIndexResult indexChunks(
-            KnowledgeArticle article,
-            RagDocument document,
-            List<RagChunkCandidate> candidates
-    ) {
+    private RagIndexResult indexChunks(Long sourceId, RagDocument document, List<RagChunkCandidate> candidates) {
         int embeddedCount = 0;
         int failedCount = 0;
         String firstError = null;
@@ -268,8 +400,9 @@ public class RagIndexServiceImpl implements RagIndexService {
                 }
                 updateChunkStatus(chunk, RagConstants.EMBEDDING_STATUS_FAILED);
                 log.warn(
-                        "RAG chunk indexing failed, articleId={}, documentId={}, chunkIndex={}, error={}",
-                        article.getId(),
+                        "RAG chunk indexing failed, sourceType={}, sourceId={}, documentId={}, chunkIndex={}, error={}",
+                        document.getSourceType(),
+                        sourceId,
                         document.getId(),
                         candidate.getChunkIndex(),
                         errorMessage
@@ -286,7 +419,7 @@ public class RagIndexServiceImpl implements RagIndexService {
         updateDocumentStatus(document, status, candidates.size(), documentError);
 
         return new RagIndexResult(
-                article.getId(),
+                RagConstants.SOURCE_TYPE_KNOWLEDGE_ARTICLE.equals(document.getSourceType()) ? sourceId : null,
                 document.getId(),
                 candidates.size(),
                 embeddedCount,
@@ -299,7 +432,7 @@ public class RagIndexServiceImpl implements RagIndexService {
     private RagChunk savePendingChunk(RagDocument document, RagChunkCandidate candidate) {
         RagChunk chunk = new RagChunk();
         chunk.setDocumentId(document.getId());
-        chunk.setUserId(null);
+        chunk.setUserId(document.getUserId());
         chunk.setChunkIndex(candidate.getChunkIndex());
         chunk.setContent(candidate.getContent());
         chunk.setTokenCount(candidate.getTokenCount());
@@ -323,8 +456,8 @@ public class RagIndexServiceImpl implements RagIndexService {
         }
         payload.put("chunkId", chunk.getId());
         payload.put("documentId", document.getId());
-        payload.put("sourceType", RagConstants.SOURCE_TYPE_KNOWLEDGE_ARTICLE);
-        payload.put("ownerType", RagConstants.OWNER_TYPE_SYSTEM);
+        payload.put("sourceType", document.getSourceType());
+        payload.put("ownerType", document.getOwnerType());
         putIfNotNull(payload, "userId", document.getUserId());
 
         VectorUpsertRequest request = new VectorUpsertRequest();
@@ -367,6 +500,12 @@ public class RagIndexServiceImpl implements RagIndexService {
                 RagConstants.DOCUMENT_STATUS_FAILED,
                 abbreviate(errorMessage)
         );
+    }
+
+    private RagIndexResult withSource(RagIndexResult result, String sourceType, Long sourceId) {
+        result.setSourceType(sourceType);
+        result.setSourceId(sourceId);
+        return result;
     }
 
     private String toJson(Map<String, Object> metadata) {

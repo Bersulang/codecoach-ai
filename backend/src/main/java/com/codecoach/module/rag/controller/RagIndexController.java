@@ -28,4 +28,14 @@ public class RagIndexController {
     public Result<RagBatchIndexResult> indexAllKnowledgeArticles() {
         return Result.success(ragIndexService.indexAllKnowledgeArticles());
     }
+
+    @PostMapping("/projects/{projectId}")
+    public Result<RagIndexResult> indexProject(@PathVariable Long projectId) {
+        return Result.success(ragIndexService.indexProject(projectId));
+    }
+
+    @PostMapping("/projects")
+    public Result<RagBatchIndexResult> indexCurrentUserProjects() {
+        return Result.success(ragIndexService.indexCurrentUserProjects());
+    }
 }

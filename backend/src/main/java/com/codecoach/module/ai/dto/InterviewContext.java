@@ -26,6 +26,8 @@ public class InterviewContext {
 
     private String userAnswer;
 
+    private String ragContext;
+
     private List<QaRecord> qaRecords;
 
     public Project getProject() {
@@ -106,6 +108,14 @@ public class InterviewContext {
 
     public void setUserAnswer(String userAnswer) {
         this.userAnswer = userAnswer;
+    }
+
+    public String getRagContext() {
+        return ragContext;
+    }
+
+    public void setRagContext(String ragContext) {
+        this.ragContext = ragContext;
     }
 
     public List<QaRecord> getQaRecords() {

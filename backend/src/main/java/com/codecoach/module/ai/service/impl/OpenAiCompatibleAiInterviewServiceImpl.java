@@ -486,6 +486,7 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
         variables.put("currentQuestion", context == null ? "" : textValue(context.getCurrentQuestion()));
         variables.put("historyMessages", buildHistoryMessages(context));
         variables.put("userAnswer", context == null ? "" : textValue(context.getUserAnswer()));
+        variables.put("ragContext", context == null ? "" : textValue(context.getRagContext()));
         return variables;
     }
 
@@ -511,6 +512,7 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
         variables.put("historyMessages", "");
         variables.put("userAnswer", "");
         variables.put("currentQuestion", "");
+        variables.put("ragContext", "");
         return variables;
     }
 

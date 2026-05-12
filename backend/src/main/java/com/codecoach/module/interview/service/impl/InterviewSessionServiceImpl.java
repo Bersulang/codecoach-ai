@@ -26,6 +26,12 @@ import com.codecoach.module.interview.vo.InterviewSessionHistoryVO;
 import com.codecoach.module.insight.service.UserAbilitySnapshotService;
 import com.codecoach.module.project.entity.Project;
 import com.codecoach.module.project.mapper.ProjectMapper;
+import com.codecoach.module.rag.config.RagProperties;
+import com.codecoach.module.rag.constant.RagConstants;
+import com.codecoach.module.rag.model.RagRetrievedChunk;
+import com.codecoach.module.rag.model.RagSearchRequest;
+import com.codecoach.module.rag.model.RagSearchResponse;
+import com.codecoach.module.rag.service.RagRetrievalService;
 import com.codecoach.module.report.entity.InterviewReport;
 import com.codecoach.module.report.mapper.InterviewReportMapper;
 import com.codecoach.security.UserContext;
@@ -126,6 +132,10 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
 
     private final UserAbilitySnapshotService userAbilitySnapshotService;
 
+    private final RagRetrievalService ragRetrievalService;
+
+    private final RagProperties ragProperties;
+
     public InterviewSessionServiceImpl(
             InterviewSessionMapper interviewSessionMapper,
             InterviewMessageMapper interviewMessageMapper,
@@ -135,7 +145,9 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
             ObjectMapper objectMapper,
             StringRedisTemplate stringRedisTemplate,
             TransactionTemplate transactionTemplate,
-            UserAbilitySnapshotService userAbilitySnapshotService
+            UserAbilitySnapshotService userAbilitySnapshotService,
+            RagRetrievalService ragRetrievalService,
+            RagProperties ragProperties
     ) {
         this.interviewSessionMapper = interviewSessionMapper;
         this.interviewMessageMapper = interviewMessageMapper;
@@ -146,6 +158,8 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         this.stringRedisTemplate = stringRedisTemplate;
         this.transactionTemplate = transactionTemplate;
         this.userAbilitySnapshotService = userAbilitySnapshotService;
+        this.ragRetrievalService = ragRetrievalService;
+        this.ragProperties = ragProperties;
     }
 
     @Override
@@ -298,8 +312,10 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         interviewMessageMapper.insert(userAnswer);
 
         boolean finished = currentRound >= maxRound;
+        InterviewContext answerContext = buildInterviewContext(session, project, historyMessages, request.getAnswer());
+        answerContext.setRagContext(retrieveProjectRagContext(answerContext));
         FeedbackAndQuestionResult aiResult = generateFeedbackAndNextQuestion(
-                buildInterviewContext(session, project, historyMessages, request.getAnswer()),
+                answerContext,
                 !finished
         );
 
@@ -417,7 +433,9 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
             return new InterviewFinishResponse(existingReport.getId(), session.getId(), existingReport.getTotalScore());
         }
 
-        ReportGenerateResult reportResult = generateReport(buildInterviewContext(session, project, messages, null));
+        InterviewContext reportContext = buildInterviewContext(session, project, messages, null);
+        reportContext.setRagContext(retrieveProjectRagContext(reportContext));
+        ReportGenerateResult reportResult = generateReport(reportContext);
 
         InterviewReport report = new InterviewReport();
         report.setSessionId(session.getId());
@@ -499,6 +517,69 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         }
     }
 
+    private String retrieveProjectRagContext(InterviewContext context) {
+        if (context == null || ragProperties == null || !Boolean.TRUE.equals(ragProperties.getEnabled())) {
+            return "";
+        }
+        if (context.getProjectId() == null || context.getUserId() == null) {
+            return "";
+        }
+        try {
+            RagSearchRequest request = new RagSearchRequest();
+            request.setQuery(buildProjectRagQuery(context));
+            request.setSourceTypes(List.of(RagConstants.SOURCE_TYPE_PROJECT));
+            request.setTopK(ragProperties.getTopK());
+            request.setFilter(Map.of(
+                    "sourceType", RagConstants.SOURCE_TYPE_PROJECT,
+                    "projectId", context.getProjectId()
+            ));
+            RagSearchResponse response = ragRetrievalService.search(request);
+            List<RagRetrievedChunk> chunks = response == null ? List.of() : response.getChunks();
+            if (chunks == null || chunks.isEmpty()) {
+                log.info("Project RAG retrieval returned no chunks, sessionId={}, projectId={}",
+                        context.getSessionId(),
+                        context.getProjectId());
+                return "";
+            }
+            log.info("Project RAG retrieval hit chunks, sessionId={}, projectId={}, count={}",
+                    context.getSessionId(),
+                    context.getProjectId(),
+                    chunks.size());
+            return toProjectRagContext(ragRetrievalService.buildContextBlock(chunks, maxContextChars()));
+        } catch (Exception exception) {
+            log.warn("Project RAG retrieval failed, fallback to normal interview. sessionId={}, projectId={}, error={}",
+                    context.getSessionId(),
+                    context.getProjectId(),
+                    abbreviateLog(exception.getMessage()));
+            return "";
+        }
+    }
+
+    private String buildProjectRagQuery(InterviewContext context) {
+        Project project = context.getProject();
+        return "项目名称：" + safeText(project == null ? null : project.getName())
+                + "\n目标岗位：" + safeText(context.getTargetRole())
+                + "\n难度：" + safeText(context.getDifficulty())
+                + "\n当前问题：" + safeText(context.getCurrentQuestion())
+                + "\n用户回答：" + truncate(safeText(context.getUserAnswer()), 1000);
+    }
+
+    private String toProjectRagContext(String contextBlock) {
+        if (!StringUtils.hasText(contextBlock)) {
+            return "";
+        }
+        return contextBlock
+                .replace("【检索到的相关知识片段】", "【检索到的项目上下文】")
+                .replace("上述内容仅作为参考知识背景。", "上述内容来自用户项目档案，仅用于辅助生成更贴近项目的反馈和追问。")
+                .replace("如果知识片段与当前问题无关，可以忽略。", "如果项目上下文与当前问题无关，可以忽略。")
+                .replace("不要直接照抄知识片段，应转化为面试反馈和参考答案。", "不要照抄项目上下文，应转化为面试追问和表达建议。");
+    }
+
+    private int maxContextChars() {
+        Integer maxContextChars = ragProperties == null ? null : ragProperties.getMaxContextChars();
+        return maxContextChars == null || maxContextChars <= 0 ? 4000 : maxContextChars;
+    }
+
     private InterviewContext buildInterviewContext(
             InterviewSession session,
             Project project,
@@ -518,6 +599,25 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         context.setUserAnswer(answer);
         context.setQaRecords(buildQaRecords(historyMessages));
         return context;
+    }
+
+    private String safeText(String text) {
+        return StringUtils.hasText(text) ? text.trim() : "";
+    }
+
+    private String truncate(String text, int maxLength) {
+        if (text == null || text.length() <= maxLength) {
+            return text == null ? "" : text;
+        }
+        return text.substring(0, maxLength);
+    }
+
+    private String abbreviateLog(String message) {
+        if (!StringUtils.hasText(message)) {
+            return "unknown";
+        }
+        String normalized = message.replaceAll("\\s+", " ").trim();
+        return normalized.length() <= 160 ? normalized : normalized.substring(0, 160);
     }
 
     private String getCurrentQuestion(List<InterviewMessage> messages, Integer currentRound) {

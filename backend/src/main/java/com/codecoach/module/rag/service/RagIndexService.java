@@ -8,4 +8,8 @@ public interface RagIndexService {
     RagIndexResult indexKnowledgeArticle(Long articleId);
 
     RagBatchIndexResult indexAllKnowledgeArticles();
+
+    RagIndexResult indexProject(Long projectId);
+
+    RagBatchIndexResult indexCurrentUserProjects();
 }
