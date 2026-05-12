@@ -66,6 +66,17 @@
   color: var(--cc-text-primary);
 }
 
+.report-quality-alert {
+  border-radius: var(--cc-radius-lg);
+}
+
+.report-quality-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
 .report-list {
   display: flex;
   flex-direction: column;

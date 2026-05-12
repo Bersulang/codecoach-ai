@@ -36,6 +36,8 @@ public class UserAbilitySnapshotServiceImpl implements UserAbilitySnapshotServic
 
     private static final int MAX_WEAKNESS_TAGS = 10;
 
+    private static final int LOW_CONFIDENCE_SCORE_THRESHOLD = 25;
+
     private static final TypeReference<List<String>> STRING_LIST_TYPE = new TypeReference<>() {
     };
 
@@ -67,7 +69,7 @@ public class UserAbilitySnapshotServiceImpl implements UserAbilitySnapshotServic
     @Override
     public void createProjectReportSnapshots(InterviewReport report, InterviewSession session) {
         try {
-            if (report == null || report.getId() == null) {
+            if (report == null || report.getId() == null || isLowConfidenceScore(report.getTotalScore())) {
                 return;
             }
             String weaknessTags = toJsonString(parseStringListJson(report.getWeaknesses()));
@@ -121,7 +123,7 @@ public class UserAbilitySnapshotServiceImpl implements UserAbilitySnapshotServic
             KnowledgeTopic topic
     ) {
         try {
-            if (report == null || report.getId() == null) {
+            if (report == null || report.getId() == null || isLowConfidenceScore(report.getTotalScore())) {
                 return;
             }
             String category = topic == null ? null : topic.getCategory();
@@ -241,6 +243,10 @@ public class UserAbilitySnapshotServiceImpl implements UserAbilitySnapshotServic
             return value;
         }
         return value.substring(0, 200);
+    }
+
+    private boolean isLowConfidenceScore(Integer score) {
+        return score == null || score <= LOW_CONFIDENCE_SCORE_THRESHOLD;
     }
 
     private record AbilitySnapshotCreateCommand(

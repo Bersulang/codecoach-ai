@@ -35,6 +35,8 @@ import com.codecoach.module.rag.model.RagRetrievedChunk;
 import com.codecoach.module.rag.model.RagSearchRequest;
 import com.codecoach.module.rag.model.RagSearchResponse;
 import com.codecoach.module.rag.service.RagRetrievalService;
+import com.codecoach.module.report.quality.ReportQualityAssessment;
+import com.codecoach.module.report.quality.ReportQualityPostProcessor;
 import com.codecoach.security.UserContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -152,6 +154,8 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
 
     private final RagProperties ragProperties;
 
+    private final ReportQualityPostProcessor reportQualityPostProcessor;
+
     public QuestionSessionServiceImpl(
             KnowledgeTopicMapper knowledgeTopicMapper,
             QuestionTrainingSessionMapper questionTrainingSessionMapper,
@@ -163,7 +167,8 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
             TransactionTemplate transactionTemplate,
             UserAbilitySnapshotService userAbilitySnapshotService,
             RagRetrievalService ragRetrievalService,
-            RagProperties ragProperties
+            RagProperties ragProperties,
+            ReportQualityPostProcessor reportQualityPostProcessor
     ) {
         this.knowledgeTopicMapper = knowledgeTopicMapper;
         this.questionTrainingSessionMapper = questionTrainingSessionMapper;
@@ -176,6 +181,7 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
         this.userAbilitySnapshotService = userAbilitySnapshotService;
         this.ragRetrievalService = ragRetrievalService;
         this.ragProperties = ragProperties;
+        this.reportQualityPostProcessor = reportQualityPostProcessor;
     }
 
     @Override
@@ -719,6 +725,11 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
         QuestionPracticeContext reportContext = buildQuestionPracticeContext(session, topic, messages, null);
         enrichReportContextWithRag(reportContext);
         QuestionReportGenerateResult reportResult = generateReport(reportContext);
+        ReportQualityAssessment qualityAssessment = reportQualityPostProcessor.processQuestionReport(
+                reportResult,
+                extractUserAnswers(messages),
+                session.getMaxRound() == null ? MAX_ROUND : session.getMaxRound()
+        );
 
         QuestionTrainingReport report = new QuestionTrainingReport();
         report.setSessionId(session.getId());
@@ -740,9 +751,23 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
         session.setCurrentRound(session.getMaxRound());
         questionTrainingSessionMapper.updateById(session);
 
-        userAbilitySnapshotService.createQuestionReportSnapshot(report, session, topic);
+        if (!qualityAssessment.isLowConfidence()) {
+            userAbilitySnapshotService.createQuestionReportSnapshot(report, session, topic);
+        }
 
         return report;
+    }
+
+    private List<String> extractUserAnswers(List<QuestionTrainingMessage> messages) {
+        if (messages == null) {
+            return List.of();
+        }
+        return messages.stream()
+                .filter(message -> MESSAGE_TYPE_USER_ANSWER.equals(message.getMessageType()))
+                .map(QuestionTrainingMessage::getContent)
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .toList();
     }
 
     private List<QuestionTrainingMessage> listSessionMessages(Long sessionId) {

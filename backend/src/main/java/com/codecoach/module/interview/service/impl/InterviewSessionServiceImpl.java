@@ -35,6 +35,8 @@ import com.codecoach.module.rag.model.RagSearchResponse;
 import com.codecoach.module.rag.service.RagRetrievalService;
 import com.codecoach.module.report.entity.InterviewReport;
 import com.codecoach.module.report.mapper.InterviewReportMapper;
+import com.codecoach.module.report.quality.ReportQualityAssessment;
+import com.codecoach.module.report.quality.ReportQualityPostProcessor;
 import com.codecoach.module.resume.entity.ResumeProfile;
 import com.codecoach.module.resume.entity.ResumeProjectExperience;
 import com.codecoach.module.resume.mapper.ResumeProfileMapper;
@@ -145,6 +147,8 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
 
     private final ResumeProjectExperienceMapper resumeProjectExperienceMapper;
 
+    private final ReportQualityPostProcessor reportQualityPostProcessor;
+
     public InterviewSessionServiceImpl(
             InterviewSessionMapper interviewSessionMapper,
             InterviewMessageMapper interviewMessageMapper,
@@ -158,7 +162,8 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
             RagRetrievalService ragRetrievalService,
             RagProperties ragProperties,
             ResumeProfileMapper resumeProfileMapper,
-            ResumeProjectExperienceMapper resumeProjectExperienceMapper
+            ResumeProjectExperienceMapper resumeProjectExperienceMapper,
+            ReportQualityPostProcessor reportQualityPostProcessor
     ) {
         this.interviewSessionMapper = interviewSessionMapper;
         this.interviewMessageMapper = interviewMessageMapper;
@@ -173,6 +178,7 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         this.ragProperties = ragProperties;
         this.resumeProfileMapper = resumeProfileMapper;
         this.resumeProjectExperienceMapper = resumeProjectExperienceMapper;
+        this.reportQualityPostProcessor = reportQualityPostProcessor;
     }
 
     @Override
@@ -474,6 +480,11 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         InterviewContext reportContext = buildInterviewContext(session, project, messages, null);
         reportContext.setRagContext(retrieveProjectRagContext(reportContext));
         ReportGenerateResult reportResult = generateReport(reportContext);
+        ReportQualityAssessment qualityAssessment = reportQualityPostProcessor.processProjectReport(
+                reportResult,
+                extractUserAnswers(messages),
+                session.getMaxRound() == null ? MAX_ROUND : session.getMaxRound()
+        );
 
         InterviewReport report = new InterviewReport();
         report.setSessionId(session.getId());
@@ -494,9 +505,23 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         session.setCurrentRound(session.getMaxRound());
         interviewSessionMapper.updateById(session);
 
-        userAbilitySnapshotService.createProjectReportSnapshots(report, session);
+        if (!qualityAssessment.isLowConfidence()) {
+            userAbilitySnapshotService.createProjectReportSnapshots(report, session);
+        }
 
         return new InterviewFinishResponse(report.getId(), session.getId(), report.getTotalScore());
+    }
+
+    private List<String> extractUserAnswers(List<InterviewMessage> messages) {
+        if (messages == null) {
+            return List.of();
+        }
+        return messages.stream()
+                .filter(message -> MESSAGE_TYPE_USER_ANSWER.equals(message.getMessageType()))
+                .map(InterviewMessage::getContent)
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .toList();
     }
 
     private void checkCurrentRoundAnswerNotSubmitted(Long sessionId, Long userId, Integer currentRound) {

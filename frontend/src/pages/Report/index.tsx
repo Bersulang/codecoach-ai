@@ -1,4 +1,5 @@
 import {
+  Alert,
   Button,
   Card,
   Empty,
@@ -6,6 +7,7 @@ import {
   Result,
   Space,
   Statistic,
+  Tag,
   Typography,
   message,
 } from "antd";
@@ -24,6 +26,22 @@ const DIFFICULTY_LABELS: Record<InterviewDifficulty, string> = {
   EASY: "入门引导",
   NORMAL: "常规面试",
   HARD: "深度拷打",
+};
+
+const SAMPLE_LABELS = {
+  INSUFFICIENT: "样本不足",
+  LIMITED: "样本有限",
+  ENOUGH: "样本基本足够",
+};
+
+const QUALITY_LABELS = {
+  NO_ANSWER: "没有有效回答",
+  INVALID: "无效回答",
+  VERY_WEAK: "回答很弱",
+  PARTIAL: "部分回答",
+  BASIC: "基础掌握",
+  GOOD: "回答较好",
+  EXCELLENT: "回答优秀",
 };
 
 function formatDifficulty(value?: InterviewDifficulty) {
@@ -70,6 +88,8 @@ function ReportPage() {
           strengths: data.strengths || [],
           weaknesses: data.weaknesses || [],
           suggestions: data.suggestions || [],
+          deductionReasons: data.deductionReasons || [],
+          nextActions: data.nextActions || [],
           qaReview: data.qaReview || [],
         });
       })
@@ -223,7 +243,49 @@ function ReportPage() {
             <span className="report-meta-label">总评分</span>
             <Statistic value={report?.totalScore ?? 0} suffix="/ 100" />
           </div>
+          <div>
+            <span className="report-meta-label">样本充分性</span>
+            <span className="report-meta-value">
+              {report?.sampleSufficiency
+                ? SAMPLE_LABELS[report.sampleSufficiency]
+                : "—"}
+            </span>
+          </div>
+          <div>
+            <span className="report-meta-label">有效回答</span>
+            <span className="report-meta-value">
+              {report?.validAnswerCount ?? 0} / {report?.answerCount ?? 0}
+            </span>
+          </div>
+          <div>
+            <span className="report-meta-label">回答质量</span>
+            <span className="report-meta-value">
+              {report?.answerQuality ? QUALITY_LABELS[report.answerQuality] : "—"}
+            </span>
+          </div>
         </div>
+      </Card>
+
+      {report?.sampleSufficiency === "INSUFFICIENT" ? (
+        <Alert
+          className="report-quality-alert"
+          type="warning"
+          showIcon
+          message="本次训练样本不足，分数仅供参考。建议完成更多轮训练后再查看能力趋势。"
+        />
+      ) : null}
+
+      <Card className="report-card" loading={loading}>
+        <Typography.Title level={4} className="report-section-title">
+          评分依据
+        </Typography.Title>
+        <div className="report-quality-tags">
+          <Tag>{report?.answerQuality ? QUALITY_LABELS[report.answerQuality] : "—"}</Tag>
+          <Tag>
+            有效回答 {report?.validAnswerCount ?? 0} / {report?.answerCount ?? 0}
+          </Tag>
+        </div>
+        {renderList(report?.deductionReasons || [])}
       </Card>
 
       <Card className="report-card" loading={loading}>
@@ -254,6 +316,13 @@ function ReportPage() {
           改进建议
         </Typography.Title>
         {renderList(report?.suggestions || [])}
+      </Card>
+
+      <Card className="report-card" loading={loading}>
+        <Typography.Title level={4} className="report-section-title">
+          下一步
+        </Typography.Title>
+        {renderList(report?.nextActions || [])}
       </Card>
 
       <Card className="report-card" loading={loading}>

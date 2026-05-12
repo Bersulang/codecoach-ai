@@ -1,13 +1,19 @@
 package com.codecoach.module.report.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.codecoach.common.exception.BusinessException;
 import com.codecoach.common.result.ResultCode;
+import com.codecoach.module.interview.entity.InterviewMessage;
 import com.codecoach.module.interview.entity.InterviewSession;
+import com.codecoach.module.interview.mapper.InterviewMessageMapper;
 import com.codecoach.module.interview.mapper.InterviewSessionMapper;
 import com.codecoach.module.project.entity.Project;
 import com.codecoach.module.project.mapper.ProjectMapper;
 import com.codecoach.module.report.entity.InterviewReport;
 import com.codecoach.module.report.mapper.InterviewReportMapper;
+import com.codecoach.module.report.quality.ReportQualityAssessment;
+import com.codecoach.module.report.quality.ReportQualityEvaluator;
+import com.codecoach.module.report.quality.ReportTrainingType;
 import com.codecoach.module.report.service.ReportService;
 import com.codecoach.module.report.vo.InterviewReportVO;
 import com.codecoach.module.report.vo.QaReviewVO;
@@ -33,20 +39,28 @@ public class ReportServiceImpl implements ReportService {
 
     private final InterviewSessionMapper interviewSessionMapper;
 
+    private final InterviewMessageMapper interviewMessageMapper;
+
     private final ProjectMapper projectMapper;
 
     private final ObjectMapper objectMapper;
 
+    private final ReportQualityEvaluator reportQualityEvaluator;
+
     public ReportServiceImpl(
             InterviewReportMapper interviewReportMapper,
             InterviewSessionMapper interviewSessionMapper,
+            InterviewMessageMapper interviewMessageMapper,
             ProjectMapper projectMapper,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            ReportQualityEvaluator reportQualityEvaluator
     ) {
         this.interviewReportMapper = interviewReportMapper;
         this.interviewSessionMapper = interviewSessionMapper;
+        this.interviewMessageMapper = interviewMessageMapper;
         this.projectMapper = projectMapper;
         this.objectMapper = objectMapper;
+        this.reportQualityEvaluator = reportQualityEvaluator;
     }
 
     @Override
@@ -62,6 +76,11 @@ public class ReportServiceImpl implements ReportService {
 
         InterviewSession session = interviewSessionMapper.selectById(report.getSessionId());
         Project project = projectMapper.selectById(report.getProjectId());
+        ReportQualityAssessment qualityAssessment = reportQualityEvaluator.assess(
+                listUserAnswers(report.getSessionId()),
+                session == null || session.getMaxRound() == null ? 5 : session.getMaxRound(),
+                ReportTrainingType.PROJECT
+        );
 
         return new InterviewReportVO(
                 report.getId(),
@@ -71,6 +90,12 @@ public class ReportServiceImpl implements ReportService {
                 session == null ? null : session.getTargetRole(),
                 session == null ? null : session.getDifficulty(),
                 report.getTotalScore(),
+                qualityAssessment.getSampleSufficiency().name(),
+                qualityAssessment.getAnswerQuality().name(),
+                qualityAssessment.getAnswerCount(),
+                qualityAssessment.getValidAnswerCount(),
+                qualityAssessment.getDeductionReasons(),
+                qualityAssessment.getNextActions(),
                 report.getSummary(),
                 parseStringList(report.getStrengths()),
                 parseStringList(report.getWeaknesses()),
@@ -78,6 +103,22 @@ public class ReportServiceImpl implements ReportService {
                 parseQaReview(report.getQaReview()),
                 report.getCreatedAt()
         );
+    }
+
+    private List<String> listUserAnswers(Long sessionId) {
+        if (sessionId == null) {
+            return Collections.emptyList();
+        }
+        return interviewMessageMapper.selectList(new LambdaQueryWrapper<InterviewMessage>()
+                        .eq(InterviewMessage::getSessionId, sessionId)
+                        .eq(InterviewMessage::getMessageType, "USER_ANSWER")
+                        .orderByAsc(InterviewMessage::getRoundNo)
+                        .orderByAsc(InterviewMessage::getId))
+                .stream()
+                .map(InterviewMessage::getContent)
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .toList();
     }
 
     private List<String> parseStringList(String json) {

@@ -66,6 +66,17 @@
   color: var(--cc-text-primary);
 }
 
+.question-report-quality-alert {
+  border-radius: var(--cc-radius-lg);
+}
+
+.question-report-quality-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
 .question-report-learning-card {
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(250, 244, 234, 0.9)),

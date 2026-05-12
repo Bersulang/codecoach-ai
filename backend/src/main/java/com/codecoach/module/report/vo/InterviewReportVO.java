@@ -21,6 +21,18 @@ public class InterviewReportVO {
 
     private Integer totalScore;
 
+    private String sampleSufficiency;
+
+    private String answerQuality;
+
+    private Integer answerCount;
+
+    private Integer validAnswerCount;
+
+    private List<String> deductionReasons;
+
+    private List<String> nextActions;
+
     private String summary;
 
     private List<String> strengths;
@@ -42,6 +54,12 @@ public class InterviewReportVO {
             String targetRole,
             String difficulty,
             Integer totalScore,
+            String sampleSufficiency,
+            String answerQuality,
+            Integer answerCount,
+            Integer validAnswerCount,
+            List<String> deductionReasons,
+            List<String> nextActions,
             String summary,
             List<String> strengths,
             List<String> weaknesses,
@@ -56,6 +74,12 @@ public class InterviewReportVO {
         this.targetRole = targetRole;
         this.difficulty = difficulty;
         this.totalScore = totalScore;
+        this.sampleSufficiency = sampleSufficiency;
+        this.answerQuality = answerQuality;
+        this.answerCount = answerCount;
+        this.validAnswerCount = validAnswerCount;
+        this.deductionReasons = deductionReasons;
+        this.nextActions = nextActions;
         this.summary = summary;
         this.strengths = strengths;
         this.weaknesses = weaknesses;
@@ -118,6 +142,54 @@ public class InterviewReportVO {
 
     public void setTotalScore(Integer totalScore) {
         this.totalScore = totalScore;
+    }
+
+    public String getSampleSufficiency() {
+        return sampleSufficiency;
+    }
+
+    public void setSampleSufficiency(String sampleSufficiency) {
+        this.sampleSufficiency = sampleSufficiency;
+    }
+
+    public String getAnswerQuality() {
+        return answerQuality;
+    }
+
+    public void setAnswerQuality(String answerQuality) {
+        this.answerQuality = answerQuality;
+    }
+
+    public Integer getAnswerCount() {
+        return answerCount;
+    }
+
+    public void setAnswerCount(Integer answerCount) {
+        this.answerCount = answerCount;
+    }
+
+    public Integer getValidAnswerCount() {
+        return validAnswerCount;
+    }
+
+    public void setValidAnswerCount(Integer validAnswerCount) {
+        this.validAnswerCount = validAnswerCount;
+    }
+
+    public List<String> getDeductionReasons() {
+        return deductionReasons;
+    }
+
+    public void setDeductionReasons(List<String> deductionReasons) {
+        this.deductionReasons = deductionReasons;
+    }
+
+    public List<String> getNextActions() {
+        return nextActions;
+    }
+
+    public void setNextActions(List<String> nextActions) {
+        this.nextActions = nextActions;
     }
 
     public String getSummary() {

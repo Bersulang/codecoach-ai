@@ -14,6 +14,19 @@ export interface InterviewReport {
   targetRole: string;
   difficulty: InterviewDifficulty;
   totalScore: number;
+  sampleSufficiency?: "INSUFFICIENT" | "LIMITED" | "ENOUGH";
+  answerQuality?:
+    | "NO_ANSWER"
+    | "INVALID"
+    | "VERY_WEAK"
+    | "PARTIAL"
+    | "BASIC"
+    | "GOOD"
+    | "EXCELLENT";
+  answerCount?: number;
+  validAnswerCount?: number;
+  deductionReasons?: string[];
+  nextActions?: string[];
   summary: string;
   strengths: string[];
   weaknesses: string[];
