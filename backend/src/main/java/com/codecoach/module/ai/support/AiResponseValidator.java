@@ -34,12 +34,17 @@ public class AiResponseValidator {
 
     public void validateFeedbackAndNextQuestion(FeedbackAndQuestionResult result) {
         validateFeedbackOnly(result);
+        result.setNextQuestion(AiTextSanitizer.toPlainText(result.getNextQuestion()));
         if (!StringUtils.hasText(result.getNextQuestion())) {
             throw aiCallFailed();
         }
     }
 
     public void validateFeedbackOnly(FeedbackAndQuestionResult result) {
+        if (result != null) {
+            result.setFeedback(AiTextSanitizer.toPlainText(result.getFeedback()));
+            result.setNextQuestion(AiTextSanitizer.toPlainText(result.getNextQuestion()));
+        }
         if (result == null
                 || !StringUtils.hasText(result.getFeedback())
                 || isPlaceholder(result.getFeedback())
@@ -49,6 +54,7 @@ public class AiResponseValidator {
     }
 
     public void validateReport(ReportGenerateResult result) {
+        sanitizeReport(result);
         if (result == null
                 || result.getTotalScore() == null
                 || result.getTotalScore() < MIN_SCORE
@@ -73,12 +79,18 @@ public class AiResponseValidator {
 
     public void validateQuestionFeedbackAndNextQuestion(QuestionFeedbackResult result) {
         validateQuestionFeedbackOnly(result);
+        result.setNextQuestion(AiTextSanitizer.toPlainText(result.getNextQuestion()));
         if (!StringUtils.hasText(result.getNextQuestion())) {
             throw aiCallFailed();
         }
     }
 
     public void validateQuestionFeedbackOnly(QuestionFeedbackResult result) {
+        if (result != null) {
+            result.setFeedback(AiTextSanitizer.toPlainText(result.getFeedback()));
+            result.setReferenceAnswer(AiTextSanitizer.toPlainText(result.getReferenceAnswer()));
+            result.setNextQuestion(AiTextSanitizer.toPlainText(result.getNextQuestion()));
+        }
         if (result == null
                 || !StringUtils.hasText(result.getFeedback())
                 || !StringUtils.hasText(result.getReferenceAnswer())
@@ -93,6 +105,7 @@ public class AiResponseValidator {
     }
 
     public void validateQuestionReport(QuestionReportGenerateResult result) {
+        sanitizeQuestionReport(result);
         if (result == null
                 || result.getTotalScore() == null
                 || result.getTotalScore() < MIN_SCORE
@@ -116,6 +129,50 @@ public class AiResponseValidator {
                 .filter(this::isValidQuestionQaReviewItem)
                 .toList();
         result.setQaReview(validItems);
+    }
+
+    private void sanitizeReport(ReportGenerateResult result) {
+        if (result == null) {
+            return;
+        }
+        result.setSummary(AiTextSanitizer.toPlainText(result.getSummary()));
+        result.setStrengths(AiTextSanitizer.toPlainTextList(result.getStrengths()));
+        result.setWeaknesses(AiTextSanitizer.toPlainTextList(result.getWeaknesses()));
+        result.setSuggestions(AiTextSanitizer.toPlainTextList(result.getSuggestions()));
+        if (result.getQaReview() == null) {
+            return;
+        }
+        result.getQaReview().forEach(item -> {
+            if (item == null) {
+                return;
+            }
+            item.setQuestion(AiTextSanitizer.toPlainText(item.getQuestion()));
+            item.setAnswer(AiTextSanitizer.toPlainText(item.getAnswer()));
+            item.setFeedback(AiTextSanitizer.toPlainText(item.getFeedback()));
+        });
+    }
+
+    private void sanitizeQuestionReport(QuestionReportGenerateResult result) {
+        if (result == null) {
+            return;
+        }
+        result.setSummary(AiTextSanitizer.toPlainText(result.getSummary()));
+        result.setStrengths(AiTextSanitizer.toPlainTextList(result.getStrengths()));
+        result.setWeaknesses(AiTextSanitizer.toPlainTextList(result.getWeaknesses()));
+        result.setSuggestions(AiTextSanitizer.toPlainTextList(result.getSuggestions()));
+        result.setKnowledgeGaps(AiTextSanitizer.toPlainTextList(result.getKnowledgeGaps()));
+        if (result.getQaReview() == null) {
+            return;
+        }
+        result.getQaReview().forEach(item -> {
+            if (item == null) {
+                return;
+            }
+            item.setQuestion(AiTextSanitizer.toPlainText(item.getQuestion()));
+            item.setAnswer(AiTextSanitizer.toPlainText(item.getAnswer()));
+            item.setReferenceAnswer(AiTextSanitizer.toPlainText(item.getReferenceAnswer()));
+            item.setFeedback(AiTextSanitizer.toPlainText(item.getFeedback()));
+        });
     }
 
     private boolean isEmpty(List<String> values) {

@@ -11,6 +11,7 @@ import com.codecoach.module.ai.service.AiTokenStreamHandler;
 import com.codecoach.module.ai.service.PromptTemplateService;
 import com.codecoach.module.ai.support.AiJsonParser;
 import com.codecoach.module.ai.support.AiResponseValidator;
+import com.codecoach.module.ai.support.AiTextSanitizer;
 import com.codecoach.module.ai.support.InterviewDifficultyStrategy;
 import com.codecoach.module.ai.vo.FeedbackAndQuestionResult;
 import com.codecoach.module.ai.vo.ReportGenerateResult;
@@ -936,7 +937,7 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
 
         private String append(String delta) {
             rawContent.append(delta);
-            String visibleContent = buildVisibleContent(rawContent.toString());
+            String visibleContent = AiTextSanitizer.toPlainText(buildVisibleContent(rawContent.toString()));
             if (visibleContent.length() <= previousVisibleContent.length()
                     || !visibleContent.startsWith(previousVisibleContent)) {
                 previousVisibleContent = visibleContent;
