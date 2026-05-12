@@ -2,6 +2,7 @@ import request from "./request";
 import type {
   AbilityDimension,
   InsightOverview,
+  LearningRecommendation,
   RecentTrend,
   WeaknessInsight,
 } from "../types/insight";
@@ -27,3 +28,11 @@ export const getRecentTrend = (limit = 10) =>
     params: { limit },
     silentError: true,
   });
+
+export const getLearningRecommendations = () =>
+  request.get<LearningRecommendation[]>(
+    "/api/insights/learning-recommendations",
+    {
+      silentError: true,
+    },
+  );

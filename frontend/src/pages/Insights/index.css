@@ -242,6 +242,67 @@
   color: var(--cc-text-secondary);
 }
 
+.insights-recommendation-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--cc-space-4);
+}
+
+.insights-recommendation-card .ant-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cc-space-3);
+}
+
+.insights-recommendation-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.insights-recommendation-tags span {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--cc-border);
+  background: var(--cc-surface-muted);
+  color: var(--cc-text-secondary);
+  font-size: 12px;
+}
+
+.insights-recommendation-title {
+  color: var(--cc-text-primary);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.insights-recommendation-reason {
+  margin: 0;
+  color: var(--cc-text-secondary);
+  line-height: 1.75;
+}
+
+.insights-recommendation-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--cc-text-muted);
+  font-size: 12px;
+}
+
+.insights-recommendation-meta span {
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: var(--cc-surface-muted);
+}
+
+.insights-recommendation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 2px;
+}
+
 @media (max-width: 900px) {
   .insights-header-note {
     max-width: 100%;
@@ -255,7 +316,8 @@
 @media (max-width: 768px) {
   .insights-overview-grid,
   .insights-dimension-grid,
-  .insights-weakness-grid {
+  .insights-weakness-grid,
+  .insights-recommendation-grid {
     grid-template-columns: 1fr;
   }
 

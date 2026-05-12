@@ -39,3 +39,16 @@ export interface RecentTrend {
   sourceId: number;
   createdAt: string;
 }
+
+export interface LearningRecommendation {
+  title: string;
+  reason: string;
+  articleId: number;
+  topicId: number | null;
+  category: string | null;
+  topicName: string | null;
+  section: string | null;
+  score: number | null;
+  evidence: string | null;
+  targetPath: string;
+}

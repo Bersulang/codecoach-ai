@@ -1,9 +1,11 @@
 package com.codecoach.module.insight.controller;
 
 import com.codecoach.common.result.Result;
+import com.codecoach.module.insight.service.InsightRecommendationService;
 import com.codecoach.module.insight.service.InsightService;
 import com.codecoach.module.insight.vo.AbilityDimensionVO;
 import com.codecoach.module.insight.vo.InsightOverviewVO;
+import com.codecoach.module.insight.vo.LearningRecommendationVO;
 import com.codecoach.module.insight.vo.RecentTrendVO;
 import com.codecoach.module.insight.vo.WeaknessInsightVO;
 import java.util.List;
@@ -18,8 +20,14 @@ public class InsightController {
 
     private final InsightService insightService;
 
-    public InsightController(InsightService insightService) {
+    private final InsightRecommendationService insightRecommendationService;
+
+    public InsightController(
+            InsightService insightService,
+            InsightRecommendationService insightRecommendationService
+    ) {
         this.insightService = insightService;
+        this.insightRecommendationService = insightRecommendationService;
     }
 
     @GetMapping("/overview")
@@ -40,5 +48,10 @@ public class InsightController {
     @GetMapping("/recent-trend")
     public Result<List<RecentTrendVO>> getRecentTrend(@RequestParam(required = false) Integer limit) {
         return Result.success(insightService.getRecentTrend(limit));
+    }
+
+    @GetMapping("/learning-recommendations")
+    public Result<List<LearningRecommendationVO>> getLearningRecommendations() {
+        return Result.success(insightRecommendationService.getLearningRecommendations());
     }
 }

@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import {
   getAbilityDimensions,
   getInsightOverview,
+  getLearningRecommendations,
   getRecentTrend,
   getWeaknessInsights,
 } from "../../api/insight";
@@ -15,6 +16,7 @@ import type {
   AbilityDimension,
   AbilityTrend,
   InsightOverview,
+  LearningRecommendation,
   RecentTrend,
   WeaknessInsight,
 } from "../../types/insight";
@@ -77,17 +79,28 @@ function clampPercent(value?: number | null) {
   return Math.min(Math.max(value, 0), 100);
 }
 
+function formatRelevance(value?: number | null) {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return "相关度暂无";
+  }
+  return `相关度 ${Math.round(value * 100)}%`;
+}
+
 function InsightsPage() {
   const navigate = useNavigate();
   const [overview, setOverview] = useState<InsightOverview | null>(null);
   const [dimensions, setDimensions] = useState<AbilityDimension[]>([]);
   const [weaknesses, setWeaknesses] = useState<WeaknessInsight[]>([]);
   const [trends, setTrends] = useState<RecentTrend[]>([]);
+  const [recommendations, setRecommendations] = useState<
+    LearningRecommendation[]
+  >([]);
   const [loading, setLoading] = useState(false);
   const [overviewError, setOverviewError] = useState(false);
   const [dimensionError, setDimensionError] = useState(false);
   const [weaknessError, setWeaknessError] = useState(false);
   const [trendError, setTrendError] = useState(false);
+  const [recommendationError, setRecommendationError] = useState(false);
   const [pageError, setPageError] = useState(false);
 
   const loadInsights = useCallback(async () => {
@@ -97,17 +110,25 @@ function InsightsPage() {
     setDimensionError(false);
     setWeaknessError(false);
     setTrendError(false);
+    setRecommendationError(false);
 
     const results = await Promise.allSettled([
       getInsightOverview(),
       getAbilityDimensions(),
       getWeaknessInsights(DEFAULT_LIMIT),
       getRecentTrend(DEFAULT_LIMIT),
+      getLearningRecommendations(),
     ]);
 
-    const [overviewResult, dimensionResult, weaknessResult, trendResult] =
-      results;
-    const successCount = results.filter(
+    const [
+      overviewResult,
+      dimensionResult,
+      weaknessResult,
+      trendResult,
+      recommendationResult,
+    ] = results;
+    const coreResults = results.slice(0, 4);
+    const successCount = coreResults.filter(
       (result) => result.status === "fulfilled",
     ).length;
 
@@ -116,10 +137,12 @@ function InsightsPage() {
       setDimensions([]);
       setWeaknesses([]);
       setTrends([]);
+      setRecommendations([]);
       setOverviewError(true);
       setDimensionError(true);
       setWeaknessError(true);
       setTrendError(true);
+      setRecommendationError(true);
       setPageError(true);
       setLoading(false);
       return;
@@ -151,6 +174,13 @@ function InsightsPage() {
     } else {
       setTrends([]);
       setTrendError(true);
+    }
+
+    if (recommendationResult.status === "fulfilled") {
+      setRecommendations(recommendationResult.value || []);
+    } else {
+      setRecommendations([]);
+      setRecommendationError(true);
     }
 
     setLoading(false);
@@ -225,7 +255,7 @@ function InsightsPage() {
         description="从训练记录中沉淀能力画像，查看你的项目表达、八股知识和追问应对能力变化。"
         actions={
           <div className="insights-header-note">
-            智能学习推荐将在 RAG 知识库接入后开放。
+            已接入 RAG 知识库，推荐会随训练数据持续更新。
           </div>
         }
       />
@@ -478,24 +508,74 @@ function InsightsPage() {
             <section className="insights-section">
               <div className="cc-section-header">
                 <div>
-                  <h2 className="cc-section-title">智能学习推荐即将接入</h2>
+                  <h2 className="cc-section-title">智能学习推荐</h2>
                   <p className="cc-section-description">
-                    当前页面已经沉淀了你的训练趋势和薄弱点，后续会结合 RAG
-                    知识库推荐更精准的学习路径。
+                    基于你的能力画像和知识库检索结果，为你推荐下一步优先学习的知识卡片。
                   </p>
                 </div>
               </div>
-              <SurfaceCard className="insights-rag-card">
-                <div>
-                  <div className="insights-rag-title">下一步建议</div>
-                  <p className="insights-rag-desc">
-                    先去知识学习模块补齐薄弱点，再回到训练场验证表达效果。
-                  </p>
+              {recommendationError ? (
+                <SurfaceCard className="insights-rag-card">
+                  <div>
+                    <div className="insights-rag-title">推荐暂时不可用</div>
+                    <p className="insights-rag-desc">
+                      成长洞察主体仍可使用，稍后可以重新加载推荐。
+                    </p>
+                  </div>
+                  <Button onClick={handleRetry}>重新加载</Button>
+                </SurfaceCard>
+              ) : recommendations.length === 0 ? (
+                <SurfaceCard className="insights-rag-card">
+                  <div>
+                    <div className="insights-rag-title">
+                      还没有足够的推荐依据
+                    </div>
+                    <p className="insights-rag-desc">
+                      完成更多训练后，CodeCoach AI
+                      会根据你的薄弱点和知识库内容推荐学习卡片。
+                    </p>
+                  </div>
+                  <Button type="primary" onClick={() => navigate("/learn")}>
+                    前往知识学习
+                  </Button>
+                </SurfaceCard>
+              ) : (
+                <div className="insights-recommendation-grid">
+                  {recommendations.map((item) => (
+                    <SurfaceCard
+                      key={`${item.articleId}-${item.section || "full"}`}
+                      className="insights-recommendation-card"
+                    >
+                      <div className="insights-recommendation-tags">
+                        {item.category ? <span>{item.category}</span> : null}
+                        {item.topicName ? <span>{item.topicName}</span> : null}
+                        {item.section ? <span>{item.section}</span> : null}
+                      </div>
+                      <div className="insights-recommendation-title">
+                        {item.title}
+                      </div>
+                      <p className="insights-recommendation-reason">
+                        {item.reason}
+                      </p>
+                      <div className="insights-recommendation-meta">
+                        <span>{formatRelevance(item.score)}</span>
+                        {item.evidence ? <span>{item.evidence}</span> : null}
+                      </div>
+                      <div className="insights-recommendation-actions">
+                        <Button
+                          type="primary"
+                          onClick={() => navigate(item.targetPath)}
+                        >
+                          开始学习
+                        </Button>
+                        <Button onClick={() => navigate(item.targetPath)}>
+                          开始专项训练
+                        </Button>
+                      </div>
+                    </SurfaceCard>
+                  ))}
                 </div>
-                <Button type="primary" onClick={() => navigate("/learn")}>
-                  前往知识学习
-                </Button>
-              </SurfaceCard>
+              )}
             </section>
           </div>
         )}
