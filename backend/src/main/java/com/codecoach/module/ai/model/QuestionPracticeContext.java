@@ -38,4 +38,6 @@ public class QuestionPracticeContext {
     private String currentQuestion;
 
     private String userAnswer;
+
+    private String ragContext;
 }

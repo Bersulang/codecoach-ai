@@ -429,6 +429,7 @@ public class OpenAiCompatibleQuestionPracticeServiceImpl implements AiQuestionPr
         variables.put("historyMessages", textValue(context == null ? null : context.getHistoryMessages()));
         variables.put("currentQuestion", textValue(context == null ? null : context.getCurrentQuestion()));
         variables.put("userAnswer", textValue(context == null ? null : context.getUserAnswer()));
+        variables.put("ragContext", textValue(context == null ? null : context.getRagContext()));
         return variables;
     }
 

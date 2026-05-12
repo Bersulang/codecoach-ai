@@ -28,6 +28,12 @@ import com.codecoach.module.question.vo.QuestionMessageVO;
 import com.codecoach.module.question.vo.QuestionSessionCreateResponse;
 import com.codecoach.module.question.vo.QuestionSessionDetailVO;
 import com.codecoach.module.question.vo.QuestionSessionHistoryVO;
+import com.codecoach.module.rag.config.RagProperties;
+import com.codecoach.module.rag.constant.RagConstants;
+import com.codecoach.module.rag.model.RagRetrievedChunk;
+import com.codecoach.module.rag.model.RagSearchRequest;
+import com.codecoach.module.rag.model.RagSearchResponse;
+import com.codecoach.module.rag.service.RagRetrievalService;
 import com.codecoach.security.UserContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -110,6 +116,12 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
 
     private static final String ANSWER_LOCK_KEY_PREFIX = "question:answer:lock:";
 
+    private static final int RAG_ANSWER_TRUNCATE_LENGTH = 1000;
+
+    private static final int RAG_QUESTION_TRUNCATE_LENGTH = 800;
+
+    private static final int RAG_HISTORY_TRUNCATE_LENGTH = 1500;
+
     private static final DefaultRedisScript<Long> RELEASE_LOCK_SCRIPT = new DefaultRedisScript<>(
             "if redis.call('get', KEYS[1]) == ARGV[1] then "
                     + "return redis.call('del', KEYS[1]) "
@@ -135,6 +147,10 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
 
     private final UserAbilitySnapshotService userAbilitySnapshotService;
 
+    private final RagRetrievalService ragRetrievalService;
+
+    private final RagProperties ragProperties;
+
     public QuestionSessionServiceImpl(
             KnowledgeTopicMapper knowledgeTopicMapper,
             QuestionTrainingSessionMapper questionTrainingSessionMapper,
@@ -144,7 +160,9 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
             ObjectMapper objectMapper,
             StringRedisTemplate stringRedisTemplate,
             TransactionTemplate transactionTemplate,
-            UserAbilitySnapshotService userAbilitySnapshotService
+            UserAbilitySnapshotService userAbilitySnapshotService,
+            RagRetrievalService ragRetrievalService,
+            RagProperties ragProperties
     ) {
         this.knowledgeTopicMapper = knowledgeTopicMapper;
         this.questionTrainingSessionMapper = questionTrainingSessionMapper;
@@ -155,6 +173,8 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
         this.stringRedisTemplate = stringRedisTemplate;
         this.transactionTemplate = transactionTemplate;
         this.userAbilitySnapshotService = userAbilitySnapshotService;
+        this.ragRetrievalService = ragRetrievalService;
+        this.ragProperties = ragProperties;
     }
 
     @Override
@@ -338,10 +358,9 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
         questionTrainingMessageMapper.insert(userAnswer);
 
         boolean finished = currentRound >= maxRound;
-        QuestionFeedbackResult aiResult = generateFeedbackAndNextQuestion(
-                buildQuestionPracticeContext(session, topic, historyMessages, request.getAnswer()),
-                !finished
-        );
+        QuestionPracticeContext answerContext = buildQuestionPracticeContext(session, topic, historyMessages, request.getAnswer());
+        enrichAnswerContextWithRag(answerContext);
+        QuestionFeedbackResult aiResult = generateFeedbackAndNextQuestion(answerContext, !finished);
 
         QuestionTrainingMessage aiFeedback = new QuestionTrainingMessage();
         aiFeedback.setSessionId(sessionId);
@@ -478,6 +497,104 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
         return context;
     }
 
+    private void enrichAnswerContextWithRag(QuestionPracticeContext context) {
+        String query = """
+                分类：%s
+                知识点：%s
+                当前问题：%s
+                用户回答：%s
+                训练难度：%s
+                目标岗位：%s
+                """.formatted(
+                textValue(context.getCategory()),
+                textValue(context.getTopicName()),
+                truncate(context.getCurrentQuestion(), RAG_QUESTION_TRUNCATE_LENGTH),
+                truncate(context.getUserAnswer(), RAG_ANSWER_TRUNCATE_LENGTH),
+                textValue(context.getDifficulty()),
+                textValue(context.getTargetRole())
+        );
+        context.setRagContext(retrieveRagContext(context, query));
+    }
+
+    private void enrichReportContextWithRag(QuestionPracticeContext context) {
+        String query = """
+                分类：%s
+                知识点：%s
+                训练难度：%s
+                目标岗位：%s
+                训练记录摘要：%s
+                """.formatted(
+                textValue(context.getCategory()),
+                textValue(context.getTopicName()),
+                textValue(context.getDifficulty()),
+                textValue(context.getTargetRole()),
+                truncate(context.getHistoryMessages(), RAG_HISTORY_TRUNCATE_LENGTH)
+        );
+        context.setRagContext(retrieveRagContext(context, query));
+    }
+
+    private String retrieveRagContext(QuestionPracticeContext context, String query) {
+        if (ragProperties == null || !Boolean.TRUE.equals(ragProperties.getEnabled())) {
+            return "";
+        }
+        try {
+            List<RagRetrievedChunk> chunks = searchRagWithFallback(context, query);
+            if (chunks.isEmpty()) {
+                log.info(
+                        "RAG retrieval returned no chunks for question practice, sessionId={}, topicId={}",
+                        context.getSessionId(),
+                        context.getTopicId()
+                );
+                return "";
+            }
+            log.info(
+                    "RAG retrieval hit chunks for question practice, sessionId={}, topicId={}, chunkCount={}",
+                    context.getSessionId(),
+                    context.getTopicId(),
+                    chunks.size()
+            );
+            int maxContextChars = ragProperties.getMaxContextChars() == null ? 4000 : ragProperties.getMaxContextChars();
+            return ragRetrievalService.buildContextBlock(chunks, maxContextChars);
+        } catch (Exception exception) {
+            log.warn(
+                    "RAG retrieval failed, fallback to normal question practice. sessionId={}, topicId={}, error={}",
+                    context.getSessionId(),
+                    context.getTopicId(),
+                    abbreviate(exception.getMessage())
+            );
+            return "";
+        }
+    }
+
+    private List<RagRetrievedChunk> searchRagWithFallback(QuestionPracticeContext context, String query) {
+        if (context.getTopicId() != null) {
+            List<RagRetrievedChunk> chunks = searchRag(query, Map.of("topicId", context.getTopicId()));
+            if (!chunks.isEmpty()) {
+                return chunks;
+            }
+        }
+        if (StringUtils.hasText(context.getCategory())) {
+            List<RagRetrievedChunk> chunks = searchRag(query, Map.of("category", context.getCategory()));
+            if (!chunks.isEmpty()) {
+                return chunks;
+            }
+        }
+        return searchRag(query, Collections.emptyMap());
+    }
+
+    private List<RagRetrievedChunk> searchRag(String query, Map<String, Object> filter) {
+        RagSearchRequest request = new RagSearchRequest();
+        request.setQuery(query);
+        request.setSourceTypes(List.of(RagConstants.SOURCE_TYPE_KNOWLEDGE_ARTICLE));
+        request.setTopK(ragProperties.getTopK());
+        request.setFilter(filter);
+        RagSearchResponse response = ragRetrievalService.search(request);
+        if (response == null || response.getChunks() == null) {
+            return Collections.emptyList();
+        }
+        return response.getChunks();
+    }
+
     private void acquireAnswerLock(String lockKey, String lockValue) {
         try {
             Boolean locked = stringRedisTemplate.opsForValue().setIfAbsent(lockKey, lockValue, ANSWER_LOCK_TTL);
@@ -570,7 +687,9 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
             return existingReport;
         }
 
-        QuestionReportGenerateResult reportResult = generateReport(buildQuestionPracticeContext(session, topic, messages, null));
+        QuestionPracticeContext reportContext = buildQuestionPracticeContext(session, topic, messages, null);
+        enrichReportContextWithRag(reportContext);
+        QuestionReportGenerateResult reportResult = generateReport(reportContext);
 
         QuestionTrainingReport report = new QuestionTrainingReport();
         report.setSessionId(session.getId());
@@ -723,6 +842,28 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
             return "";
         }
         return String.valueOf(value);
+    }
+
+    private String truncate(String value, int maxLength) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        String normalized = value.replaceAll("\\s+", " ").trim();
+        if (normalized.length() <= maxLength) {
+            return normalized;
+        }
+        return normalized.substring(0, maxLength);
+    }
+
+    private String abbreviate(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        String normalized = value.replaceAll("\\s+", " ").trim();
+        if (normalized.length() <= 300) {
+            return normalized;
+        }
+        return normalized.substring(0, 300);
     }
 
     private long normalizePageNum(Long pageNum) {

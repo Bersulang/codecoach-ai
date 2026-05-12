@@ -96,7 +96,9 @@ public class RagRetrievalServiceImpl implements RagRetrievalService {
             return "";
         }
         int limit = maxChars > 0 ? maxChars : defaultMaxContextChars();
-        StringBuilder builder = new StringBuilder("【检索到的相关知识】\n");
+        StringBuilder builder = new StringBuilder("""
+                【检索到的相关知识片段】
+                """);
         int index = 1;
         for (RagRetrievedChunk chunk : chunks) {
             String source = safeText(chunk.getTitle());
@@ -111,6 +113,18 @@ public class RagRetrievalServiceImpl implements RagRetrievalService {
             }
             builder.append(item);
             index++;
+        }
+        String usage = """
+
+                【使用要求】
+                - 上述内容仅作为参考知识背景。
+                - 请优先结合用户回答进行反馈。
+                - 如果知识片段与当前问题无关，可以忽略。
+                - 不要编造用户没有提到的项目经历。
+                - 不要直接照抄知识片段，应转化为面试反馈和参考答案。
+                """;
+        if (builder.length() + usage.length() <= limit) {
+            builder.append(usage);
         }
         return builder.toString().trim();
     }
