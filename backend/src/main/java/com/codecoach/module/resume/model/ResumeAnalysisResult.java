@@ -1,5 +1,6 @@
 package com.codecoach.module.resume.model;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -9,7 +10,9 @@ public class ResumeAnalysisResult {
     private List<SkillItem> skills = new ArrayList<>();
     private List<ProjectExperienceItem> projectExperiences = new ArrayList<>();
     private List<RiskPointItem> riskPoints = new ArrayList<>();
+    @JsonDeserialize(using = FlexibleStringListDeserializer.class)
     private List<String> interviewQuestions = new ArrayList<>();
+    @JsonDeserialize(using = FlexibleStringListDeserializer.class)
     private List<String> optimizationSuggestions = new ArrayList<>();
 
     public String getSummary() { return summary; }
@@ -44,10 +47,14 @@ public class ResumeAnalysisResult {
     public static class ProjectExperienceItem {
         private String projectName;
         private String description;
+        @JsonDeserialize(using = FlexibleStringListDeserializer.class)
         private List<String> techStack = new ArrayList<>();
         private String role;
+        @JsonDeserialize(using = FlexibleStringListDeserializer.class)
         private List<String> highlights = new ArrayList<>();
+        @JsonDeserialize(using = FlexibleStringListDeserializer.class)
         private List<String> riskPoints = new ArrayList<>();
+        @JsonDeserialize(using = FlexibleStringListDeserializer.class)
         private List<String> recommendedQuestions = new ArrayList<>();
         private String possibleProjectName;
 

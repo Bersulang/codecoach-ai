@@ -52,9 +52,14 @@ export const submitQuestionAnswerStream = (
     handlers,
   );
 
-export const finishQuestionSession = (sessionId: number | string) =>
+export const finishQuestionSession = (
+  sessionId: number | string,
+  options?: { silentError?: boolean },
+) =>
   request.post<QuestionFinishResponse>(
     `/api/question-sessions/${sessionId}/finish`,
+    undefined,
+    { silentError: options?.silentError },
   );
 
 export const getQuestionReport = (reportId: number | string) =>

@@ -49,6 +49,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
@@ -118,6 +119,10 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
     private static final Duration ANSWER_LOCK_TTL = Duration.ofSeconds(120);
 
     private static final String ANSWER_LOCK_KEY_PREFIX = "question:answer:lock:";
+
+    private static final Duration REPORT_LOCK_TTL = Duration.ofMinutes(15);
+
+    private static final String REPORT_LOCK_KEY_PREFIX = "question:report:lock:";
 
     private static final int RAG_ANSWER_TRUNCATE_LENGTH = 1000;
 
@@ -313,7 +318,7 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
 
     @Override
     public QuestionAnswerResponse submitAnswer(Long sessionId, QuestionAnswerRequest request) {
-        return submitAnswerInternal(sessionId, request, null);
+        return submitAnswerInternal(sessionId, request, null, false);
     }
 
     @Override
@@ -322,23 +327,27 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
             QuestionAnswerRequest request,
             AiTokenStreamHandler streamHandler
     ) {
-        return submitAnswerInternal(sessionId, request, streamHandler);
+        return submitAnswerInternal(sessionId, request, streamHandler, true);
     }
 
     private QuestionAnswerResponse submitAnswerInternal(
             Long sessionId,
             QuestionAnswerRequest request,
-            AiTokenStreamHandler streamHandler
+            AiTokenStreamHandler streamHandler,
+            boolean deferReportGeneration
     ) {
         String lockKey = ANSWER_LOCK_KEY_PREFIX + sessionId;
         String lockValue = UUID.randomUUID().toString();
         acquireAnswerLock(lockKey, lockValue);
         try {
             QuestionAnswerResponse response = transactionTemplate.execute(
-                    status -> submitAnswerInTransaction(sessionId, request, streamHandler)
+                    status -> submitAnswerInTransaction(sessionId, request, streamHandler, deferReportGeneration)
             );
             if (response == null) {
                 throw new BusinessException(AI_CALL_FAILED_CODE, "AI 调用失败，请稍后重试");
+            }
+            if (deferReportGeneration && Boolean.TRUE.equals(response.getFinished())) {
+                startAsyncReportGeneration(sessionId);
             }
             return response;
         } finally {
@@ -349,7 +358,8 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
     private QuestionAnswerResponse submitAnswerInTransaction(
             Long sessionId,
             QuestionAnswerRequest request,
-            AiTokenStreamHandler streamHandler
+            AiTokenStreamHandler streamHandler,
+            boolean deferReportGeneration
     ) {
         Long currentUserId = UserContext.getCurrentUserId();
         QuestionTrainingSession session = getSessionForUpdate(sessionId);
@@ -426,11 +436,18 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
 
         QuestionTrainingReport report = null;
         if (finished) {
-            List<QuestionTrainingMessage> reportMessages = new ArrayList<>(historyMessages);
-            reportMessages.add(userAnswer);
-            reportMessages.add(aiFeedback);
-            reportMessages.add(referenceAnswer);
-            report = finishSessionWithReport(session, topic, reportMessages, LocalDateTime.now());
+            if (deferReportGeneration) {
+                session.setStatus(STATUS_FINISHED);
+                session.setEndedAt(LocalDateTime.now());
+                session.setCurrentRound(session.getMaxRound());
+                questionTrainingSessionMapper.updateById(session);
+            } else {
+                List<QuestionTrainingMessage> reportMessages = new ArrayList<>(historyMessages);
+                reportMessages.add(userAnswer);
+                reportMessages.add(aiFeedback);
+                reportMessages.add(referenceAnswer);
+                report = finishSessionWithReport(session, topic, reportMessages, LocalDateTime.now());
+            }
         } else {
             session.setCurrentRound(currentRound + 1);
             questionTrainingSessionMapper.updateById(session);
@@ -471,10 +488,47 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
             return new QuestionFinishResponse(existingReport.getId(), sessionId, existingReport.getTotalScore());
         }
 
-        KnowledgeTopic topic = knowledgeTopicMapper.selectById(session.getTopicId());
-        List<QuestionTrainingMessage> messages = listSessionMessages(sessionId);
-        QuestionTrainingReport report = finishSessionWithReport(session, topic, messages, LocalDateTime.now());
-        return new QuestionFinishResponse(report.getId(), sessionId, report.getTotalScore());
+        if (!STATUS_FINISHED.equals(session.getStatus())) {
+            session.setStatus(STATUS_FINISHED);
+            session.setEndedAt(LocalDateTime.now());
+            session.setCurrentRound(session.getMaxRound());
+            questionTrainingSessionMapper.updateById(session);
+        }
+        startAsyncReportGeneration(sessionId);
+        return new QuestionFinishResponse(null, sessionId, null);
+    }
+
+    private void startAsyncReportGeneration(Long sessionId) {
+        String lockKey = REPORT_LOCK_KEY_PREFIX + sessionId;
+        String lockValue = UUID.randomUUID().toString();
+        if (!tryAcquireLock(lockKey, lockValue, REPORT_LOCK_TTL)) {
+            return;
+        }
+        CompletableFuture.runAsync(() -> {
+            try {
+                transactionTemplate.execute(status -> {
+                    QuestionTrainingReport existingReport = getReportBySessionId(sessionId);
+                    if (existingReport != null) {
+                        return null;
+                    }
+                    QuestionTrainingSession session = questionTrainingSessionMapper.selectById(sessionId);
+                    if (session == null || Integer.valueOf(DELETED).equals(session.getIsDeleted())) {
+                        return null;
+                    }
+                    KnowledgeTopic topic = knowledgeTopicMapper.selectById(session.getTopicId());
+                    List<QuestionTrainingMessage> messages = listSessionMessages(sessionId);
+                    finishSessionWithReport(session, topic, messages, LocalDateTime.now());
+                    return null;
+                });
+            } catch (Exception exception) {
+                log.warn("Async question report generation failed, sessionId={}, error={}",
+                        sessionId,
+                        exception.getMessage(),
+                        exception);
+            } finally {
+                releaseAnswerLock(lockKey, lockValue);
+            }
+        });
     }
 
     private QuestionPracticeContext buildQuestionPracticeContext(
@@ -624,15 +678,19 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
     }
 
     private void acquireAnswerLock(String lockKey, String lockValue) {
-        try {
-            Boolean locked = stringRedisTemplate.opsForValue().setIfAbsent(lockKey, lockValue, ANSWER_LOCK_TTL);
-            if (Boolean.TRUE.equals(locked)) {
-                return;
-            }
-        } catch (RuntimeException exception) {
-            log.warn("Failed to acquire question answer lock", exception);
+        if (tryAcquireLock(lockKey, lockValue, ANSWER_LOCK_TTL)) {
+            return;
         }
         throw new BusinessException(ResultCode.ANSWER_PROCESSING);
+    }
+
+    private boolean tryAcquireLock(String lockKey, String lockValue, Duration ttl) {
+        try {
+            return Boolean.TRUE.equals(stringRedisTemplate.opsForValue().setIfAbsent(lockKey, lockValue, ttl));
+        } catch (RuntimeException exception) {
+            log.warn("Failed to acquire question lock, key={}", lockKey, exception);
+            return false;
+        }
     }
 
     private void releaseAnswerLock(String lockKey, String lockValue) {

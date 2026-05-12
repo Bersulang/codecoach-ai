@@ -130,6 +130,12 @@
   border-radius: 8px;
 }
 
+.history-generating-btn {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+}
+
 .history-footer {
   display: flex;
   justify-content: flex-end;

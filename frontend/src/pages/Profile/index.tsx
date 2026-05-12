@@ -1,8 +1,8 @@
-import { Button, message } from "antd";
+import { Button, Popconfirm, message } from "antd";
 import type { ChangeEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getCurrentUser, uploadAvatar } from "../../api/auth";
+import { deleteCurrentUser, getCurrentUser, uploadAvatar } from "../../api/auth";
 import type { CurrentUser } from "../../types/auth";
 import "../Workspace/workspace.css";
 
@@ -43,6 +43,7 @@ function ProfilePage() {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [user, setUser] = useState<CurrentUser | null>(() => readStoredUser());
   const [uploading, setUploading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const displayName = user?.nickname || user?.username || "CodeCoach User";
 
   useEffect(() => {
@@ -68,6 +69,19 @@ function ProfilePage() {
     localStorage.removeItem("user");
     window.dispatchEvent(new Event("codecoach:user-updated"));
     navigate("/", { replace: true });
+  };
+
+  const handleDeleteAccount = async () => {
+    setDeleting(true);
+    try {
+      await deleteCurrentUser();
+      message.success("账号已注销");
+      handleLogout();
+    } catch {
+      message.error("账号注销失败，请稍后重试");
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const handleSelectFile = () => {
@@ -187,12 +201,21 @@ function ProfilePage() {
       <section className="profile-danger-panel">
         <div>
           <span className="workspace-kicker">账号操作</span>
-          <h2>退出当前登录</h2>
-          <p>退出后会回到首页，再次训练需要重新登录。</p>
+          <h2>注销账号</h2>
+          <p>注销后账号将不可继续使用，当前登录状态会立即清除。</p>
         </div>
-        <Button danger onClick={handleLogout}>
-          退出登录
-        </Button>
+        <Popconfirm
+          title="确认注销账号吗？"
+          description="该操作会停用并注销当前账号。"
+          okText="确认注销"
+          cancelText="取消"
+          okButtonProps={{ danger: true, loading: deleting }}
+          onConfirm={handleDeleteAccount}
+        >
+          <Button danger loading={deleting}>
+            注销账号
+          </Button>
+        </Popconfirm>
       </section>
     </div>
   );

@@ -3,6 +3,7 @@ package com.codecoach.common.exception;
 import com.codecoach.common.result.Result;
 import com.codecoach.common.result.ResultCode;
 import com.codecoach.module.rag.exception.VectorStoreException;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.validation.BindException;
@@ -10,6 +11,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
 
 import java.util.Optional;
 
@@ -43,6 +45,16 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(VectorStoreException.class)
     public Result<Void> handleVectorStoreException(VectorStoreException exception) {
         return Result.fail(ResultCode.INTERNAL_ERROR.getCode(), exception.getErrorMessage());
+    }
+
+    @ExceptionHandler(AsyncRequestTimeoutException.class)
+    public void handleAsyncRequestTimeoutException(
+            AsyncRequestTimeoutException exception,
+            HttpServletResponse response
+    ) {
+        if (!response.isCommitted()) {
+            response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+        }
     }
 
     @ExceptionHandler(Exception.class)

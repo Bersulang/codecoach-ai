@@ -4,6 +4,7 @@ import com.codecoach.common.result.Result;
 import com.codecoach.module.user.service.UserService;
 import com.codecoach.module.user.vo.AvatarUploadResponse;
 import com.codecoach.module.user.vo.CurrentUserVO;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -29,5 +30,10 @@ public class UserController {
     @PostMapping("/avatar")
     public Result<AvatarUploadResponse> uploadAvatar(@RequestParam("file") MultipartFile file) {
         return Result.success(userService.uploadAvatar(file));
+    }
+
+    @DeleteMapping("/me")
+    public Result<Boolean> deleteMe() {
+        return Result.success(userService.deleteCurrentUser());
     }
 }

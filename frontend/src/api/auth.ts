@@ -16,6 +16,8 @@ export const register = (payload: RegisterRequest) =>
 
 export const getCurrentUser = () => request.get<CurrentUser>("/api/users/me");
 
+export const deleteCurrentUser = () => request.delete<boolean>("/api/users/me");
+
 export const uploadAvatar = (file: File) => {
   const formData = new FormData();
   formData.append("file", file);

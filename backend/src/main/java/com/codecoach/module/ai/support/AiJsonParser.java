@@ -35,6 +35,11 @@ public class AiJsonParser {
         }
     }
 
+    public <T> T parseObjectDetailed(String rawContent, Class<T> clazz) throws JsonProcessingException {
+        String jsonContent = extractJsonObject(rawContent);
+        return objectMapper.readValue(jsonContent, clazz);
+    }
+
     private String extractJsonObject(String rawContent) {
         if (!StringUtils.hasText(rawContent)) {
             log.warn("AI JSON content is empty");

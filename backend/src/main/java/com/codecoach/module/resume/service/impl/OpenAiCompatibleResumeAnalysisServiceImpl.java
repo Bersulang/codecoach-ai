@@ -5,6 +5,7 @@ import com.codecoach.module.ai.config.AiProperties;
 import com.codecoach.module.ai.support.AiJsonParser;
 import com.codecoach.module.resume.model.ResumeAnalysisResult;
 import com.codecoach.module.resume.service.AiResumeAnalysisService;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
@@ -58,12 +59,20 @@ public class OpenAiCompatibleResumeAnalysisServiceImpl implements AiResumeAnalys
                     textLength,
                     abbreviate(targetRole));
             String content = chat(buildPrompt(resumeText, targetRole));
-            ResumeAnalysisResult result = aiJsonParser.parseObject(content, ResumeAnalysisResult.class);
+            ResumeAnalysisResult result = aiJsonParser.parseObjectDetailed(content, ResumeAnalysisResult.class);
             validate(result);
             log.info("Resume AI analysis finished, textLength={}, latencyMs={}",
                     textLength,
                     System.currentTimeMillis() - startTime);
             return result;
+        } catch (JsonMappingException exception) {
+            log.warn("Resume AI analysis JSON shape invalid, textLength={}, latencyMs={}, path={}, error={}",
+                    textLength,
+                    System.currentTimeMillis() - startTime,
+                    exception.getPathReference(),
+                    abbreviate(exception.getOriginalMessage()),
+                    exception);
+            throw new BusinessException(AI_CALL_FAILED_CODE, "AI 返回的简历分析结构不稳定，请重试");
         } catch (BusinessException exception) {
             log.warn("Resume AI analysis business failed, textLength={}, latencyMs={}, error={}",
                     textLength,
@@ -114,6 +123,7 @@ public class OpenAiCompatibleResumeAnalysisServiceImpl implements AiResumeAnalys
                 - skills 每项包含 name、category、riskLevel、reason。
                 - projectExperiences 每项包含 projectName、description、techStack、role、highlights、riskPoints、recommendedQuestions、possibleProjectName。
                 - riskPoints 每项包含 type、level、evidence、suggestion。
+                - techStack、highlights、riskPoints、recommendedQuestions、interviewQuestions、optimizationSuggestions 必须是字符串数组；即使只有一项也要用数组，不要用单个字符串。
                 - riskLevel / level 使用 LOW / MEDIUM / HIGH。
 
                 简历内容：

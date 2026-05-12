@@ -88,7 +88,7 @@ export interface QuestionAnswerResponse {
 }
 
 export interface QuestionFinishResponse {
-  reportId: number;
+  reportId?: number | null;
   sessionId: number;
   totalScore?: number | null;
 }

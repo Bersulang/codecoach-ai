@@ -9,6 +9,7 @@ import com.codecoach.module.user.service.UserService;
 import com.codecoach.module.user.vo.AvatarUploadResponse;
 import com.codecoach.module.user.vo.CurrentUserVO;
 import com.codecoach.security.UserContext;
+import java.time.LocalDateTime;
 import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -69,6 +70,18 @@ public class UserServiceImpl implements UserService {
         } catch (Exception exception) {
             throw new BusinessException(ResultCode.INTERNAL_ERROR.getCode(), "头像上传失败，请稍后重试");
         }
+    }
+
+    @Override
+    public Boolean deleteCurrentUser() {
+        User user = getCurrentUserEntity();
+        User update = new User();
+        update.setId(user.getId());
+        update.setStatus(0);
+        update.setIsDeleted(1);
+        update.setUpdatedAt(LocalDateTime.now());
+        userMapper.updateById(update);
+        return true;
     }
 
     private User getCurrentUserEntity() {

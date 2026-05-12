@@ -9,4 +9,6 @@ public interface UserService {
     CurrentUserVO getCurrentUser();
 
     AvatarUploadResponse uploadAvatar(MultipartFile file);
+
+    Boolean deleteCurrentUser();
 }

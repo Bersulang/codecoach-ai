@@ -3,6 +3,7 @@ import {
   Popconfirm,
   Result,
   Space,
+  Spin,
   Tag,
   Typography,
   message,
@@ -148,7 +149,10 @@ function QuestionSessionPage() {
   );
   const [streamingStage, setStreamingStage] = useState("");
   const [streamingContent, setStreamingContent] = useState("");
+  const [finalizingReport, setFinalizingReport] = useState(false);
   const threadEndRef = useRef<HTMLDivElement | null>(null);
+  const finalRoundRenderTimerRef = useRef<number | null>(null);
+  const reportPollTimerRef = useRef<number | null>(null);
 
   const isFinished = detail?.status === "FINISHED";
 
@@ -212,7 +216,58 @@ function QuestionSessionPage() {
     streamingContent,
     sending,
     loading,
+    finalizingReport,
   ]);
+
+  useEffect(
+    () => () => {
+      if (finalRoundRenderTimerRef.current) {
+        window.clearTimeout(finalRoundRenderTimerRef.current);
+      }
+      if (reportPollTimerRef.current) {
+        window.clearTimeout(reportPollTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  const pollQuestionReport = useCallback(
+    (attempt = 0) => {
+      if (!sessionId) {
+        return;
+      }
+      void finishQuestionSession(sessionId, { silentError: true })
+        .then((finished) => {
+          if (typeof finished?.reportId === "number") {
+            navigate(`/question-reports/${finished.reportId}`);
+            return;
+          }
+          if (attempt >= 80) {
+            message.info("报告仍在生成中，你可以稍后在训练历史查看");
+            setFinalizingReport(false);
+            setSending(false);
+            return;
+          }
+          reportPollTimerRef.current = window.setTimeout(
+            () => pollQuestionReport(attempt + 1),
+            3000,
+          );
+        })
+        .catch(() => {
+          if (attempt >= 5) {
+            message.error("报告生成状态查询失败，请稍后在训练历史查看");
+            setFinalizingReport(false);
+            setSending(false);
+            return;
+          }
+          reportPollTimerRef.current = window.setTimeout(
+            () => pollQuestionReport(attempt + 1),
+            4000,
+          );
+        });
+    },
+    [navigate, sessionId],
+  );
 
   const handleAppend = (payload: QuestionAnswerResponse) => {
     setMessages((prev) => {
@@ -302,10 +357,15 @@ function QuestionSessionPage() {
     const clientRequestId = createClientRequestId();
     const optimisticUserId = `stream-user-${clientRequestId}`;
     const optimisticAiId = `stream-ai-${clientRequestId}`;
+    const isFinalRound = detail ? currentRound >= detail.maxRound : false;
+    let streamedVisibleContent = "";
     let receivedStart = false;
+    let finalRoundSettled = false;
+    let finishRequestStarted = false;
     setStreamingMessageId(optimisticAiId);
     setStreamingStage("正在连接 AI...");
     setStreamingContent("");
+    setFinalizingReport(false);
     setMessages((prev) => [
       ...prev,
       {
@@ -333,9 +393,36 @@ function QuestionSessionPage() {
           setStreamingStage(event.message || "AI 正在生成回复");
         },
         onDelta: (content) => {
+          streamedVisibleContent += content;
           setStreamingContent((prev) => prev + content);
+          if (isFinalRound) {
+            if (finalRoundRenderTimerRef.current) {
+              window.clearTimeout(finalRoundRenderTimerRef.current);
+            }
+            finalRoundRenderTimerRef.current = window.setTimeout(() => {
+              if (finalRoundSettled || !streamedVisibleContent.trim()) {
+                return;
+              }
+              setMessages((prev) =>
+                prev.map((item) =>
+                  item.messageId === optimisticAiId
+                    ? { ...item, content: streamedVisibleContent }
+                    : item,
+                ),
+              );
+              setStreamingMessageId(null);
+              setStreamingStage("正在结束训练并生成报告...");
+              setStreamingContent("");
+              setFinalizingReport(true);
+            }, 900);
+          }
         },
         onDone: (payload) => {
+          finalRoundSettled = true;
+          if (finalRoundRenderTimerRef.current) {
+            window.clearTimeout(finalRoundRenderTimerRef.current);
+            finalRoundRenderTimerRef.current = null;
+          }
           setMessages((prev) =>
             prev.filter(
               (item) =>
@@ -346,13 +433,17 @@ function QuestionSessionPage() {
           setStreamingMessageId(null);
           setStreamingStage("");
           setStreamingContent("");
+          setFinalizingReport(false);
           handleAppend(payload);
           if (payload.finished) {
             if (typeof payload.reportId === "number") {
               message.success("训练已完成，正在生成报告");
               navigate(`/question-reports/${payload.reportId}`);
             } else {
-              message.info("训练已完成，请稍后查看报告");
+              finishRequestStarted = true;
+              setFinalizingReport(true);
+              message.info("训练已结束，报告正在生成");
+              pollQuestionReport();
             }
           }
         },
@@ -375,6 +466,7 @@ function QuestionSessionPage() {
           setStreamingMessageId(null);
           setStreamingStage("");
           setStreamingContent("");
+          setFinalizingReport(false);
           handleAppend(data);
           if (data.finished) {
             if (typeof data.reportId === "number") {
@@ -393,6 +485,9 @@ function QuestionSessionPage() {
             ),
           );
           setStreamingMessageId(null);
+          setStreamingStage("");
+          setStreamingContent("");
+          setFinalizingReport(false);
         }
       } else {
         setMessages((prev) =>
@@ -405,6 +500,7 @@ function QuestionSessionPage() {
         setStreamingMessageId(null);
         setStreamingStage("");
         setStreamingContent("");
+        setFinalizingReport(false);
         message.warning("连接中断，已刷新训练状态");
         try {
           const latest = await refreshDetail();
@@ -419,7 +515,13 @@ function QuestionSessionPage() {
         }
       }
     } finally {
-      setSending(false);
+      if (finalRoundRenderTimerRef.current) {
+        window.clearTimeout(finalRoundRenderTimerRef.current);
+        finalRoundRenderTimerRef.current = null;
+      }
+      if (!finishRequestStarted) {
+        setSending(false);
+      }
     }
   };
 
@@ -579,16 +681,23 @@ function QuestionSessionPage() {
         <div ref={threadEndRef} />
       </div>
 
-      {detail?.status === "IN_PROGRESS" ? (
+      {detail?.status === "IN_PROGRESS" || finalizingReport ? (
         <SurfaceCard className="question-composer" bordered={false}>
           <div className="question-composer__header">
-            <Typography.Text className="question-status">
-              {sending
-                ? "AI 正在分析你的回答..."
-                : "请输入你的回答，AI 将生成反馈与下一道问题。"}
-            </Typography.Text>
+            <Space size={8}>
+              {finalizingReport ? <Spin size="small" /> : null}
+              <Typography.Text className="question-status">
+                {finalizingReport
+                  ? "本轮反馈已生成，正在生成报告..."
+                  : sending
+                  ? "AI 正在分析你的回答..."
+                  : "请输入你的回答，AI 将生成反馈与下一道问题。"}
+              </Typography.Text>
+            </Space>
             <Typography.Text className="question-status-hint">
-              内容越具体，反馈越准确。
+              {finalizingReport
+                ? "报告生成成功后会自动跳转到详情页。"
+                : "内容越具体，反馈越准确。"}
             </Typography.Text>
           </div>
           <ChatInputBox
@@ -596,7 +705,7 @@ function QuestionSessionPage() {
             onChange={setAnswer}
             onSend={handleSubmitAnswer}
             placeholder="输入你的回答..."
-            disabled={loading}
+            disabled={loading || sending || finalizingReport}
             loading={sending}
           />
         </SurfaceCard>
