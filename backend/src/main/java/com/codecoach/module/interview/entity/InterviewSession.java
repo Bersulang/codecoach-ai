@@ -19,6 +19,12 @@ public class InterviewSession {
     @TableField("project_id")
     private Long projectId;
 
+    @TableField("resume_id")
+    private Long resumeId;
+
+    @TableField("resume_project_id")
+    private Long resumeProjectId;
+
     @TableField("target_role")
     private String targetRole;
 
@@ -74,6 +80,22 @@ public class InterviewSession {
 
     public void setProjectId(Long projectId) {
         this.projectId = projectId;
+    }
+
+    public Long getResumeId() {
+        return resumeId;
+    }
+
+    public void setResumeId(Long resumeId) {
+        this.resumeId = resumeId;
+    }
+
+    public Long getResumeProjectId() {
+        return resumeProjectId;
+    }
+
+    public void setResumeProjectId(Long resumeProjectId) {
+        this.resumeProjectId = resumeProjectId;
     }
 
     public String getTargetRole() {

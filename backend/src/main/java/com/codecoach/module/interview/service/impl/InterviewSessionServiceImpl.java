@@ -35,6 +35,10 @@ import com.codecoach.module.rag.model.RagSearchResponse;
 import com.codecoach.module.rag.service.RagRetrievalService;
 import com.codecoach.module.report.entity.InterviewReport;
 import com.codecoach.module.report.mapper.InterviewReportMapper;
+import com.codecoach.module.resume.entity.ResumeProfile;
+import com.codecoach.module.resume.entity.ResumeProjectExperience;
+import com.codecoach.module.resume.mapper.ResumeProfileMapper;
+import com.codecoach.module.resume.mapper.ResumeProjectExperienceMapper;
 import com.codecoach.security.UserContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -137,6 +141,10 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
 
     private final RagProperties ragProperties;
 
+    private final ResumeProfileMapper resumeProfileMapper;
+
+    private final ResumeProjectExperienceMapper resumeProjectExperienceMapper;
+
     public InterviewSessionServiceImpl(
             InterviewSessionMapper interviewSessionMapper,
             InterviewMessageMapper interviewMessageMapper,
@@ -148,7 +156,9 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
             TransactionTemplate transactionTemplate,
             UserAbilitySnapshotService userAbilitySnapshotService,
             RagRetrievalService ragRetrievalService,
-            RagProperties ragProperties
+            RagProperties ragProperties,
+            ResumeProfileMapper resumeProfileMapper,
+            ResumeProjectExperienceMapper resumeProjectExperienceMapper
     ) {
         this.interviewSessionMapper = interviewSessionMapper;
         this.interviewMessageMapper = interviewMessageMapper;
@@ -161,6 +171,8 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         this.userAbilitySnapshotService = userAbilitySnapshotService;
         this.ragRetrievalService = ragRetrievalService;
         this.ragProperties = ragProperties;
+        this.resumeProfileMapper = resumeProfileMapper;
+        this.resumeProjectExperienceMapper = resumeProjectExperienceMapper;
     }
 
     @Override
@@ -174,11 +186,14 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         if (!currentUserId.equals(project.getUserId())) {
             throw new BusinessException(PROJECT_ACCESS_DENIED_CODE, "无权访问该项目");
         }
+        validateResumeTrainingSource(request, currentUserId);
 
         LocalDateTime now = LocalDateTime.now();
         InterviewSession session = new InterviewSession();
         session.setUserId(currentUserId);
         session.setProjectId(request.getProjectId());
+        session.setResumeId(request.getResumeId());
+        session.setResumeProjectId(request.getResumeProjectId());
         session.setTargetRole(request.getTargetRole());
         session.setDifficulty(request.getDifficulty());
         session.setStatus(STATUS_IN_PROGRESS);
@@ -554,18 +569,11 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
             return "";
         }
         try {
-            RagSearchRequest request = new RagSearchRequest();
-            request.setQuery(buildProjectRagQuery(context));
-            request.setSourceTypes(List.of(
-                    RagConstants.SOURCE_TYPE_PROJECT,
-                    RagConstants.SOURCE_TYPE_USER_UPLOAD
-            ));
-            request.setTopK(ragProperties.getTopK());
-            request.setFilter(Map.of(
-                    "projectId", context.getProjectId()
-            ));
-            RagSearchResponse response = ragRetrievalService.search(request);
-            List<RagRetrievedChunk> chunks = response == null ? List.of() : response.getChunks();
+            List<RagRetrievedChunk> chunks = new ArrayList<>();
+            chunks.addAll(retrieveChunks(buildProjectScopedRagRequest(context)));
+            if (context.getResumeDocumentId() != null) {
+                chunks.addAll(retrieveChunks(buildResumeScopedRagRequest(context)));
+            }
             if (chunks == null || chunks.isEmpty()) {
                 log.info("Project RAG retrieval returned no chunks, sessionId={}, projectId={}",
                         context.getSessionId(),
@@ -584,6 +592,37 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
                     abbreviateLog(exception.getMessage()));
             return "";
         }
+    }
+
+    private List<RagRetrievedChunk> retrieveChunks(RagSearchRequest request) {
+        RagSearchResponse response = ragRetrievalService.search(request);
+        List<RagRetrievedChunk> chunks = response == null ? List.of() : response.getChunks();
+        return chunks == null ? List.of() : chunks;
+    }
+
+    private RagSearchRequest buildProjectScopedRagRequest(InterviewContext context) {
+        RagSearchRequest request = new RagSearchRequest();
+        request.setQuery(buildProjectRagQuery(context));
+        request.setSourceTypes(List.of(
+                RagConstants.SOURCE_TYPE_PROJECT,
+                RagConstants.SOURCE_TYPE_USER_UPLOAD
+        ));
+        request.setTopK(ragProperties.getTopK());
+        request.setFilter(Map.of(
+                "projectId", context.getProjectId()
+        ));
+        return request;
+    }
+
+    private RagSearchRequest buildResumeScopedRagRequest(InterviewContext context) {
+        RagSearchRequest request = new RagSearchRequest();
+        request.setQuery(buildProjectRagQuery(context));
+        request.setSourceTypes(List.of(RagConstants.SOURCE_TYPE_USER_UPLOAD));
+        request.setTopK(Math.max(2, Math.min(6, ragProperties.getTopK())));
+        request.setFilter(Map.of(
+                "userDocumentId", context.getResumeDocumentId()
+        ));
+        return request;
     }
 
     private String buildProjectRagQuery(InterviewContext context) {
@@ -621,6 +660,9 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         context.setProject(project);
         context.setUserId(session.getUserId());
         context.setProjectId(session.getProjectId());
+        context.setResumeId(session.getResumeId());
+        context.setResumeProjectId(session.getResumeProjectId());
+        context.setResumeDocumentId(getResumeDocumentId(session));
         context.setSessionId(session.getId());
         context.setTargetRole(session.getTargetRole());
         context.setDifficulty(session.getDifficulty());
@@ -630,6 +672,43 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         context.setUserAnswer(answer);
         context.setQaRecords(buildQaRecords(historyMessages));
         return context;
+    }
+
+    private Long getResumeDocumentId(InterviewSession session) {
+        if (session == null || session.getResumeId() == null) {
+            return null;
+        }
+        ResumeProfile profile = resumeProfileMapper.selectById(session.getResumeId());
+        if (profile == null || Integer.valueOf(DELETED).equals(profile.getIsDeleted())) {
+            return null;
+        }
+        if (!session.getUserId().equals(profile.getUserId())) {
+            return null;
+        }
+        return profile.getDocumentId();
+    }
+
+    private void validateResumeTrainingSource(InterviewSessionCreateRequest request, Long currentUserId) {
+        if (request.getResumeId() == null && request.getResumeProjectId() == null) {
+            return;
+        }
+        if (request.getResumeId() == null || request.getResumeProjectId() == null) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "简历训练来源不完整");
+        }
+        ResumeProfile profile = resumeProfileMapper.selectById(request.getResumeId());
+        if (profile == null || Integer.valueOf(DELETED).equals(profile.getIsDeleted())) {
+            throw new BusinessException(ResultCode.NOT_FOUND.getCode(), "简历档案不存在");
+        }
+        if (!currentUserId.equals(profile.getUserId())) {
+            throw new BusinessException(ResultCode.FORBIDDEN);
+        }
+        ResumeProjectExperience experience = resumeProjectExperienceMapper.selectById(request.getResumeProjectId());
+        if (experience == null || !profile.getId().equals(experience.getResumeId()) || !currentUserId.equals(experience.getUserId())) {
+            throw new BusinessException(ResultCode.NOT_FOUND.getCode(), "简历项目经历不存在");
+        }
+        if (experience.getProjectId() != null && !experience.getProjectId().equals(request.getProjectId())) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "简历项目经历与项目档案不匹配");
+        }
     }
 
     private String safeText(String text) {

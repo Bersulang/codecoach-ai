@@ -9,6 +9,10 @@ public class InterviewSessionCreateRequest {
     @NotNull(message = "项目ID不能为空")
     private Long projectId;
 
+    private Long resumeId;
+
+    private Long resumeProjectId;
+
     @NotBlank(message = "目标岗位不能为空")
     private String targetRole;
 
@@ -22,6 +26,22 @@ public class InterviewSessionCreateRequest {
 
     public void setProjectId(Long projectId) {
         this.projectId = projectId;
+    }
+
+    public Long getResumeId() {
+        return resumeId;
+    }
+
+    public void setResumeId(Long resumeId) {
+        this.resumeId = resumeId;
+    }
+
+    public Long getResumeProjectId() {
+        return resumeProjectId;
+    }
+
+    public void setResumeProjectId(Long resumeProjectId) {
+        this.resumeProjectId = resumeProjectId;
     }
 
     public String getTargetRole() {

@@ -12,6 +12,12 @@ public class InterviewContext {
 
     private Long projectId;
 
+    private Long resumeId;
+
+    private Long resumeProjectId;
+
+    private Long resumeDocumentId;
+
     private Long sessionId;
 
     private String targetRole;
@@ -52,6 +58,30 @@ public class InterviewContext {
 
     public void setProjectId(Long projectId) {
         this.projectId = projectId;
+    }
+
+    public Long getResumeId() {
+        return resumeId;
+    }
+
+    public void setResumeId(Long resumeId) {
+        this.resumeId = resumeId;
+    }
+
+    public Long getResumeProjectId() {
+        return resumeProjectId;
+    }
+
+    public void setResumeProjectId(Long resumeProjectId) {
+        this.resumeProjectId = resumeProjectId;
+    }
+
+    public Long getResumeDocumentId() {
+        return resumeDocumentId;
+    }
+
+    public void setResumeDocumentId(Long resumeDocumentId) {
+        this.resumeDocumentId = resumeDocumentId;
     }
 
     public Long getSessionId() {

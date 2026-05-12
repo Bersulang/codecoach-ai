@@ -36,6 +36,8 @@ CREATE TABLE interview_session (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '训练会话ID',
     user_id BIGINT NOT NULL COMMENT '所属用户ID',
     project_id BIGINT NOT NULL COMMENT '项目ID',
+    resume_id BIGINT DEFAULT NULL COMMENT '来源简历档案ID',
+    resume_project_id BIGINT DEFAULT NULL COMMENT '来源简历项目经历ID',
     target_role VARCHAR(128) NOT NULL COMMENT '目标岗位',
     difficulty VARCHAR(32) NOT NULL DEFAULT 'NORMAL' COMMENT '难度：EASY/NORMAL/HARD',
     status VARCHAR(32) NOT NULL DEFAULT 'IN_PROGRESS' COMMENT '状态：IN_PROGRESS/FINISHED/FAILED',
@@ -49,9 +51,54 @@ CREATE TABLE interview_session (
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     KEY idx_user_id (user_id),
     KEY idx_project_id (project_id),
+    KEY idx_resume_id (resume_id),
+    KEY idx_resume_project_id (resume_project_id),
     KEY idx_user_status_created (user_id, status, created_at),
     KEY idx_user_project_created (user_id, project_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='训练会话表';
+
+CREATE TABLE IF NOT EXISTS resume_profile (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '简历档案ID',
+    user_id BIGINT NOT NULL COMMENT '所属用户ID',
+    document_id BIGINT NOT NULL COMMENT '来源用户文档ID',
+    title VARCHAR(128) NOT NULL COMMENT '简历标题',
+    target_role VARCHAR(128) NOT NULL DEFAULT 'Java 后端实习' COMMENT '目标岗位',
+    analysis_status VARCHAR(32) NOT NULL DEFAULT 'PENDING' COMMENT '分析状态：PENDING/ANALYZING/ANALYZED/FAILED',
+    summary TEXT DEFAULT NULL COMMENT '简历整体摘要',
+    analysis_result JSON DEFAULT NULL COMMENT '结构化分析结果',
+    error_message VARCHAR(512) DEFAULT NULL COMMENT '错误信息',
+    analyzed_at DATETIME DEFAULT NULL COMMENT '分析完成时间',
+    is_deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除：0未删除，1已删除',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    deleted_at DATETIME DEFAULT NULL COMMENT '删除时间',
+    KEY idx_user_id (user_id),
+    KEY idx_document_id (document_id),
+    KEY idx_user_deleted_created (user_id, is_deleted, created_at),
+    KEY idx_user_status (user_id, analysis_status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='简历档案表';
+
+CREATE TABLE IF NOT EXISTS resume_project_experience (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '简历项目经历ID',
+    resume_id BIGINT NOT NULL COMMENT '简历档案ID',
+    user_id BIGINT NOT NULL COMMENT '所属用户ID',
+    project_id BIGINT DEFAULT NULL COMMENT '关联项目档案ID',
+    project_name VARCHAR(255) NOT NULL COMMENT '项目名称',
+    description TEXT DEFAULT NULL COMMENT '项目描述',
+    tech_stack JSON DEFAULT NULL COMMENT '技术栈',
+    role TEXT DEFAULT NULL COMMENT '个人职责',
+    highlights JSON DEFAULT NULL COMMENT '项目亮点',
+    risk_points JSON DEFAULT NULL COMMENT '项目风险点',
+    recommended_questions JSON DEFAULT NULL COMMENT '推荐追问',
+    match_reason VARCHAR(255) DEFAULT NULL COMMENT '项目匹配说明',
+    sort_order INT NOT NULL DEFAULT 0 COMMENT '排序',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    KEY idx_resume_id (resume_id),
+    KEY idx_user_id (user_id),
+    KEY idx_project_id (project_id),
+    KEY idx_resume_sort (resume_id, sort_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='简历项目经历表';
 
 CREATE TABLE interview_message (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '消息ID',
