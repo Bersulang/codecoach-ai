@@ -1,4 +1,4 @@
-import { Button, Progress, Space, Spin } from "antd";
+import { Button, Progress, Space } from "antd";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -84,6 +84,37 @@ function formatRelevance(value?: number | null) {
     return "相关度暂无";
   }
   return `相关度 ${Math.round(value * 100)}%`;
+}
+
+function SkeletonCard({ lines = 2 }: { lines?: number }) {
+  return (
+    <SurfaceCard className="insights-skeleton-card">
+      <div className="insights-skeleton insights-skeleton--short" />
+      {Array.from({ length: lines }).map((_, index) => (
+        <div key={index} className="insights-skeleton" />
+      ))}
+    </SurfaceCard>
+  );
+}
+
+function OverviewSkeleton() {
+  return (
+    <div className="insights-overview-grid">
+      {Array.from({ length: 6 }).map((_, index) => (
+        <SkeletonCard key={index} lines={1} />
+      ))}
+    </div>
+  );
+}
+
+function GridSkeleton({ count = 3 }: { count?: number }) {
+  return (
+    <div className="insights-dimension-grid">
+      {Array.from({ length: count }).map((_, index) => (
+        <SkeletonCard key={index} lines={3} />
+      ))}
+    </div>
+  );
 }
 
 function InsightsPage() {
@@ -260,8 +291,7 @@ function InsightsPage() {
         }
       />
 
-      <Spin spinning={loading}>
-        {pageError && !loading ? (
+      {pageError && !loading ? (
           <EmptyState
             description="成长洞察加载失败，请稍后重试。"
             action={
@@ -270,7 +300,7 @@ function InsightsPage() {
               </Button>
             }
           />
-        ) : overview && !hasTrainingData && !overviewError ? (
+        ) : overview && !hasTrainingData && !overviewError && !loading ? (
           <EmptyState
             description="还没有足够的训练数据"
             action={
@@ -295,7 +325,9 @@ function InsightsPage() {
                   </p>
                 </div>
               </div>
-              {overviewError ? (
+              {loading && !overview ? (
+                <OverviewSkeleton />
+              ) : overviewError ? (
                 <EmptyState
                   description="成长洞察总览加载失败"
                   action={
@@ -333,7 +365,9 @@ function InsightsPage() {
                   </p>
                 </div>
               </div>
-              {dimensionError ? (
+              {loading && dimensions.length === 0 ? (
+                <GridSkeleton />
+              ) : dimensionError ? (
                 <EmptyState
                   description="能力维度加载失败"
                   action={
@@ -409,7 +443,9 @@ function InsightsPage() {
                   </p>
                 </div>
               </div>
-              {weaknessError ? (
+              {loading && weaknesses.length === 0 ? (
+                <GridSkeleton />
+              ) : weaknessError ? (
                 <EmptyState
                   description="薄弱点加载失败"
                   action={
@@ -461,7 +497,9 @@ function InsightsPage() {
                   </p>
                 </div>
               </div>
-              {trendError ? (
+              {loading && trends.length === 0 ? (
+                <GridSkeleton count={2} />
+              ) : trendError ? (
                 <EmptyState
                   description="最近训练趋势加载失败"
                   action={
@@ -514,7 +552,9 @@ function InsightsPage() {
                   </p>
                 </div>
               </div>
-              {recommendationError ? (
+              {loading && recommendations.length === 0 ? (
+                <GridSkeleton count={2} />
+              ) : recommendationError ? (
                 <SurfaceCard className="insights-rag-card">
                   <div>
                     <div className="insights-rag-title">推荐暂时不可用</div>
@@ -579,7 +619,6 @@ function InsightsPage() {
             </section>
           </div>
         )}
-      </Spin>
     </PageShell>
   );
 }

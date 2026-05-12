@@ -5,6 +5,7 @@ import type {
   LoginResponse,
   RegisterRequest,
   RegisterResponse,
+  AvatarUploadResponse,
 } from "../types/auth";
 
 export const login = (payload: LoginRequest) =>
@@ -14,3 +15,17 @@ export const register = (payload: RegisterRequest) =>
   request.post<RegisterResponse>("/api/auth/register", payload);
 
 export const getCurrentUser = () => request.get<CurrentUser>("/api/users/me");
+
+export const uploadAvatar = (file: File) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  return request.post<AvatarUploadResponse, FormData>(
+    "/api/users/avatar",
+    formData,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    },
+  );
+};

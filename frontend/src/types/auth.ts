@@ -9,6 +9,8 @@ export interface AuthUser {
   nickname?: string;
   avatarUrl?: string;
   role?: string;
+  createdAt?: string;
+  loginStatus?: string;
   [key: string]: unknown;
 }
 
@@ -27,4 +29,8 @@ export interface RegisterRequest {
 
 export interface RegisterResponse {
   userId: number;
+}
+
+export interface AvatarUploadResponse {
+  avatarUrl: string;
 }

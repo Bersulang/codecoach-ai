@@ -118,7 +118,7 @@
   cursor: pointer;
 }
 
-.user-avatar-menu__avatar {
+.cc-user-avatar {
   width: 42px;
   height: 42px;
   border-radius: 999px;
@@ -132,7 +132,14 @@
   box-shadow: 0 14px 34px rgba(31, 29, 26, 0.18);
 }
 
-.user-avatar-menu__avatar img {
+.cc-user-avatar--lg {
+  width: 112px;
+  height: 112px;
+  font-size: 42px;
+  box-shadow: 0 24px 60px rgba(31, 29, 26, 0.16);
+}
+
+.cc-user-avatar img {
   width: 100%;
   height: 100%;
   object-fit: cover;

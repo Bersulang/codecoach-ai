@@ -2,6 +2,7 @@ import { Dropdown } from "antd";
 import type { MenuProps } from "antd";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import type { CurrentUser } from "../types/auth";
+import UserAvatar from "./UserAvatar";
 import "./ProductHeader.css";
 
 interface ProductHeaderProps {
@@ -15,14 +16,6 @@ const productNavItems = [
   { label: "知识学习", to: "/learn" },
   { label: "训练历史", to: "/history" },
 ];
-
-function getDisplayName(user?: CurrentUser | null) {
-  return user?.nickname || user?.username || "用户";
-}
-
-function getInitial(user?: CurrentUser | null) {
-  return getDisplayName(user).slice(0, 1).toUpperCase();
-}
 
 function ProductHeader({ user, onLogout }: ProductHeaderProps) {
   const navigate = useNavigate();
@@ -91,13 +84,7 @@ function ProductHeader({ user, onLogout }: ProductHeaderProps) {
             placement="bottomRight"
           >
             <button type="button" className="user-avatar-menu">
-              <span className="user-avatar-menu__avatar">
-                {user?.avatarUrl ? (
-                  <img src={user.avatarUrl} alt={getDisplayName(user)} />
-                ) : (
-                  getInitial(user)
-                )}
-              </span>
+              <UserAvatar user={user} />
             </button>
           </Dropdown>
         ) : (

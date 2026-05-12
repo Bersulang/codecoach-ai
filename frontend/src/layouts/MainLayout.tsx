@@ -56,6 +56,16 @@ function MainLayout() {
     };
   }, [navigate]);
 
+  useEffect(() => {
+    const handleUserUpdated = () => {
+      setUser(readStoredUser());
+    };
+    window.addEventListener("codecoach:user-updated", handleUserUpdated);
+    return () => {
+      window.removeEventListener("codecoach:user-updated", handleUserUpdated);
+    };
+  }, []);
+
   return (
     <Layout className="main-layout">
       <ProductHeader user={user} onLogout={() => setUser(null)} />

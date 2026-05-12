@@ -1,5 +1,7 @@
 package com.codecoach.module.user.vo;
 
+import java.time.LocalDateTime;
+
 public class CurrentUserVO {
 
     private Long id;
@@ -12,12 +14,30 @@ public class CurrentUserVO {
 
     private String role;
 
+    private LocalDateTime createdAt;
+
+    private String loginStatus;
+
     public CurrentUserVO(Long id, String username, String nickname, String avatarUrl, String role) {
+        this(id, username, nickname, avatarUrl, role, null, "已登录");
+    }
+
+    public CurrentUserVO(
+            Long id,
+            String username,
+            String nickname,
+            String avatarUrl,
+            String role,
+            LocalDateTime createdAt,
+            String loginStatus
+    ) {
         this.id = id;
         this.username = username;
         this.nickname = nickname;
         this.avatarUrl = avatarUrl;
         this.role = role;
+        this.createdAt = createdAt;
+        this.loginStatus = loginStatus;
     }
 
     public Long getId() {
@@ -58,5 +78,21 @@ public class CurrentUserVO {
 
     public void setRole(String role) {
         this.role = role;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public String getLoginStatus() {
+        return loginStatus;
+    }
+
+    public void setLoginStatus(String loginStatus) {
+        this.loginStatus = loginStatus;
     }
 }

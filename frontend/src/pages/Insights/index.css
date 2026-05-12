@@ -21,6 +21,39 @@
   gap: var(--cc-space-6);
 }
 
+.insights-skeleton-card .ant-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.insights-skeleton {
+  height: 14px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(31, 29, 26, 0.06),
+    rgba(31, 29, 26, 0.12),
+    rgba(31, 29, 26, 0.06)
+  );
+  background-size: 220% 100%;
+  animation: insights-skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+.insights-skeleton--short {
+  width: 44%;
+  height: 18px;
+}
+
+@keyframes insights-skeleton-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
 .insights-section {
   display: flex;
   flex-direction: column;

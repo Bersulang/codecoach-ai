@@ -20,7 +20,14 @@ function LandingPage() {
   const [user, setUser] = useState<CurrentUser | null>(() => readStoredUser());
 
   useEffect(() => {
-    setUser(readStoredUser());
+    const handleUserUpdated = () => {
+      setUser(readStoredUser());
+    };
+    handleUserUpdated();
+    window.addEventListener("codecoach:user-updated", handleUserUpdated);
+    return () => {
+      window.removeEventListener("codecoach:user-updated", handleUserUpdated);
+    };
   }, []);
 
   return (
