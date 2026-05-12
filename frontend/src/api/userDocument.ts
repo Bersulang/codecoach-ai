@@ -41,21 +41,31 @@ export function uploadUserDocument(
     headers: {
       "Content-Type": "multipart/form-data",
     },
+    silentError: true,
   });
 }
 
 export function getUserDocuments(params?: UserDocumentListParams) {
-  return request.get<UserDocument[]>("/api/user-documents", { params });
+  return request.get<UserDocument[]>("/api/user-documents", {
+    params,
+    silentError: true,
+  });
 }
 
 export function getUserDocumentDetail(id: number) {
-  return request.get<UserDocument>(`/api/user-documents/${id}`);
+  return request.get<UserDocument>(`/api/user-documents/${id}`, {
+    silentError: true,
+  });
 }
 
 export function deleteUserDocument(id: number) {
-  return request.delete<void>(`/api/user-documents/${id}`);
+  return request.delete<void>(`/api/user-documents/${id}`, {
+    silentError: true,
+  });
 }
 
 export function reindexUserDocument(id: number) {
-  return request.post<UserDocument>(`/api/user-documents/${id}/reindex`);
+  return request.post<UserDocument>(`/api/user-documents/${id}/reindex`, undefined, {
+    silentError: true,
+  });
 }

@@ -30,7 +30,9 @@ import com.codecoach.module.rag.service.VectorStoreService;
 import com.codecoach.security.UserContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -40,6 +42,8 @@ import java.util.Set;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -61,6 +65,14 @@ public class UserDocumentServiceImpl implements UserDocumentService {
     private static final String INDEX_STATUS_PENDING = "PENDING";
     private static final String INDEX_STATUS_INDEXED = "INDEXED";
     private static final String INDEX_STATUS_FAILED = "FAILED";
+    private static final Duration DOCUMENT_LOCK_TTL = Duration.ofMinutes(10);
+    private static final String DOCUMENT_LOCK_KEY_PREFIX = "user-document:lock:";
+    private static final DefaultRedisScript<Long> RELEASE_LOCK_SCRIPT = new DefaultRedisScript<>(
+            "if redis.call('get', KEYS[1]) == ARGV[1] then "
+                    + "return redis.call('del', KEYS[1]) "
+                    + "else return 0 end",
+            Long.class
+    );
 
     private static final Set<String> TEXT_MIME_TYPES = Set.of("text/plain", "application/octet-stream");
     private static final Set<String> MARKDOWN_MIME_TYPES = Set.of(
@@ -85,6 +97,7 @@ public class UserDocumentServiceImpl implements UserDocumentService {
     private final RagChunkMapper ragChunkMapper;
     private final RagEmbeddingMapper ragEmbeddingMapper;
     private final ObjectMapper objectMapper;
+    private final StringRedisTemplate stringRedisTemplate;
 
     public UserDocumentServiceImpl(
             UserDocumentMapper userDocumentMapper,
@@ -97,7 +110,8 @@ public class UserDocumentServiceImpl implements UserDocumentService {
             RagDocumentMapper ragDocumentMapper,
             RagChunkMapper ragChunkMapper,
             RagEmbeddingMapper ragEmbeddingMapper,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            StringRedisTemplate stringRedisTemplate
     ) {
         this.userDocumentMapper = userDocumentMapper;
         this.projectMapper = projectMapper;
@@ -110,6 +124,7 @@ public class UserDocumentServiceImpl implements UserDocumentService {
         this.ragChunkMapper = ragChunkMapper;
         this.ragEmbeddingMapper = ragEmbeddingMapper;
         this.objectMapper = objectMapper;
+        this.stringRedisTemplate = stringRedisTemplate;
     }
 
     @Override
@@ -163,29 +178,43 @@ public class UserDocumentServiceImpl implements UserDocumentService {
     @Override
     public void delete(Long id) {
         UserDocument document = getCurrentUserDocument(id);
-        cleanupRagIndex(document, true);
+        String lockKey = DOCUMENT_LOCK_KEY_PREFIX + document.getId();
+        String lockValue = UUID.randomUUID().toString();
+        acquireDocumentLock(lockKey, lockValue);
+        try {
+            cleanupRagIndex(document, true);
 
-        LocalDateTime now = LocalDateTime.now();
-        document.setIsDeleted(DELETED);
-        document.setDeletedAt(now);
-        document.setUpdatedAt(now);
-        userDocumentMapper.updateById(document);
-        cleanupOssQuietly(document.getOssKey());
+            LocalDateTime now = LocalDateTime.now();
+            document.setIsDeleted(DELETED);
+            document.setDeletedAt(now);
+            document.setUpdatedAt(now);
+            userDocumentMapper.updateById(document);
+            cleanupOssQuietly(document.getOssKey());
+        } finally {
+            releaseDocumentLock(lockKey, lockValue);
+        }
     }
 
     @Override
     public UserDocumentVO reindex(Long id) {
         UserDocument document = getCurrentUserDocument(id);
-        byte[] content;
+        String lockKey = DOCUMENT_LOCK_KEY_PREFIX + document.getId();
+        String lockValue = UUID.randomUUID().toString();
+        acquireDocumentLock(lockKey, lockValue);
         try {
-            content = aliyunOssService.download(document.getOssKey());
-        } catch (BusinessException exception) {
-            updateStatus(document, PARSE_STATUS_FAILED, INDEX_STATUS_FAILED, "文件读取失败，请稍后重试");
+            byte[] content;
+            try {
+                content = aliyunOssService.download(document.getOssKey());
+            } catch (BusinessException exception) {
+                updateStatus(document, PARSE_STATUS_FAILED, INDEX_STATUS_FAILED, "文件读取失败，请稍后重试");
+                return toVO(userDocumentMapper.selectById(document.getId()));
+            }
+            cleanupRagIndex(document, true);
+            parseAndIndex(document, content);
             return toVO(userDocumentMapper.selectById(document.getId()));
+        } finally {
+            releaseDocumentLock(lockKey, lockValue);
         }
-        cleanupRagIndex(document, true);
-        parseAndIndex(document, content);
-        return toVO(userDocumentMapper.selectById(document.getId()));
     }
 
     private void parseAndIndex(UserDocument document, byte[] content) {
@@ -603,6 +632,26 @@ public class UserDocumentServiceImpl implements UserDocumentService {
             aliyunOssService.delete(objectKey);
         } catch (Exception exception) {
             log.warn("User document OSS cleanup failed, objectKey={}, error={}", objectKey, abbreviate(exception.getMessage()));
+        }
+    }
+
+    private void acquireDocumentLock(String lockKey, String lockValue) {
+        try {
+            Boolean locked = stringRedisTemplate.opsForValue().setIfAbsent(lockKey, lockValue, DOCUMENT_LOCK_TTL);
+            if (Boolean.TRUE.equals(locked)) {
+                return;
+            }
+        } catch (RuntimeException exception) {
+            log.warn("Failed to acquire user document lock, error={}", abbreviate(exception.getMessage()));
+        }
+        throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "文档正在处理中，请稍后重试");
+    }
+
+    private void releaseDocumentLock(String lockKey, String lockValue) {
+        try {
+            stringRedisTemplate.execute(RELEASE_LOCK_SCRIPT, Collections.singletonList(lockKey), lockValue);
+        } catch (RuntimeException exception) {
+            log.warn("Failed to release user document lock, error={}", abbreviate(exception.getMessage()));
         }
     }
 

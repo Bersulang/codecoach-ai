@@ -8,8 +8,14 @@ import type {
   ProjectVO,
 } from "../types/project";
 
-export const getProjects = (params: ProjectListParams) =>
-  request.get<PageResult<ProjectVO>>("/api/projects", { params });
+export const getProjects = (
+  params: ProjectListParams,
+  options?: { silentError?: boolean },
+) =>
+  request.get<PageResult<ProjectVO>>("/api/projects", {
+    params,
+    silentError: options?.silentError,
+  });
 
 export const deleteProject = (id: number) =>
   request.delete<boolean>(`/api/projects/${id}`);

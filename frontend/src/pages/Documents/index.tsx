@@ -139,7 +139,7 @@ function DocumentsPage() {
   useEffect(() => {
     let active = true;
     setProjectLoading(true);
-    getProjects({ pageNum: 1, pageSize: 100 })
+    getProjects({ pageNum: 1, pageSize: 100 }, { silentError: true })
       .then((data) => {
         if (active) {
           setProjects(data.records || []);
