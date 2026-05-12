@@ -11,5 +11,12 @@ public interface AiInterviewService {
 
     FeedbackAndQuestionResult generateFeedbackAndNextQuestion(InterviewContext context);
 
+    default FeedbackAndQuestionResult generateFeedbackAndNextQuestionStream(
+            InterviewContext context,
+            AiTokenStreamHandler streamHandler
+    ) {
+        return generateFeedbackAndNextQuestion(context);
+    }
+
     ReportGenerateResult generateReport(InterviewContext context);
 }

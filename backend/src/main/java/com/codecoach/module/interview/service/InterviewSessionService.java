@@ -1,6 +1,7 @@
 package com.codecoach.module.interview.service;
 
 import com.codecoach.common.result.PageResult;
+import com.codecoach.module.ai.service.AiTokenStreamHandler;
 import com.codecoach.module.interview.dto.InterviewAnswerRequest;
 import com.codecoach.module.interview.dto.InterviewSessionCreateRequest;
 import com.codecoach.module.interview.dto.InterviewSessionPageRequest;
@@ -19,6 +20,12 @@ public interface InterviewSessionService {
     InterviewSessionDetailVO getSessionDetail(Long sessionId);
 
     InterviewAnswerResponse submitAnswer(Long sessionId, InterviewAnswerRequest request);
+
+    InterviewAnswerResponse submitAnswerStream(
+            Long sessionId,
+            InterviewAnswerRequest request,
+            AiTokenStreamHandler streamHandler
+    );
 
     InterviewFinishResponse finishSession(Long sessionId);
 }

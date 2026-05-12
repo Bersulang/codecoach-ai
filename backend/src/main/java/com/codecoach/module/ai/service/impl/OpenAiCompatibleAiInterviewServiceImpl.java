@@ -7,6 +7,7 @@ import com.codecoach.module.ai.entity.AiCallLog;
 import com.codecoach.module.ai.enums.AiRequestType;
 import com.codecoach.module.ai.service.AiCallLogService;
 import com.codecoach.module.ai.service.AiInterviewService;
+import com.codecoach.module.ai.service.AiTokenStreamHandler;
 import com.codecoach.module.ai.service.PromptTemplateService;
 import com.codecoach.module.ai.support.AiJsonParser;
 import com.codecoach.module.ai.support.AiResponseValidator;
@@ -18,7 +19,12 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
 import java.net.SocketTimeoutException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -26,6 +32,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -81,6 +88,8 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
 
     private final RestClient restClient;
 
+    private final HttpClient httpClient;
+
     public OpenAiCompatibleAiInterviewServiceImpl(
             AiProperties aiProperties,
             PromptTemplateService promptTemplateService,
@@ -101,6 +110,9 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
         requestFactory.setConnectTimeout(timeout);
         requestFactory.setReadTimeout(timeout);
         this.restClient = RestClient.builder().requestFactory(requestFactory).build();
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(timeout)
+                .build();
     }
 
     @Override
@@ -147,6 +159,49 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
                     buildContextVariables(context)
             );
             ChatResult chatResult = chat(List.of(systemMessage(), userMessage(prompt)), 0.7);
+            FeedbackAndQuestionResult result;
+            try {
+                result = aiJsonParser.parseObject(chatResult.getContent(), FeedbackAndQuestionResult.class);
+                aiResponseValidator.validateFeedbackAndNextQuestion(result);
+            } catch (BusinessException exception) {
+                throw new AiCallException(
+                        "JSON_PARSE_FAILED",
+                        "JSON_PARSE_FAILED",
+                        chatResult.getStatusCode(),
+                        chatResult.getRawResponse(),
+                        chatResult.getRequestId(),
+                        exception
+                );
+            }
+            recordSuccess(callLog, chatResult, startTime);
+            return result;
+        } catch (AiCallException exception) {
+            recordFailure(callLog, exception, startTime);
+            throw aiCallFailed(exception.getMessage(), exception);
+        } catch (BusinessException exception) {
+            recordFailure(callLog, "PROMPT_RENDER_FAILED", "PROMPT_RENDER_FAILED", null, startTime);
+            throw exception;
+        }
+    }
+
+    @Override
+    public FeedbackAndQuestionResult generateFeedbackAndNextQuestionStream(
+            InterviewContext context,
+            AiTokenStreamHandler streamHandler
+    ) {
+        long startTime = System.currentTimeMillis();
+        AiCallLog callLog = buildCallLog(AiRequestType.INTERVIEW_FEEDBACK_NEXT_QUESTION, null, context);
+
+        try {
+            String prompt = promptTemplateService.render(
+                    FEEDBACK_NEXT_QUESTION_TEMPLATE,
+                    buildContextVariables(context)
+            );
+            ChatResult chatResult = chatStream(
+                    List.of(systemMessage(), userMessage(prompt)),
+                    0.7,
+                    visibleInterviewFeedbackStream(streamHandler)
+            );
             FeedbackAndQuestionResult result;
             try {
                 result = aiJsonParser.parseObject(chatResult.getContent(), FeedbackAndQuestionResult.class);
@@ -258,6 +313,151 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
             }
             throw new AiCallException("HTTP_REQUEST_FAILED", "HTTP_REQUEST_FAILED", ex);
         }
+    }
+
+    private ChatResult chatStream(
+            List<ChatMessage> messages,
+            double temperature,
+            AiTokenStreamHandler streamHandler
+    ) {
+        AiProperties.OpenAiCompatible config = getConfig();
+        String endpoint = resolveChatCompletionsEndpoint(config.getBaseUrl());
+
+        try {
+            String requestBody = objectMapper.writeValueAsString(
+                    new OpenAiChatRequest(config.getModel(), messages, temperature, true)
+            );
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(endpoint))
+                    .timeout(Duration.ofSeconds(resolveTimeoutSeconds(aiProperties)))
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + config.getApiKey())
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .header(HttpHeaders.ACCEPT, MediaType.TEXT_EVENT_STREAM_VALUE)
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                    .build();
+            HttpResponse<Stream<String>> response = httpClient.send(
+                    request,
+                    HttpResponse.BodyHandlers.ofLines()
+            );
+            String requestId = response.headers().firstValue("x-request-id")
+                    .or(() -> response.headers().firstValue("x-correlation-id"))
+                    .orElse(null);
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                String rawError = collectBody(response.body());
+                ErrorInfo errorInfo = parseErrorInfo(rawError);
+                throw new AiCallException(
+                        errorInfo.getErrorCode(),
+                        errorInfo.getErrorMessage(),
+                        response.statusCode(),
+                        rawError,
+                        requestId,
+                        null
+                );
+            }
+            return readStreamResponse(response.body(), response.statusCode(), requestId, streamHandler);
+        } catch (JsonProcessingException exception) {
+            throw new AiCallException("REQUEST_BUILD_FAILED", "REQUEST_BUILD_FAILED", exception);
+        } catch (IOException exception) {
+            if (isTimeoutException(exception)) {
+                throw new AiCallException("TIMEOUT", "TIMEOUT", exception);
+            }
+            throw new AiCallException("NETWORK_ERROR", "NETWORK_ERROR", exception);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new AiCallException("INTERRUPTED", "INTERRUPTED", exception);
+        }
+    }
+
+    private ChatResult readStreamResponse(
+            Stream<String> lines,
+            Integer statusCode,
+            String requestId,
+            AiTokenStreamHandler streamHandler
+    ) {
+        StringBuilder contentBuilder = new StringBuilder();
+        StringBuilder rawBuilder = new StringBuilder();
+        try (lines) {
+            lines.forEach(line -> handleStreamLine(line, contentBuilder, rawBuilder, streamHandler));
+        } catch (RuntimeException exception) {
+            Throwable cause = exception.getCause();
+            if (cause instanceof AiCallException aiCallException) {
+                throw aiCallException;
+            }
+            throw exception;
+        }
+        String content = contentBuilder.toString();
+        if (!StringUtils.hasText(content)) {
+            throw new AiCallException("EMPTY_CONTENT", "EMPTY_CONTENT", statusCode, rawBuilder.toString(), requestId, null);
+        }
+        return new ChatResult(content, rawBuilder.toString(), statusCode, requestId, null);
+    }
+
+    private void handleStreamLine(
+            String line,
+            StringBuilder contentBuilder,
+            StringBuilder rawBuilder,
+            AiTokenStreamHandler streamHandler
+    ) {
+        if (!StringUtils.hasText(line) || !line.startsWith("data:")) {
+            return;
+        }
+        String data = line.substring("data:".length()).trim();
+        if ("[DONE]".equals(data)) {
+            return;
+        }
+        rawBuilder.append(data).append('\n');
+        try {
+            JsonNode root = objectMapper.readTree(data);
+            JsonNode choice = root.path("choices").isArray() && !root.path("choices").isEmpty()
+                    ? root.path("choices").get(0)
+                    : null;
+            if (choice == null) {
+                return;
+            }
+            JsonNode deltaNode = choice.path("delta");
+            String delta = deltaNode.path("content").asText("");
+            if (delta.isEmpty()) {
+                return;
+            }
+            contentBuilder.append(delta);
+            if (streamHandler != null) {
+                streamHandler.onDelta(delta);
+            }
+        } catch (JsonProcessingException exception) {
+            throw new RuntimeException(new AiCallException(
+                    "STREAM_PARSE_FAILED",
+                    "STREAM_PARSE_FAILED",
+                    null,
+                    data,
+                    null,
+                    exception
+            ));
+        }
+    }
+
+    private String collectBody(Stream<String> lines) {
+        if (lines == null) {
+            return "";
+        }
+        try (lines) {
+            return String.join("\n", lines.toList());
+        }
+    }
+
+    private AiTokenStreamHandler visibleInterviewFeedbackStream(AiTokenStreamHandler delegate) {
+        if (delegate == null) {
+            return null;
+        }
+        JsonFieldStreamProjector projector = new JsonFieldStreamProjector(List.of(
+                new StreamField("feedback", "本轮回答反馈"),
+                new StreamField("nextQuestion", "下一轮追问")
+        ));
+        return rawDelta -> {
+            String visibleDelta = projector.append(rawDelta);
+            if (visibleDelta != null && !visibleDelta.isEmpty()) {
+                delegate.onDelta(visibleDelta);
+            }
+        };
     }
 
     private AiProperties.OpenAiCompatible getConfig() {
@@ -722,6 +922,92 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
         }
     }
 
+    private static class JsonFieldStreamProjector {
+
+        private final List<StreamField> fields;
+
+        private final StringBuilder rawContent = new StringBuilder();
+
+        private String previousVisibleContent = "";
+
+        private JsonFieldStreamProjector(List<StreamField> fields) {
+            this.fields = fields;
+        }
+
+        private String append(String delta) {
+            rawContent.append(delta);
+            String visibleContent = buildVisibleContent(rawContent.toString());
+            if (visibleContent.length() <= previousVisibleContent.length()
+                    || !visibleContent.startsWith(previousVisibleContent)) {
+                previousVisibleContent = visibleContent;
+                return "";
+            }
+            String visibleDelta = visibleContent.substring(previousVisibleContent.length());
+            previousVisibleContent = visibleContent;
+            return visibleDelta;
+        }
+
+        private String buildVisibleContent(String jsonLikeContent) {
+            List<String> sections = new ArrayList<>();
+            for (StreamField field : fields) {
+                String value = extractJsonStringValue(jsonLikeContent, field.name());
+                if (value != null && !value.isEmpty()) {
+                    sections.add(field.label() + "\n" + value);
+                }
+            }
+            return String.join("\n\n", sections);
+        }
+
+        private String extractJsonStringValue(String content, String fieldName) {
+            String key = "\"" + fieldName + "\"";
+            int keyIndex = content.indexOf(key);
+            if (keyIndex < 0) {
+                return null;
+            }
+            int colonIndex = content.indexOf(':', keyIndex + key.length());
+            if (colonIndex < 0) {
+                return null;
+            }
+            int quoteIndex = content.indexOf('"', colonIndex + 1);
+            if (quoteIndex < 0) {
+                return null;
+            }
+            StringBuilder value = new StringBuilder();
+            boolean escaping = false;
+            for (int index = quoteIndex + 1; index < content.length(); index++) {
+                char current = content.charAt(index);
+                if (escaping) {
+                    appendEscaped(value, current);
+                    escaping = false;
+                    continue;
+                }
+                if (current == '\\') {
+                    escaping = true;
+                    continue;
+                }
+                if (current == '"') {
+                    break;
+                }
+                value.append(current);
+            }
+            return value.toString();
+        }
+
+        private void appendEscaped(StringBuilder value, char escaped) {
+            switch (escaped) {
+                case 'n' -> value.append('\n');
+                case 'r' -> value.append('\r');
+                case 't' -> value.append('\t');
+                case '"' -> value.append('"');
+                case '\\' -> value.append('\\');
+                default -> value.append(escaped);
+            }
+        }
+    }
+
+    private record StreamField(String name, String label) {
+    }
+
     public static class OpenAiChatRequest {
 
         private String model;
@@ -730,10 +1016,17 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
 
         private Double temperature;
 
+        private Boolean stream;
+
         public OpenAiChatRequest(String model, List<ChatMessage> messages, Double temperature) {
+            this(model, messages, temperature, false);
+        }
+
+        public OpenAiChatRequest(String model, List<ChatMessage> messages, Double temperature, Boolean stream) {
             this.model = model;
             this.messages = messages;
             this.temperature = temperature;
+            this.stream = stream;
         }
 
         public String getModel() {
@@ -758,6 +1051,14 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
 
         public void setTemperature(Double temperature) {
             this.temperature = temperature;
+        }
+
+        public Boolean getStream() {
+            return stream;
+        }
+
+        public void setStream(Boolean stream) {
+            this.stream = stream;
         }
     }
 

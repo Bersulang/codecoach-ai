@@ -6,6 +6,7 @@ import com.codecoach.common.exception.BusinessException;
 import com.codecoach.common.result.PageResult;
 import com.codecoach.common.result.ResultCode;
 import com.codecoach.module.ai.dto.InterviewContext;
+import com.codecoach.module.ai.service.AiTokenStreamHandler;
 import com.codecoach.module.ai.service.AiInterviewService;
 import com.codecoach.module.ai.vo.FeedbackAndQuestionResult;
 import com.codecoach.module.ai.vo.ReportGenerateResult;
@@ -264,12 +265,29 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
 
     @Override
     public InterviewAnswerResponse submitAnswer(Long sessionId, InterviewAnswerRequest request) {
+        return submitAnswerInternal(sessionId, request, null);
+    }
+
+    @Override
+    public InterviewAnswerResponse submitAnswerStream(
+            Long sessionId,
+            InterviewAnswerRequest request,
+            AiTokenStreamHandler streamHandler
+    ) {
+        return submitAnswerInternal(sessionId, request, streamHandler);
+    }
+
+    private InterviewAnswerResponse submitAnswerInternal(
+            Long sessionId,
+            InterviewAnswerRequest request,
+            AiTokenStreamHandler streamHandler
+    ) {
         String lockKey = ANSWER_LOCK_KEY_PREFIX + sessionId;
         String lockValue = UUID.randomUUID().toString();
         acquireAnswerLock(lockKey, lockValue);
         try {
             InterviewAnswerResponse response = transactionTemplate.execute(
-                    status -> submitAnswerInTransaction(sessionId, request)
+                    status -> submitAnswerInTransaction(sessionId, request, streamHandler)
             );
             if (response == null) {
                 throw new BusinessException(AI_CALL_FAILED_CODE, "AI 调用失败，请稍后重试");
@@ -280,7 +298,11 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         }
     }
 
-    private InterviewAnswerResponse submitAnswerInTransaction(Long sessionId, InterviewAnswerRequest request) {
+    private InterviewAnswerResponse submitAnswerInTransaction(
+            Long sessionId,
+            InterviewAnswerRequest request,
+            AiTokenStreamHandler streamHandler
+    ) {
         Long currentUserId = UserContext.getCurrentUserId();
         InterviewSession session = getSessionForUpdate(sessionId);
         if (session == null || Integer.valueOf(DELETED).equals(session.getIsDeleted())) {
@@ -316,7 +338,8 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         answerContext.setRagContext(retrieveProjectRagContext(answerContext));
         FeedbackAndQuestionResult aiResult = generateFeedbackAndNextQuestion(
                 answerContext,
-                !finished
+                !finished,
+                streamHandler
         );
 
         InterviewMessage aiFeedback = new InterviewMessage();
@@ -500,9 +523,15 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         }
     }
 
-    private FeedbackAndQuestionResult generateFeedbackAndNextQuestion(InterviewContext context, boolean needNextQuestion) {
+    private FeedbackAndQuestionResult generateFeedbackAndNextQuestion(
+            InterviewContext context,
+            boolean needNextQuestion,
+            AiTokenStreamHandler streamHandler
+    ) {
         try {
-            FeedbackAndQuestionResult result = aiInterviewService.generateFeedbackAndNextQuestion(context);
+            FeedbackAndQuestionResult result = streamHandler == null
+                    ? aiInterviewService.generateFeedbackAndNextQuestion(context)
+                    : aiInterviewService.generateFeedbackAndNextQuestionStream(context, streamHandler);
             if (result == null || !StringUtils.hasText(result.getFeedback())) {
                 throw new BusinessException(AI_CALL_FAILED_CODE, "AI 调用失败，请稍后重试");
             }

@@ -9,6 +9,7 @@ import com.codecoach.module.ai.model.QuestionFeedbackResult;
 import com.codecoach.module.ai.model.QuestionPracticeContext;
 import com.codecoach.module.ai.model.QuestionReportGenerateResult;
 import com.codecoach.module.ai.service.AiQuestionPracticeService;
+import com.codecoach.module.ai.service.AiTokenStreamHandler;
 import com.codecoach.module.insight.service.UserAbilitySnapshotService;
 import com.codecoach.module.knowledge.entity.KnowledgeTopic;
 import com.codecoach.module.knowledge.mapper.KnowledgeTopicMapper;
@@ -306,12 +307,29 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
 
     @Override
     public QuestionAnswerResponse submitAnswer(Long sessionId, QuestionAnswerRequest request) {
+        return submitAnswerInternal(sessionId, request, null);
+    }
+
+    @Override
+    public QuestionAnswerResponse submitAnswerStream(
+            Long sessionId,
+            QuestionAnswerRequest request,
+            AiTokenStreamHandler streamHandler
+    ) {
+        return submitAnswerInternal(sessionId, request, streamHandler);
+    }
+
+    private QuestionAnswerResponse submitAnswerInternal(
+            Long sessionId,
+            QuestionAnswerRequest request,
+            AiTokenStreamHandler streamHandler
+    ) {
         String lockKey = ANSWER_LOCK_KEY_PREFIX + sessionId;
         String lockValue = UUID.randomUUID().toString();
         acquireAnswerLock(lockKey, lockValue);
         try {
             QuestionAnswerResponse response = transactionTemplate.execute(
-                    status -> submitAnswerInTransaction(sessionId, request)
+                    status -> submitAnswerInTransaction(sessionId, request, streamHandler)
             );
             if (response == null) {
                 throw new BusinessException(AI_CALL_FAILED_CODE, "AI 调用失败，请稍后重试");
@@ -322,7 +340,11 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
         }
     }
 
-    private QuestionAnswerResponse submitAnswerInTransaction(Long sessionId, QuestionAnswerRequest request) {
+    private QuestionAnswerResponse submitAnswerInTransaction(
+            Long sessionId,
+            QuestionAnswerRequest request,
+            AiTokenStreamHandler streamHandler
+    ) {
         Long currentUserId = UserContext.getCurrentUserId();
         QuestionTrainingSession session = getSessionForUpdate(sessionId);
         if (session == null || Integer.valueOf(DELETED).equals(session.getIsDeleted())) {
@@ -360,7 +382,7 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
         boolean finished = currentRound >= maxRound;
         QuestionPracticeContext answerContext = buildQuestionPracticeContext(session, topic, historyMessages, request.getAnswer());
         enrichAnswerContextWithRag(answerContext);
-        QuestionFeedbackResult aiResult = generateFeedbackAndNextQuestion(answerContext, !finished);
+        QuestionFeedbackResult aiResult = generateFeedbackAndNextQuestion(answerContext, !finished, streamHandler);
 
         QuestionTrainingMessage aiFeedback = new QuestionTrainingMessage();
         aiFeedback.setSessionId(sessionId);
@@ -635,10 +657,17 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
 
     private QuestionFeedbackResult generateFeedbackAndNextQuestion(
             QuestionPracticeContext context,
-            boolean needNextQuestion
+            boolean needNextQuestion,
+            AiTokenStreamHandler streamHandler
     ) {
         try {
-            QuestionFeedbackResult result = aiQuestionPracticeService.generateFeedbackAndNextQuestion(context, needNextQuestion);
+            QuestionFeedbackResult result = streamHandler == null
+                    ? aiQuestionPracticeService.generateFeedbackAndNextQuestion(context, needNextQuestion)
+                    : aiQuestionPracticeService.generateFeedbackAndNextQuestionStream(
+                            context,
+                            needNextQuestion,
+                            streamHandler
+                    );
             if (result == null
                     || !StringUtils.hasText(result.getFeedback())
                     || !StringUtils.hasText(result.getReferenceAnswer())

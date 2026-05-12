@@ -10,5 +10,13 @@ public interface AiQuestionPracticeService {
 
     QuestionFeedbackResult generateFeedbackAndNextQuestion(QuestionPracticeContext context, boolean needNextQuestion);
 
+    default QuestionFeedbackResult generateFeedbackAndNextQuestionStream(
+            QuestionPracticeContext context,
+            boolean needNextQuestion,
+            AiTokenStreamHandler streamHandler
+    ) {
+        return generateFeedbackAndNextQuestion(context, needNextQuestion);
+    }
+
     QuestionReportGenerateResult generateReport(QuestionPracticeContext context);
 }
