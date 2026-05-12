@@ -161,7 +161,8 @@ public class RagRetrievalServiceImpl implements RagRetrievalService {
             filter.put("sourceType", sourceType);
         }
         String effectiveSourceType = toStringValue(filter.get("sourceType"));
-        if (RagConstants.SOURCE_TYPE_PROJECT.equals(effectiveSourceType)) {
+        if (RagConstants.SOURCE_TYPE_PROJECT.equals(effectiveSourceType)
+                || RagConstants.SOURCE_TYPE_USER_UPLOAD.equals(effectiveSourceType)) {
             filter.put("ownerType", RagConstants.OWNER_TYPE_USER);
             filter.put("userId", currentUserId);
         } else {
@@ -219,6 +220,9 @@ public class RagRetrievalServiceImpl implements RagRetrievalService {
     }
 
     private boolean isReadableDocument(RagDocument document, Long currentUserId) {
+        if (!RagConstants.DOCUMENT_STATUS_INDEXED.equals(document.getStatus())) {
+            return false;
+        }
         if (RagConstants.OWNER_TYPE_SYSTEM.equals(document.getOwnerType())) {
             return true;
         }

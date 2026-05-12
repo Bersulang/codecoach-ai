@@ -245,6 +245,32 @@ CREATE TABLE user_ability_snapshot (
     KEY idx_user_source_created (user_id, source_type, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户能力快照表';
 
+CREATE TABLE IF NOT EXISTS user_document (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '用户文档ID',
+    user_id BIGINT NOT NULL COMMENT '用户ID',
+    project_id BIGINT DEFAULT NULL COMMENT '关联项目ID，可为空',
+    title VARCHAR(255) NOT NULL COMMENT '文档标题',
+    original_filename VARCHAR(255) NOT NULL COMMENT '原始文件名',
+    file_type VARCHAR(32) NOT NULL COMMENT '文件类型：TXT/MARKDOWN/PDF',
+    file_size BIGINT NOT NULL DEFAULT 0 COMMENT '文件大小，单位字节',
+    oss_key VARCHAR(512) NOT NULL COMMENT 'OSS对象Key',
+    file_url VARCHAR(1024) DEFAULT NULL COMMENT '文件访问URL',
+    parse_status VARCHAR(32) NOT NULL DEFAULT 'PENDING' COMMENT '解析状态：PENDING/PARSED/FAILED',
+    index_status VARCHAR(32) NOT NULL DEFAULT 'PENDING' COMMENT '索引状态：PENDING/INDEXED/FAILED',
+    error_message VARCHAR(512) DEFAULT NULL COMMENT '错误信息',
+    is_deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除：0未删除，1已删除',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    deleted_at DATETIME DEFAULT NULL COMMENT '删除时间',
+    KEY idx_user_id (user_id),
+    KEY idx_project_id (project_id),
+    KEY idx_user_project (user_id, project_id),
+    KEY idx_file_type (file_type),
+    KEY idx_parse_status (parse_status),
+    KEY idx_index_status (index_status),
+    KEY idx_user_created (user_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户文档表';
+
 CREATE TABLE IF NOT EXISTS rag_document (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT 'RAG文档ID',
     owner_type VARCHAR(32) NOT NULL COMMENT '归属类型：SYSTEM/USER',

@@ -41,35 +41,71 @@ public class AliyunOssServiceImpl implements AliyunOssService {
 
     @Override
     public String upload(byte[] content, String originalFilename, String directory) {
+        OssUploadResult result = uploadWithKey(content, buildObjectName(directory, originalFilename));
+        return result.url();
+    }
+
+    @Override
+    public OssUploadResult uploadWithKey(byte[] content, String objectKey) {
         validateConfig();
         if (content == null || content.length == 0) {
             throw new BusinessException(ResultCode.BAD_REQUEST);
         }
+        if (!StringUtils.hasText(objectKey) || objectKey.contains("..") || objectKey.startsWith("/")) {
+            throw new BusinessException(ResultCode.BAD_REQUEST);
+        }
 
-        String objectName = buildObjectName(directory, originalFilename);
         OSS ossClient = null;
         try {
-            CredentialsProvider credentialsProvider = buildCredentialsProvider();
-            ClientBuilderConfiguration clientBuilderConfiguration = new ClientBuilderConfiguration();
-            clientBuilderConfiguration.setSignatureVersion(SignVersion.V4);
-            ossClient = OSSClientBuilder.create()
-                    .endpoint(normalizedEndpoint())
-                    .credentialsProvider(credentialsProvider)
-                    .clientConfiguration(clientBuilderConfiguration)
-                    .region(properties.getRegion())
-                    .build();
-            ossClient.putObject(properties.getBucketName(), objectName, new ByteArrayInputStream(content));
-            return buildPublicUrl(objectName);
+            ossClient = buildClient();
+            ossClient.putObject(properties.getBucketName(), objectKey, new ByteArrayInputStream(content));
+            return new OssUploadResult(objectKey, buildPublicUrl(objectKey));
         } catch (Exception exception) {
             log.warn("Aliyun OSS upload failed, objectName={}, contentLength={}, error={}",
-                    objectName,
+                    objectKey,
                     content.length,
                     abbreviate(exception.getMessage()));
             throw new BusinessException(ResultCode.INTERNAL_ERROR);
         } finally {
-            if (ossClient != null) {
-                ossClient.shutdown();
+            shutdown(ossClient);
+        }
+    }
+
+    @Override
+    public byte[] download(String objectKey) {
+        validateConfig();
+        if (!StringUtils.hasText(objectKey)) {
+            throw new BusinessException(ResultCode.BAD_REQUEST);
+        }
+        OSS ossClient = null;
+        try {
+            ossClient = buildClient();
+            try (var inputStream = ossClient.getObject(properties.getBucketName(), objectKey).getObjectContent()) {
+                return inputStream.readAllBytes();
             }
+        } catch (Exception exception) {
+            log.warn("Aliyun OSS download failed, objectName={}, error={}", objectKey, abbreviate(exception.getMessage()));
+            throw new BusinessException(ResultCode.INTERNAL_ERROR.getCode(), "文件读取失败，请稍后重试");
+        } finally {
+            shutdown(ossClient);
+        }
+    }
+
+    @Override
+    public void delete(String objectKey) {
+        validateConfig();
+        if (!StringUtils.hasText(objectKey)) {
+            return;
+        }
+        OSS ossClient = null;
+        try {
+            ossClient = buildClient();
+            ossClient.deleteObject(properties.getBucketName(), objectKey);
+        } catch (Exception exception) {
+            log.warn("Aliyun OSS delete failed, objectName={}, error={}", objectKey, abbreviate(exception.getMessage()));
+            throw new BusinessException(ResultCode.INTERNAL_ERROR);
+        } finally {
+            shutdown(ossClient);
         }
     }
 
@@ -93,6 +129,24 @@ public class AliyunOssServiceImpl implements AliyunOssService {
         EnvironmentVariableCredentialsProvider credentialsProvider =
                 CredentialsProviderFactory.newEnvironmentVariableCredentialsProvider();
         return credentialsProvider;
+    }
+
+    private OSS buildClient() throws Exception {
+        CredentialsProvider credentialsProvider = buildCredentialsProvider();
+        ClientBuilderConfiguration clientBuilderConfiguration = new ClientBuilderConfiguration();
+        clientBuilderConfiguration.setSignatureVersion(SignVersion.V4);
+        return OSSClientBuilder.create()
+                .endpoint(normalizedEndpoint())
+                .credentialsProvider(credentialsProvider)
+                .clientConfiguration(clientBuilderConfiguration)
+                .region(properties.getRegion())
+                .build();
+    }
+
+    private void shutdown(OSS ossClient) {
+        if (ossClient != null) {
+            ossClient.shutdown();
+        }
     }
 
     private String buildObjectName(String directory, String originalFilename) {

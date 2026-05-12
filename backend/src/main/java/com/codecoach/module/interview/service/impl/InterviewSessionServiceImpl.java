@@ -556,10 +556,12 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         try {
             RagSearchRequest request = new RagSearchRequest();
             request.setQuery(buildProjectRagQuery(context));
-            request.setSourceTypes(List.of(RagConstants.SOURCE_TYPE_PROJECT));
+            request.setSourceTypes(List.of(
+                    RagConstants.SOURCE_TYPE_PROJECT,
+                    RagConstants.SOURCE_TYPE_USER_UPLOAD
+            ));
             request.setTopK(ragProperties.getTopK());
             request.setFilter(Map.of(
-                    "sourceType", RagConstants.SOURCE_TYPE_PROJECT,
                     "projectId", context.getProjectId()
             ));
             RagSearchResponse response = ragRetrievalService.search(request);
