@@ -1,6 +1,5 @@
 import {
   Button,
-  Input,
   Popconfirm,
   Result,
   Space,
@@ -8,17 +7,20 @@ import {
   Typography,
   message,
 } from "antd";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   finishInterview,
   getInterviewSession,
   submitInterviewAnswer,
+  submitInterviewAnswerStream,
 } from "../../api/interview";
 import EmptyState from "../../components/EmptyState";
 import PageHeader from "../../components/PageHeader";
 import PageShell from "../../components/PageShell";
 import SurfaceCard from "../../components/SurfaceCard";
+import AiThinkingIndicator from "../../components/training/AiThinkingIndicator";
+import ChatInputBox from "../../components/training/ChatInputBox";
 import type {
   AnswerResponse,
   InterviewDifficulty,
@@ -27,8 +29,6 @@ import type {
   InterviewSessionDetail,
 } from "../../types/interview";
 import "../../styles/interview.css";
-
-const { TextArea } = Input;
 
 const MESSAGE_TYPE_LABELS: Record<InterviewMessageType, string> = {
   AI_QUESTION: "AI 问题",
@@ -117,6 +117,13 @@ function getMessageClass(type: InterviewMessageType) {
   return "interview-message is-question";
 }
 
+function createClientRequestId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 function InterviewPage() {
   const navigate = useNavigate();
   const { sessionId } = useParams();
@@ -127,6 +134,12 @@ function InterviewPage() {
   const [finishing, setFinishing] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [answer, setAnswer] = useState("");
+  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(
+    null,
+  );
+  const [streamingStage, setStreamingStage] = useState("");
+  const [streamingContent, setStreamingContent] = useState("");
+  const threadEndRef = useRef<HTMLDivElement | null>(null);
 
   const isFinished = detail?.status === "FINISHED";
 
@@ -164,6 +177,10 @@ function InterviewPage() {
       active = false;
     };
   }, [sessionId]);
+
+  useEffect(() => {
+    threadEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages, streamingStage, streamingContent]);
 
   const handleAppend = (payload: AnswerResponse) => {
     setMessages((prev) => {
@@ -224,20 +241,108 @@ function InterviewPage() {
       return;
     }
     setSending(true);
+    setAnswer("");
+    const currentRound = detail?.currentRound ?? 0;
+    const clientRequestId = createClientRequestId();
+    const optimisticUserId = `stream-user-${clientRequestId}`;
+    const optimisticAiId = `stream-ai-${clientRequestId}`;
+    let receivedStart = false;
+    setStreamingMessageId(optimisticAiId);
+    setStreamingStage("正在连接 AI...");
+    setStreamingContent("");
+    setMessages((prev) => [
+      ...prev,
+      {
+        messageId: optimisticUserId,
+        messageType: "USER_ANSWER",
+        content: trimmed,
+        roundNo: currentRound,
+        role: "USER",
+      },
+      {
+        messageId: optimisticAiId,
+        messageType: "AI_FEEDBACK",
+        content: "",
+        roundNo: currentRound,
+        role: "ASSISTANT",
+      },
+    ]);
     try {
-      const data = await submitInterviewAnswer(sessionId, { answer: trimmed });
-      handleAppend(data);
-      setAnswer("");
-      if (data.finished) {
-        if (typeof data.reportId === "number") {
-          message.success("训练已完成，正在生成报告");
-          navigate(`/reports/${data.reportId}`);
-        } else {
-          message.info("训练已完成，请稍后在历史记录中查看报告");
-        }
-      }
+      await submitInterviewAnswerStream(sessionId, trimmed, clientRequestId, {
+        onStart: (event) => {
+          receivedStart = true;
+          setStreamingStage(event.message || "AI 正在分析你的项目表达");
+        },
+        onStage: (event) => {
+          setStreamingStage(event.message || "AI 正在生成回复");
+        },
+        onDelta: (content) => {
+          setStreamingContent((prev) => prev + content);
+        },
+        onDone: (payload) => {
+          setMessages((prev) =>
+            prev.filter(
+              (item) =>
+                item.messageId !== optimisticUserId &&
+                item.messageId !== optimisticAiId,
+            ),
+          );
+          setStreamingMessageId(null);
+          setStreamingStage("");
+          setStreamingContent("");
+          handleAppend(payload);
+          if (payload.finished) {
+            if (typeof payload.reportId === "number") {
+              message.success("训练已完成，正在生成报告");
+              navigate(`/reports/${payload.reportId}`);
+            } else {
+              message.info("训练已完成，请稍后在历史记录中查看报告");
+            }
+          }
+        },
+        onError: (event) => {
+          throw new Error(event.message || "生成失败，请稍后重试");
+        },
+      });
     } catch {
-      // Errors are handled by the request interceptor.
+      if (!receivedStart) {
+        message.info("网络不稳定，正在切换为普通加载模式...");
+        try {
+          const data = await submitInterviewAnswer(sessionId, { answer: trimmed });
+          setMessages((prev) =>
+            prev.filter(
+              (item) =>
+                item.messageId !== optimisticUserId &&
+                item.messageId !== optimisticAiId,
+            ),
+          );
+          setStreamingMessageId(null);
+          setStreamingStage("");
+          setStreamingContent("");
+          handleAppend(data);
+          if (data.finished) {
+            if (typeof data.reportId === "number") {
+              message.success("训练已完成，正在生成报告");
+              navigate(`/reports/${data.reportId}`);
+            } else {
+              message.info("训练已完成，请稍后在历史记录中查看报告");
+            }
+          }
+        } catch {
+          setMessages((prev) =>
+            prev.filter(
+              (item) =>
+                item.messageId !== optimisticUserId &&
+                item.messageId !== optimisticAiId,
+            ),
+          );
+          setStreamingMessageId(null);
+        }
+      } else {
+        setStreamingStage("连接中断，AI 可能仍在生成。请稍后刷新训练记录查看结果。");
+        setStreamingContent("");
+        message.warning("连接中断，请稍后刷新训练记录查看结果");
+      }
     } finally {
       setSending(false);
     }
@@ -313,8 +418,6 @@ function InterviewPage() {
     );
   }
 
-  const trimmedAnswer = answer.trim();
-
   return (
     <PageShell className="interview-page">
       <PageHeader
@@ -379,11 +482,19 @@ function InterviewPage() {
                 ) : null}
               </div>
               <div className="interview-message__content">
-                {messageItem.content}
+                {messageItem.messageId === streamingMessageId ? (
+                  <AiThinkingIndicator
+                    stage={streamingStage}
+                    content={streamingContent}
+                  />
+                ) : (
+                  messageItem.content
+                )}
               </div>
             </div>
           ))
         )}
+        <div ref={threadEndRef} />
       </div>
 
       <SurfaceCard className="interview-composer" bordered={false}>
@@ -399,29 +510,15 @@ function InterviewPage() {
             </Typography.Text>
           ) : null}
         </div>
-        <TextArea
+        <ChatInputBox
           value={answer}
-          onChange={(event) => setAnswer(event.target.value)}
-          autoSize={{ minRows: 3, maxRows: 6 }}
+          onChange={setAnswer}
+          onSend={handleSubmitAnswer}
           placeholder="请填写你的回答"
           disabled={isFinished || loading || sending}
+          loading={sending}
         />
         <div className="interview-composer__footer">
-          <Space>
-            <Button
-              type="primary"
-              onClick={handleSubmitAnswer}
-              loading={sending}
-              disabled={
-                sending || loading || isFinished || trimmedAnswer.length === 0
-              }
-            >
-              {sending ? "AI 正在思考..." : "提交回答"}
-            </Button>
-            <Button onClick={() => setAnswer("")} disabled={!answer || sending}>
-              清空
-            </Button>
-          </Space>
           {detail ? (
             <span className="interview-status">
               当前进度 {detail.currentRound}/{detail.maxRound}

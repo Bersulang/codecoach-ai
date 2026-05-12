@@ -1,0 +1,51 @@
+.ai-thinking {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  color: var(--cc-text-secondary);
+}
+
+.ai-thinking__dots {
+  display: flex;
+  gap: 4px;
+  padding-top: 6px;
+}
+
+.ai-thinking__dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--cc-text-muted);
+  animation: ai-thinking-pulse 1s infinite ease-in-out;
+}
+
+.ai-thinking__dots span:nth-child(2) {
+  animation-delay: 0.14s;
+}
+
+.ai-thinking__dots span:nth-child(3) {
+  animation-delay: 0.28s;
+}
+
+.ai-thinking__stage {
+  font-size: 14px;
+}
+
+.ai-thinking__content {
+  margin-top: 8px;
+  color: var(--cc-text-primary);
+  white-space: pre-wrap;
+}
+
+@keyframes ai-thinking-pulse {
+  0%,
+  80%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}

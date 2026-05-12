@@ -1,5 +1,7 @@
 import request from "./request";
+import { postNdjsonStream } from "./streamRequest";
 import type { PageResult } from "../types/api";
+import type { NdjsonStreamHandlers } from "../utils/stream";
 import type {
   CreateQuestionSessionRequest,
   CreateQuestionSessionResponse,
@@ -36,6 +38,18 @@ export const submitQuestionAnswer = (
   request.post<QuestionAnswerResponse>(
     `/api/question-sessions/${sessionId}/answer`,
     payload,
+  );
+
+export const submitQuestionAnswerStream = (
+  sessionId: number | string,
+  content: string,
+  clientRequestId: string,
+  handlers: NdjsonStreamHandlers<QuestionAnswerResponse>,
+) =>
+  postNdjsonStream<QuestionAnswerResponse>(
+    `/api/question-sessions/${sessionId}/answers/stream`,
+    { content, clientRequestId },
+    handlers,
   );
 
 export const finishQuestionSession = (sessionId: number | string) =>

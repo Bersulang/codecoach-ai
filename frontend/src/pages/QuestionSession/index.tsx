@@ -1,6 +1,5 @@
 import {
   Button,
-  Input,
   Popconfirm,
   Result,
   Space,
@@ -8,17 +7,20 @@ import {
   Typography,
   message,
 } from "antd";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   finishQuestionSession,
   getQuestionSessionDetail,
   submitQuestionAnswer,
+  submitQuestionAnswerStream,
 } from "../../api/question";
 import EmptyState from "../../components/EmptyState";
 import PageHeader from "../../components/PageHeader";
 import PageShell from "../../components/PageShell";
 import SurfaceCard from "../../components/SurfaceCard";
+import AiThinkingIndicator from "../../components/training/AiThinkingIndicator";
+import ChatInputBox from "../../components/training/ChatInputBox";
 import type { InterviewDifficulty } from "../../types/interview";
 import type {
   QuestionAnswerResponse,
@@ -27,8 +29,6 @@ import type {
   QuestionSessionDetail,
 } from "../../types/question";
 import "./index.css";
-
-const { TextArea } = Input;
 
 const MESSAGE_TYPE_LABELS: Record<QuestionMessageType, string> = {
   AI_QUESTION: "AI 问题",
@@ -126,6 +126,13 @@ function getMessageClass(type: QuestionMessageType) {
   return "question-message is-question";
 }
 
+function createClientRequestId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 function QuestionSessionPage() {
   const navigate = useNavigate();
   const { sessionId } = useParams();
@@ -136,6 +143,12 @@ function QuestionSessionPage() {
   const [finishing, setFinishing] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [answer, setAnswer] = useState("");
+  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(
+    null,
+  );
+  const [streamingStage, setStreamingStage] = useState("");
+  const [streamingContent, setStreamingContent] = useState("");
+  const threadEndRef = useRef<HTMLDivElement | null>(null);
 
   const isFinished = detail?.status === "FINISHED";
 
@@ -173,6 +186,10 @@ function QuestionSessionPage() {
       active = false;
     };
   }, [sessionId]);
+
+  useEffect(() => {
+    threadEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages, streamingStage, streamingContent]);
 
   const handleAppend = (payload: QuestionAnswerResponse) => {
     setMessages((prev) => {
@@ -248,21 +265,108 @@ function QuestionSessionPage() {
       return;
     }
     setSending(true);
+    setAnswer("");
+    const currentRound = detail?.currentRound ?? 0;
+    const clientRequestId = createClientRequestId();
+    const optimisticUserId = `stream-user-${clientRequestId}`;
+    const optimisticAiId = `stream-ai-${clientRequestId}`;
+    let receivedStart = false;
+    setStreamingMessageId(optimisticAiId);
+    setStreamingStage("正在连接 AI...");
+    setStreamingContent("");
+    setMessages((prev) => [
+      ...prev,
+      {
+        messageId: optimisticUserId,
+        messageType: "USER_ANSWER",
+        content: trimmed,
+        roundNo: currentRound,
+        role: "USER",
+      },
+      {
+        messageId: optimisticAiId,
+        messageType: "SYSTEM_NOTICE",
+        content: "",
+        roundNo: currentRound,
+        role: "ASSISTANT",
+      },
+    ]);
     try {
-      const data = await submitQuestionAnswer(sessionId, { answer: trimmed });
-      handleAppend(data);
-      setAnswer("");
-
-      if (data.finished) {
-        if (typeof data.reportId === "number") {
-          message.success("训练已完成，正在生成报告");
-          navigate(`/question-reports/${data.reportId}`);
-        } else {
-          message.info("训练已完成，请稍后查看报告");
-        }
-      }
+      await submitQuestionAnswerStream(sessionId, trimmed, clientRequestId, {
+        onStart: (event) => {
+          receivedStart = true;
+          setStreamingStage(event.message || "AI 正在分析你的回答");
+        },
+        onStage: (event) => {
+          setStreamingStage(event.message || "AI 正在生成回复");
+        },
+        onDelta: (content) => {
+          setStreamingContent((prev) => prev + content);
+        },
+        onDone: (payload) => {
+          setMessages((prev) =>
+            prev.filter(
+              (item) =>
+                item.messageId !== optimisticUserId &&
+                item.messageId !== optimisticAiId,
+            ),
+          );
+          setStreamingMessageId(null);
+          setStreamingStage("");
+          setStreamingContent("");
+          handleAppend(payload);
+          if (payload.finished) {
+            if (typeof payload.reportId === "number") {
+              message.success("训练已完成，正在生成报告");
+              navigate(`/question-reports/${payload.reportId}`);
+            } else {
+              message.info("训练已完成，请稍后查看报告");
+            }
+          }
+        },
+        onError: (event) => {
+          throw new Error(event.message || "生成失败，请稍后重试");
+        },
+      });
     } catch {
-      // Errors are handled by the request interceptor.
+      if (!receivedStart) {
+        message.info("网络不稳定，正在切换为普通加载模式...");
+        try {
+          const data = await submitQuestionAnswer(sessionId, { answer: trimmed });
+          setMessages((prev) =>
+            prev.filter(
+              (item) =>
+                item.messageId !== optimisticUserId &&
+                item.messageId !== optimisticAiId,
+            ),
+          );
+          setStreamingMessageId(null);
+          setStreamingStage("");
+          setStreamingContent("");
+          handleAppend(data);
+          if (data.finished) {
+            if (typeof data.reportId === "number") {
+              message.success("训练已完成，正在生成报告");
+              navigate(`/question-reports/${data.reportId}`);
+            } else {
+              message.info("训练已完成，请稍后查看报告");
+            }
+          }
+        } catch {
+          setMessages((prev) =>
+            prev.filter(
+              (item) =>
+                item.messageId !== optimisticUserId &&
+                item.messageId !== optimisticAiId,
+            ),
+          );
+          setStreamingMessageId(null);
+        }
+      } else {
+        setStreamingStage("连接中断，AI 可能仍在生成。请稍后刷新训练记录查看结果。");
+        setStreamingContent("");
+        message.warning("连接中断，请稍后刷新训练记录查看结果");
+      }
     } finally {
       setSending(false);
     }
@@ -339,8 +443,6 @@ function QuestionSessionPage() {
     );
   }
 
-  const trimmedAnswer = answer.trim();
-
   return (
     <PageShell className="question-session-page">
       <PageHeader
@@ -411,11 +513,19 @@ function QuestionSessionPage() {
                 ) : null}
               </div>
               <div className="question-message__content">
-                {messageItem.content}
+                {messageItem.messageId === streamingMessageId ? (
+                  <AiThinkingIndicator
+                    stage={streamingStage}
+                    content={streamingContent}
+                  />
+                ) : (
+                  messageItem.content
+                )}
               </div>
             </div>
           ))
         )}
+        <div ref={threadEndRef} />
       </div>
 
       {detail?.status === "IN_PROGRESS" ? (
@@ -430,23 +540,14 @@ function QuestionSessionPage() {
               内容越具体，反馈越准确。
             </Typography.Text>
           </div>
-          <TextArea
+          <ChatInputBox
             value={answer}
-            onChange={(event) => setAnswer(event.target.value)}
-            autoSize={{ minRows: 3, maxRows: 6 }}
+            onChange={setAnswer}
+            onSend={handleSubmitAnswer}
             placeholder="输入你的回答..."
-            disabled={loading || sending}
+            disabled={loading}
+            loading={sending}
           />
-          <div className="question-composer__footer">
-            <Button
-              type="primary"
-              onClick={handleSubmitAnswer}
-              loading={sending}
-              disabled={!trimmedAnswer}
-            >
-              提交回答
-            </Button>
-          </div>
         </SurfaceCard>
       ) : (
         <SurfaceCard className="question-finished" bordered={false}>

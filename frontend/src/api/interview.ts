@@ -1,5 +1,7 @@
 import request from "./request";
+import { postNdjsonStream } from "./streamRequest";
 import type { PageResult } from "../types/api";
+import type { NdjsonStreamHandlers } from "../utils/stream";
 import type {
   AnswerRequest,
   AnswerResponse,
@@ -29,6 +31,18 @@ export const submitInterviewAnswer = (
   request.post<AnswerResponse>(
     `/api/interview-sessions/${sessionId}/answer`,
     payload,
+  );
+
+export const submitInterviewAnswerStream = (
+  sessionId: number | string,
+  content: string,
+  clientRequestId: string,
+  handlers: NdjsonStreamHandlers<AnswerResponse>,
+) =>
+  postNdjsonStream<AnswerResponse>(
+    `/api/interview-sessions/${sessionId}/answers/stream`,
+    { content, clientRequestId },
+    handlers,
   );
 
 export const finishInterview = (sessionId: number | string) =>
