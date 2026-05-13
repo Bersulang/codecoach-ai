@@ -8,6 +8,7 @@ import com.codecoach.module.document.entity.UserDocument;
 import com.codecoach.module.document.mapper.UserDocumentMapper;
 import com.codecoach.module.document.model.ParsedDocument;
 import com.codecoach.module.document.service.DocumentParseService;
+import com.codecoach.module.memory.service.UserMemoryService;
 import com.codecoach.module.project.entity.Project;
 import com.codecoach.module.project.mapper.ProjectMapper;
 import com.codecoach.module.resume.dto.ResumeCreateRequest;
@@ -66,6 +67,7 @@ public class ResumeServiceImpl implements ResumeService {
     private final DocumentParseService documentParseService;
     private final AiResumeAnalysisService aiResumeAnalysisService;
     private final ObjectMapper objectMapper;
+    private final UserMemoryService userMemoryService;
 
     public ResumeServiceImpl(
             ResumeProfileMapper resumeProfileMapper,
@@ -75,7 +77,8 @@ public class ResumeServiceImpl implements ResumeService {
             AliyunOssService aliyunOssService,
             DocumentParseService documentParseService,
             AiResumeAnalysisService aiResumeAnalysisService,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            UserMemoryService userMemoryService
     ) {
         this.resumeProfileMapper = resumeProfileMapper;
         this.resumeProjectExperienceMapper = resumeProjectExperienceMapper;
@@ -85,6 +88,7 @@ public class ResumeServiceImpl implements ResumeService {
         this.documentParseService = documentParseService;
         this.aiResumeAnalysisService = aiResumeAnalysisService;
         this.objectMapper = objectMapper;
+        this.userMemoryService = userMemoryService;
     }
 
     @Override
@@ -147,6 +151,7 @@ public class ResumeServiceImpl implements ResumeService {
             profile.setUpdatedAt(now);
             resumeProfileMapper.updateById(profile);
             replaceProjectExperiences(profile, result);
+            userMemoryService.sinkResumeAnalysis(profile, result);
             log.info("Resume analyzed, userId={}, resumeId={}, documentId={}, projectCount={}",
                     profile.getUserId(),
                     profile.getId(),

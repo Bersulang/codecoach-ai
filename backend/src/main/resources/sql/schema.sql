@@ -339,6 +339,28 @@ CREATE TABLE question_training_report (
     KEY idx_user_created (user_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='八股问答训练报告表';
 
+CREATE TABLE IF NOT EXISTS user_memory (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '长期训练记忆ID',
+    user_id BIGINT NOT NULL COMMENT '所属用户ID',
+    memory_type VARCHAR(64) NOT NULL COMMENT '记忆类型：USER_GOAL/WEAKNESS/MASTERED/RESUME_RISK/PROJECT_RISK/TRAINING_PREFERENCE/NEXT_ACTION',
+    memory_key VARCHAR(160) NOT NULL COMMENT '归一化去重Key',
+    memory_value VARCHAR(512) NOT NULL COMMENT '摘要化记忆内容',
+    source_type VARCHAR(64) DEFAULT NULL COMMENT '最近强化来源类型',
+    source_id BIGINT DEFAULT NULL COMMENT '最近强化来源ID',
+    confidence VARCHAR(32) NOT NULL DEFAULT 'MEDIUM' COMMENT '可信度：LOW/MEDIUM/HIGH',
+    weight INT NOT NULL DEFAULT 1 COMMENT '权重，重复出现时升高',
+    status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE' COMMENT '状态：ACTIVE/ARCHIVED',
+    source_count INT NOT NULL DEFAULT 1 COMMENT '累计强化来源次数',
+    source_summary VARCHAR(512) DEFAULT NULL COMMENT '来源摘要，仅保存来源类型和次数等脱敏信息',
+    last_reinforced_at DATETIME DEFAULT NULL COMMENT '最近强化时间',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    UNIQUE KEY uk_user_type_key (user_id, memory_type, memory_key),
+    KEY idx_user_type_weight (user_id, memory_type, status, weight),
+    KEY idx_user_reinforced (user_id, status, last_reinforced_at),
+    KEY idx_source (source_type, source_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户长期训练记忆表';
+
 CREATE TABLE user_ability_snapshot (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '能力快照ID',
     user_id BIGINT NOT NULL COMMENT '用户ID',

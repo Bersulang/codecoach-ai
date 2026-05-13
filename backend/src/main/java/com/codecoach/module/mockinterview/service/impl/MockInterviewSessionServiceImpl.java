@@ -16,6 +16,9 @@ import com.codecoach.module.agent.runtime.support.AgentRuntimeContextHolder;
 import com.codecoach.module.insight.constant.AbilityDimensionCodes;
 import com.codecoach.module.insight.entity.UserAbilitySnapshot;
 import com.codecoach.module.insight.mapper.UserAbilitySnapshotMapper;
+import com.codecoach.module.memory.service.UserMemoryService;
+import com.codecoach.module.memory.vo.UserMemoryItemVO;
+import com.codecoach.module.memory.vo.UserMemorySummaryVO;
 import com.codecoach.module.mockinterview.dto.MockInterviewAnswerRequest;
 import com.codecoach.module.mockinterview.dto.MockInterviewCreateRequest;
 import com.codecoach.module.mockinterview.dto.MockInterviewPageRequest;
@@ -60,6 +63,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -107,6 +111,7 @@ public class MockInterviewSessionServiceImpl implements MockInterviewSessionServ
     private final UserAbilitySnapshotMapper abilitySnapshotMapper;
     private final AgentTraceService agentTraceService;
     private final ObjectMapper objectMapper;
+    private final UserMemoryService userMemoryService;
 
     public MockInterviewSessionServiceImpl(
             MockInterviewSessionMapper sessionMapper,
@@ -119,7 +124,8 @@ public class MockInterviewSessionServiceImpl implements MockInterviewSessionServ
             ReportQualityEvaluator reportQualityEvaluator,
             UserAbilitySnapshotMapper abilitySnapshotMapper,
             AgentTraceService agentTraceService,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            UserMemoryService userMemoryService
     ) {
         this.sessionMapper = sessionMapper;
         this.messageMapper = messageMapper;
@@ -132,6 +138,7 @@ public class MockInterviewSessionServiceImpl implements MockInterviewSessionServ
         this.abilitySnapshotMapper = abilitySnapshotMapper;
         this.agentTraceService = agentTraceService;
         this.objectMapper = objectMapper;
+        this.userMemoryService = userMemoryService;
     }
 
     @Override
@@ -147,10 +154,11 @@ public class MockInterviewSessionServiceImpl implements MockInterviewSessionServ
             String difficulty = normalizeDifficulty(request.getDifficulty());
             int maxRound = normalizeMaxRound(request.getMaxRound(), type);
             LocalDateTime now = LocalDateTime.now();
-            InterviewPlan plan = createInterviewPlan(type, request.getTargetRole().trim(), difficulty, maxRound, project, resume);
+            UserMemorySummaryVO memorySummary = userMemoryService.getSummary(userId);
+            InterviewPlan plan = createInterviewPlan(type, request.getTargetRole().trim(), difficulty, maxRound, project, resume, memorySummary);
             recordStep(runId, AgentStepType.PLAN_CREATE, "Create mock interview plan", null,
                     "type=" + type + ", difficulty=" + difficulty + ", rounds=" + maxRound,
-                    "planId=" + plan.getPlanId() + ", activeStages=" + activeStages(plan).size());
+                    "planId=" + plan.getPlanId() + ", activeStages=" + activeStages(plan).size() + ", memoryWeaknesses=" + safeSize(memorySummary.getTopWeaknesses()));
 
             MockInterviewSession session = new MockInterviewSession();
             session.setUserId(userId);
@@ -456,6 +464,7 @@ public class MockInterviewSessionServiceImpl implements MockInterviewSessionServ
         if (!quality.isLowConfidence()) {
             createAbilitySnapshots(report, session);
         }
+        userMemoryService.sinkMockInterviewReport(report, session);
         return new MockInterviewFinishResponse(report.getId(), session.getId(), totalScore);
     }
 
@@ -473,7 +482,8 @@ public class MockInterviewSessionServiceImpl implements MockInterviewSessionServ
             String difficulty,
             int totalRounds,
             Project project,
-            ResumeProfile resume
+            ResumeProfile resume,
+            UserMemorySummaryVO memorySummary
     ) {
         InterviewPlan plan = new InterviewPlan();
         plan.setPlanId("plan-" + UUID.randomUUID());
@@ -496,7 +506,7 @@ public class MockInterviewSessionServiceImpl implements MockInterviewSessionServ
                 stage("WRAP_UP", "总结反问", "观察候选人的复盘能力、自我认知和对团队工程实践的关注。", allocation.get("WRAP_UP"),
                         List.of("自我复盘", "反问质量", "行动计划"), List.of("本场面试摘要"), List.of("复盘能力", "沟通成熟度", "下一步意识"))
         ));
-        personalizePlan(plan, project, resume);
+        personalizePlan(plan, project, resume, memorySummary);
         return plan;
     }
 
@@ -544,7 +554,7 @@ public class MockInterviewSessionServiceImpl implements MockInterviewSessionServ
         return allocation;
     }
 
-    private void personalizePlan(InterviewPlan plan, Project project, ResumeProfile resume) {
+    private void personalizePlan(InterviewPlan plan, Project project, ResumeProfile resume, UserMemorySummaryVO memorySummary) {
         if (plan == null || plan.getStages() == null) {
             return;
         }
@@ -558,7 +568,56 @@ public class MockInterviewSessionServiceImpl implements MockInterviewSessionServ
                     && StringUtils.hasText(projectName)) {
                 stage.setObjective(stage.getObjective() + " 重点项目：" + projectName + "。");
             }
+            if (memorySummary == null || memorySummary.isEmpty()) {
+                continue;
+            }
+            if ("TECHNICAL_FUNDAMENTAL".equals(stage.getStage())) {
+                List<String> weaknesses = memoryValues(memorySummary.getTopWeaknesses(), 3);
+                if (!weaknesses.isEmpty()) {
+                    stage.setObjective(stage.getObjective() + " 优先覆盖长期薄弱点：" + String.join("、", weaknesses) + "。");
+                    stage.setFocusPoints(mergeFocus(stage.getFocusPoints(), weaknesses));
+                }
+            }
+            if ("RESUME_PROJECT".equals(stage.getStage())) {
+                List<String> resumeRisks = memoryValues(memorySummary.getTopResumeRisks(), 2);
+                if (!resumeRisks.isEmpty()) {
+                    stage.setObjective(stage.getObjective() + " 结合长期简历风险：" + String.join("、", resumeRisks) + "。");
+                    stage.setFocusPoints(mergeFocus(stage.getFocusPoints(), resumeRisks));
+                }
+            }
+            if ("PROJECT_DEEP_DIVE".equals(stage.getStage()) || "SCENARIO_DESIGN".equals(stage.getStage())) {
+                List<String> projectRisks = memoryValues(memorySummary.getTopProjectRisks(), 2);
+                if (!projectRisks.isEmpty()) {
+                    stage.setObjective(stage.getObjective() + " 追问长期项目表达风险：" + String.join("、", projectRisks) + "。");
+                    stage.setFocusPoints(mergeFocus(stage.getFocusPoints(), projectRisks));
+                }
+            }
         }
+    }
+
+    private List<String> memoryValues(List<UserMemoryItemVO> items, int limit) {
+        if (items == null) {
+            return List.of();
+        }
+        return items.stream()
+                .filter(Objects::nonNull)
+                .map(UserMemoryItemVO::getValue)
+                .filter(StringUtils::hasText)
+                .map(value -> abbreviate(value, 36))
+                .distinct()
+                .limit(limit)
+                .toList();
+    }
+
+    private List<String> mergeFocus(List<String> original, List<String> additions) {
+        Set<String> merged = new LinkedHashSet<>();
+        if (original != null) {
+            merged.addAll(original);
+        }
+        if (additions != null) {
+            merged.addAll(additions);
+        }
+        return new ArrayList<>(merged).stream().limit(10).toList();
     }
 
     private StageDecision decideNextStage(
@@ -1059,6 +1118,7 @@ public class MockInterviewSessionServiceImpl implements MockInterviewSessionServ
                 normalizeDifficulty(session.getDifficulty()),
                 normalizeMaxRound(session.getMaxRound(), session.getInterviewType()),
                 null,
+                null,
                 null
         );
     }
@@ -1190,6 +1250,17 @@ public class MockInterviewSessionServiceImpl implements MockInterviewSessionServ
 
     private int safeLength(String value) {
         return value == null ? 0 : value.length();
+    }
+
+    private int safeSize(List<?> values) {
+        return values == null ? 0 : values.size();
+    }
+
+    private String abbreviate(String value, int limit) {
+        if (!StringUtils.hasText(value) || value.length() <= limit) {
+            return value;
+        }
+        return value.substring(0, limit);
     }
 
     private String beginAgentRun(Long userId, String inputSummary) {

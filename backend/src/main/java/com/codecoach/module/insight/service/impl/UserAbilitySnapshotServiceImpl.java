@@ -8,6 +8,7 @@ import com.codecoach.module.insight.mapper.UserAbilitySnapshotMapper;
 import com.codecoach.module.insight.service.UserAbilitySnapshotService;
 import com.codecoach.module.interview.entity.InterviewSession;
 import com.codecoach.module.knowledge.entity.KnowledgeTopic;
+import com.codecoach.module.memory.service.UserMemoryService;
 import com.codecoach.module.question.entity.QuestionTrainingReport;
 import com.codecoach.module.question.entity.QuestionTrainingSession;
 import com.codecoach.module.report.entity.InterviewReport;
@@ -57,13 +58,16 @@ public class UserAbilitySnapshotServiceImpl implements UserAbilitySnapshotServic
     private final UserAbilitySnapshotMapper userAbilitySnapshotMapper;
 
     private final ObjectMapper objectMapper;
+    private final UserMemoryService userMemoryService;
 
     public UserAbilitySnapshotServiceImpl(
             UserAbilitySnapshotMapper userAbilitySnapshotMapper,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            UserMemoryService userMemoryService
     ) {
         this.userAbilitySnapshotMapper = userAbilitySnapshotMapper;
         this.objectMapper = objectMapper;
+        this.userMemoryService = userMemoryService;
     }
 
     @Override
@@ -182,6 +186,7 @@ public class UserAbilitySnapshotServiceImpl implements UserAbilitySnapshotServic
         snapshot.setWeaknessTags(command.weaknessTags());
         snapshot.setCreatedAt(LocalDateTime.now());
         userAbilitySnapshotMapper.insert(snapshot);
+        userMemoryService.sinkAbilitySnapshot(snapshot);
     }
 
     private String mapQuestionDimensionCode(String category) {

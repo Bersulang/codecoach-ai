@@ -13,6 +13,7 @@ import com.codecoach.module.ai.service.AiTokenStreamHandler;
 import com.codecoach.module.insight.service.UserAbilitySnapshotService;
 import com.codecoach.module.knowledge.entity.KnowledgeTopic;
 import com.codecoach.module.knowledge.mapper.KnowledgeTopicMapper;
+import com.codecoach.module.memory.service.UserMemoryService;
 import com.codecoach.module.question.dto.QuestionAnswerRequest;
 import com.codecoach.module.question.dto.QuestionSessionCreateRequest;
 import com.codecoach.module.question.dto.QuestionSessionPageRequest;
@@ -160,6 +161,7 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
     private final RagProperties ragProperties;
 
     private final ReportQualityPostProcessor reportQualityPostProcessor;
+    private final UserMemoryService userMemoryService;
 
     public QuestionSessionServiceImpl(
             KnowledgeTopicMapper knowledgeTopicMapper,
@@ -173,7 +175,8 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
             UserAbilitySnapshotService userAbilitySnapshotService,
             RagRetrievalService ragRetrievalService,
             RagProperties ragProperties,
-            ReportQualityPostProcessor reportQualityPostProcessor
+            ReportQualityPostProcessor reportQualityPostProcessor,
+            UserMemoryService userMemoryService
     ) {
         this.knowledgeTopicMapper = knowledgeTopicMapper;
         this.questionTrainingSessionMapper = questionTrainingSessionMapper;
@@ -187,6 +190,7 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
         this.ragRetrievalService = ragRetrievalService;
         this.ragProperties = ragProperties;
         this.reportQualityPostProcessor = reportQualityPostProcessor;
+        this.userMemoryService = userMemoryService;
     }
 
     @Override
@@ -812,6 +816,7 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
         if (!qualityAssessment.isLowConfidence()) {
             userAbilitySnapshotService.createQuestionReportSnapshot(report, session, topic);
         }
+        userMemoryService.sinkQuestionReport(report, session, topic);
 
         return report;
     }

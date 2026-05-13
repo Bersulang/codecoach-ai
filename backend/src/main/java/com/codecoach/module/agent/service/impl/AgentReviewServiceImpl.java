@@ -14,6 +14,7 @@ import com.codecoach.module.agent.vo.AgentReviewVO;
 import com.codecoach.module.agent.vo.NextActionVO;
 import com.codecoach.module.insight.entity.UserAbilitySnapshot;
 import com.codecoach.module.insight.mapper.UserAbilitySnapshotMapper;
+import com.codecoach.module.memory.service.UserMemoryService;
 import com.codecoach.module.question.entity.QuestionTrainingReport;
 import com.codecoach.module.question.mapper.QuestionTrainingReportMapper;
 import com.codecoach.module.rag.constant.RagConstants;
@@ -71,6 +72,7 @@ public class AgentReviewServiceImpl implements AgentReviewService {
     private final RagRetrievalService ragRetrievalService;
     private final AiAgentReviewService aiAgentReviewService;
     private final ObjectMapper objectMapper;
+    private final UserMemoryService userMemoryService;
 
     public AgentReviewServiceImpl(
             AgentReviewMapper agentReviewMapper,
@@ -80,7 +82,8 @@ public class AgentReviewServiceImpl implements AgentReviewService {
             ResumeProfileMapper resumeProfileMapper,
             RagRetrievalService ragRetrievalService,
             AiAgentReviewService aiAgentReviewService,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            UserMemoryService userMemoryService
     ) {
         this.agentReviewMapper = agentReviewMapper;
         this.interviewReportMapper = interviewReportMapper;
@@ -90,6 +93,7 @@ public class AgentReviewServiceImpl implements AgentReviewService {
         this.ragRetrievalService = ragRetrievalService;
         this.aiAgentReviewService = aiAgentReviewService;
         this.objectMapper = objectMapper;
+        this.userMemoryService = userMemoryService;
     }
 
     @Override
@@ -117,6 +121,7 @@ public class AgentReviewServiceImpl implements AgentReviewService {
         review.setSourceSnapshot(input.context().getSourceSnapshotJson());
         review.setCreatedAt(LocalDateTime.now());
         agentReviewMapper.insert(review);
+        userMemoryService.sinkAgentReview(review);
         return toVO(review);
     }
 

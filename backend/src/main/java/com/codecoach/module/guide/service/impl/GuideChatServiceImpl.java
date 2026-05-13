@@ -12,6 +12,7 @@ import com.codecoach.module.agent.runtime.support.AgentRuntimeContextHolder;
 import com.codecoach.module.agent.runtime.support.AgentTraceSanitizer;
 import com.codecoach.module.agent.tool.service.AgentTool;
 import com.codecoach.module.agent.tool.service.AgentToolRegistry;
+import com.codecoach.module.agent.tool.dto.ToolExecuteResult;
 import com.codecoach.module.document.entity.UserDocument;
 import com.codecoach.module.document.mapper.UserDocumentMapper;
 import com.codecoach.module.guide.dto.GuideChatRequest;
@@ -237,6 +238,19 @@ public class GuideChatServiceImpl implements GuideChatService {
                     List.of(action("START_PROJECT_TRAINING"), action("GO_INSIGHTS"))
             );
         }
+        if (!summary.memoryNextActions.isEmpty() || !summary.memoryWeaknesses.isEmpty()) {
+            String actionText = summary.memoryNextActions.isEmpty()
+                    ? "先围绕 `" + summary.memoryWeaknesses.get(0) + "` 做一次专项训练"
+                    : summary.memoryNextActions.get(0);
+            String weaknessText = summary.memoryWeaknesses.isEmpty()
+                    ? ""
+                    : " 你长期反复出现的问题包括：" + String.join("、", summary.memoryWeaknesses.stream().limit(2).toList()) + "。";
+            return new GuideChatResponseVO(
+                    weaknessText + "建议下一步：" + actionText + "。",
+                    true,
+                    List.of(action("GO_AGENT_REVIEW"), action("START_PROJECT_TRAINING"), action("START_QUESTION_TRAINING"))
+            );
+        }
         if (!summary.lowDimensions.isEmpty()) {
             String weak = summary.lowDimensions.get(0);
             return new GuideChatResponseVO(
@@ -260,6 +274,14 @@ public class GuideChatServiceImpl implements GuideChatService {
     }
 
     private GuideChatResponseVO weaknessResponse(GuideUserSummary summary) {
+        if (!summary.memoryWeaknesses.isEmpty()) {
+            String weakList = String.join("、", summary.memoryWeaknesses.stream().limit(3).toList());
+            return new GuideChatResponseVO(
+                    "长期记忆里更值得优先关注：" + weakList + "。建议先补最靠前的一项，再用项目拷打或模拟面试验证表达。",
+                    true,
+                    List.of(action("START_QUESTION_TRAINING"), action("START_PROJECT_TRAINING"), action("GO_AGENT_REVIEW"))
+            );
+        }
         if (summary.lowDimensions.isEmpty()) {
             return new GuideChatResponseVO(
                     summary.recentTrainingCount == 0
@@ -371,6 +393,11 @@ public class GuideChatServiceImpl implements GuideChatService {
                 + "，简历数=" + summary.resumeCount
                 + "，近30天训练次数=" + summary.recentTrainingCount
                 + "，低分维度=" + (summary.lowDimensions.isEmpty() ? "暂无" : String.join("、", summary.lowDimensions))
+                + "，长期目标=" + safePromptText(summary.memoryTargetRole)
+                + "，长期薄弱点=" + (summary.memoryWeaknesses.isEmpty() ? "暂无" : String.join("、", summary.memoryWeaknesses))
+                + "，长期简历风险=" + (summary.memoryResumeRisks.isEmpty() ? "暂无" : String.join("、", summary.memoryResumeRisks))
+                + "，长期项目风险=" + (summary.memoryProjectRisks.isEmpty() ? "暂无" : String.join("、", summary.memoryProjectRisks))
+                + "，最近建议行动=" + (summary.memoryNextActions.isEmpty() ? "暂无" : String.join("、", summary.memoryNextActions))
                 + "，最近复盘摘要=" + safePromptText(summary.latestReviewSummary)
                 + "，简历风险数量=" + summary.resumeRiskCount
                 + "，简历首要风险=" + safePromptText(summary.topResumeRisk)
@@ -457,7 +484,52 @@ public class GuideChatServiceImpl implements GuideChatService {
         summary.lowDimensions = listLowDimensions(userId);
         fillLatestReview(summary, userId);
         fillResumeRisk(summary, userId);
+        fillMemorySummary(summary, userId);
         return summary;
+    }
+
+    private void fillMemorySummary(GuideUserSummary summary, Long userId) {
+        AgentTool memoryTool = agentToolRegistry.getTool("GET_USER_MEMORY_SUMMARY");
+        if (memoryTool == null) {
+            return;
+        }
+        try {
+            ToolExecuteResult result = memoryTool.execute(userId, Map.of());
+            if (result == null || !result.isSuccess() || result.getData() == null) {
+                return;
+            }
+            Object targetRole = result.getData().get("targetRole");
+            summary.memoryTargetRole = targetRole instanceof String value ? value : null;
+            summary.memoryWeaknesses = memoryValues(result.getData().get("topWeaknesses"), 4);
+            summary.memoryResumeRisks = memoryValues(result.getData().get("topResumeRisks"), 3);
+            summary.memoryProjectRisks = memoryValues(result.getData().get("topProjectRisks"), 3);
+            summary.memoryNextActions = memoryValues(result.getData().get("recentNextActions"), 3);
+        } catch (RuntimeException ignored) {
+            summary.memoryWeaknesses = List.of();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> memoryValues(Object value, int limit) {
+        if (!(value instanceof List<?> items)) {
+            return List.of();
+        }
+        return items.stream()
+                .map(item -> {
+                    if (item instanceof com.codecoach.module.memory.vo.UserMemoryItemVO memoryItem) {
+                        return memoryItem.getValue();
+                    }
+                    if (item instanceof Map<?, ?> map) {
+                        Object itemValue = map.get("value");
+                        return itemValue instanceof String text ? text : null;
+                    }
+                    return null;
+                })
+                .filter(StringUtils::hasText)
+                .map(text -> truncate(text, 48))
+                .distinct()
+                .limit(limit)
+                .toList();
     }
 
     private long countProjects(Long userId) {
@@ -729,5 +801,10 @@ public class GuideChatServiceImpl implements GuideChatService {
         private String topResumeRisk;
         private String latestReviewSummary;
         private List<String> lowDimensions = new ArrayList<>();
+        private String memoryTargetRole;
+        private List<String> memoryWeaknesses = new ArrayList<>();
+        private List<String> memoryResumeRisks = new ArrayList<>();
+        private List<String> memoryProjectRisks = new ArrayList<>();
+        private List<String> memoryNextActions = new ArrayList<>();
     }
 }

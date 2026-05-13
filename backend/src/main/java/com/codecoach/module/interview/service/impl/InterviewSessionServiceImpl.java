@@ -25,6 +25,7 @@ import com.codecoach.module.interview.vo.InterviewSessionCreateResponse;
 import com.codecoach.module.interview.vo.InterviewSessionDetailVO;
 import com.codecoach.module.interview.vo.InterviewSessionHistoryVO;
 import com.codecoach.module.insight.service.UserAbilitySnapshotService;
+import com.codecoach.module.memory.service.UserMemoryService;
 import com.codecoach.module.project.entity.Project;
 import com.codecoach.module.project.mapper.ProjectMapper;
 import com.codecoach.module.rag.config.RagProperties;
@@ -148,6 +149,7 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
     private final ResumeProjectExperienceMapper resumeProjectExperienceMapper;
 
     private final ReportQualityPostProcessor reportQualityPostProcessor;
+    private final UserMemoryService userMemoryService;
 
     public InterviewSessionServiceImpl(
             InterviewSessionMapper interviewSessionMapper,
@@ -163,7 +165,8 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
             RagProperties ragProperties,
             ResumeProfileMapper resumeProfileMapper,
             ResumeProjectExperienceMapper resumeProjectExperienceMapper,
-            ReportQualityPostProcessor reportQualityPostProcessor
+            ReportQualityPostProcessor reportQualityPostProcessor,
+            UserMemoryService userMemoryService
     ) {
         this.interviewSessionMapper = interviewSessionMapper;
         this.interviewMessageMapper = interviewMessageMapper;
@@ -179,6 +182,7 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         this.resumeProfileMapper = resumeProfileMapper;
         this.resumeProjectExperienceMapper = resumeProjectExperienceMapper;
         this.reportQualityPostProcessor = reportQualityPostProcessor;
+        this.userMemoryService = userMemoryService;
     }
 
     @Override
@@ -508,6 +512,7 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         if (!qualityAssessment.isLowConfidence()) {
             userAbilitySnapshotService.createProjectReportSnapshots(report, session);
         }
+        userMemoryService.sinkProjectReport(report, session);
 
         return new InterviewFinishResponse(report.getId(), session.getId(), report.getTotalScore());
     }

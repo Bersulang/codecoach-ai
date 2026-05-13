@@ -21,6 +21,9 @@ import com.codecoach.module.interview.service.InterviewSessionService;
 import com.codecoach.module.interview.vo.InterviewSessionCreateResponse;
 import com.codecoach.module.knowledge.entity.KnowledgeTopic;
 import com.codecoach.module.knowledge.mapper.KnowledgeTopicMapper;
+import com.codecoach.module.memory.service.UserMemoryService;
+import com.codecoach.module.memory.vo.UserMemoryItemVO;
+import com.codecoach.module.memory.vo.UserMemorySummaryVO;
 import com.codecoach.module.mockinterview.dto.MockInterviewCreateRequest;
 import com.codecoach.module.mockinterview.entity.MockInterviewSession;
 import com.codecoach.module.mockinterview.mapper.MockInterviewSessionMapper;
@@ -71,6 +74,7 @@ public class AgentToolConfiguration {
     private final AgentReviewService agentReviewService;
     private final ResumeService resumeService;
     private final RagRetrievalService ragRetrievalService;
+    private final UserMemoryService userMemoryService;
     private final ObjectMapper objectMapper;
 
     public AgentToolConfiguration(
@@ -87,6 +91,7 @@ public class AgentToolConfiguration {
             AgentReviewService agentReviewService,
             ResumeService resumeService,
             RagRetrievalService ragRetrievalService,
+            UserMemoryService userMemoryService,
             ObjectMapper objectMapper
     ) {
         this.projectMapper = projectMapper;
@@ -102,6 +107,7 @@ public class AgentToolConfiguration {
         this.agentReviewService = agentReviewService;
         this.resumeService = resumeService;
         this.ragRetrievalService = ragRetrievalService;
+        this.userMemoryService = userMemoryService;
         this.objectMapper = objectMapper;
     }
 
@@ -209,6 +215,27 @@ public class AgentToolConfiguration {
                             total == 0 ? "近 30 天还没有训练记录。" : "已获取近 30 天训练摘要。",
                             mapOf("projectTrainingCount", projectCount, "questionTrainingCount", questionCount, "mockInterviewCount", mockCount, "total", total),
                             "/history",
+                            ToolDisplayType.SUMMARY);
+                });
+    }
+
+    @Bean
+    public AgentTool getUserMemorySummaryTool() {
+        return query("GET_USER_MEMORY_SUMMARY", "查看长期记忆摘要", "读取当前用户长期训练记忆摘要", "/insights",
+                (userId, params) -> {
+                    UserMemorySummaryVO summary = userMemoryService.getSummary(userId);
+                    Map<String, Object> data = mapOf(
+                            "targetRole", summary.getTargetRole(),
+                            "topWeaknesses", toMemorySummaryItems(summary.getTopWeaknesses()),
+                            "topResumeRisks", toMemorySummaryItems(summary.getTopResumeRisks()),
+                            "topProjectRisks", toMemorySummaryItems(summary.getTopProjectRisks()),
+                            "recentNextActions", toMemorySummaryItems(summary.getRecentNextActions()),
+                            "masteredTopics", toMemorySummaryItems(summary.getMasteredTopics()),
+                            "empty", summary.isEmpty());
+                    return ToolExecuteResult.success(
+                            summary.isEmpty() ? "暂时没有长期训练记忆摘要。" : "已获取长期训练记忆摘要。",
+                            data,
+                            "/insights",
                             ToolDisplayType.SUMMARY);
                 });
     }
@@ -522,6 +549,19 @@ public class AgentToolConfiguration {
                 "section", chunk.getSection(),
                 "articleId", chunk.getArticleId(),
                 "topicId", chunk.getTopicId());
+    }
+
+    private List<Map<String, Object>> toMemorySummaryItems(List<UserMemoryItemVO> items) {
+        if (items == null) {
+            return List.of();
+        }
+        return items.stream()
+                .map(item -> mapOf(
+                        "value", item.getValue(),
+                        "confidence", item.getConfidence(),
+                        "weight", item.getWeight(),
+                        "lastReinforcedAt", item.getLastReinforcedAt()))
+                .toList();
     }
 
     private String firstText(String... values) {
