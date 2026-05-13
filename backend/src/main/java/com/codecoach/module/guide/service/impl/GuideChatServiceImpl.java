@@ -142,6 +142,13 @@ public class GuideChatServiceImpl implements GuideChatService {
                     List.of(action(summary.projectCount == 0 ? GuideAction.GO_PROJECTS : GuideAction.START_PROJECT_TRAINING))
             );
         }
+        if (hasAny(message, "模拟面试", "真实面试", "综合面试", "技术面")) {
+            return new GuideChatResponseVO(
+                    "建议直接开始一场综合技术一面。它会按开场、简历项目、技术基础、项目深挖和场景设计推进，结束后生成综合报告。",
+                    true,
+                    List.of(action(GuideAction.START_MOCK_INTERVIEW), action(GuideAction.GO_MOCK_INTERVIEWS), action(GuideAction.GO_AGENT_REVIEW))
+            );
+        }
         if (hasAny(message, "八股", "基础题", "面试题", "题库")) {
             return new GuideChatResponseVO(
                     "八股训练适合补齐 Java 后端基础表达。你可以从八股问答开始一轮，结束后到成长洞察看薄弱维度。",
@@ -505,6 +512,9 @@ public class GuideChatServiceImpl implements GuideChatService {
         if ("/profile".equals(path)) {
             return List.of(action(GuideAction.GO_PROFILE), action(GuideAction.GO_DASHBOARD));
         }
+        if ("/mock-interviews".equals(path)) {
+            return List.of(action(GuideAction.START_MOCK_INTERVIEW), action(GuideAction.GO_INSIGHTS));
+        }
         return List.of(action(GuideAction.GO_DASHBOARD));
     }
 
@@ -512,6 +522,7 @@ public class GuideChatServiceImpl implements GuideChatService {
         return switch (normalizePath(currentPath)) {
             case "/" -> "首页用于了解 CodeCoach AI 的训练能力和进入登录。";
             case "/dashboard" -> "工作台汇总你的项目、训练、洞察和下一步入口。";
+            case "/mock-interviews" -> "真实模拟面试页用于创建完整 Java 后端技术面，并在结束后生成综合报告。";
             case "/projects" -> "项目档案页用于管理真实项目，并从项目出发开始拷打训练。";
             case "/questions" -> "八股问答页用于练 Java 后端基础题，适合补齐概念表达和追问能力。";
             case "/learn" -> "知识学习页用于按主题阅读知识文章，并和训练中的薄弱点衔接。";
@@ -592,6 +603,9 @@ public class GuideChatServiceImpl implements GuideChatService {
         if (path.startsWith("/interviews/") || path.startsWith("/reports/")) {
             return "/projects";
         }
+        if (path.startsWith("/mock-interviews/")) {
+            return "/mock-interviews";
+        }
         if (path.startsWith("/projects/")) {
             return "/projects";
         }
@@ -643,6 +657,8 @@ public class GuideChatServiceImpl implements GuideChatService {
         GO_AGENT_REVIEW("复盘 Agent", "系统总结最近训练问题", "/agent-review"),
         GO_HISTORY("训练历史", "查看最近训练和报告", "/history"),
         GO_PROFILE("个人中心", "维护账号和个人信息", "/profile"),
+        GO_MOCK_INTERVIEWS("模拟面试", "进入完整技术面模拟", "/mock-interviews"),
+        START_MOCK_INTERVIEW("开始模拟面试", "开启一场综合技术一面", "/mock-interviews"),
         START_PROJECT_TRAINING("开始项目拷打", "从项目档案选择一个项目训练", "/projects"),
         START_QUESTION_TRAINING("开始八股训练", "选择主题开启一轮问答", "/questions"),
         VIEW_LEARNING_ARTICLE("查看学习文章", "进入知识学习模块", "/learn"),

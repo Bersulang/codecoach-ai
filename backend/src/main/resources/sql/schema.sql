@@ -292,6 +292,74 @@ CREATE TABLE user_ability_snapshot (
     KEY idx_user_source_created (user_id, source_type, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户能力快照表';
 
+CREATE TABLE IF NOT EXISTS mock_interview_session (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '真实模拟面试会话ID',
+    user_id BIGINT NOT NULL COMMENT '所属用户ID',
+    interview_type VARCHAR(64) NOT NULL DEFAULT 'COMPREHENSIVE_TECHNICAL' COMMENT '面试类型',
+    target_role VARCHAR(128) NOT NULL COMMENT '目标岗位',
+    difficulty VARCHAR(32) NOT NULL DEFAULT 'NORMAL' COMMENT '难度：EASY/NORMAL/HARD',
+    project_id BIGINT DEFAULT NULL COMMENT '关联项目ID，可为空',
+    resume_id BIGINT DEFAULT NULL COMMENT '关联简历ID，可为空',
+    status VARCHAR(32) NOT NULL DEFAULT 'IN_PROGRESS' COMMENT '状态：IN_PROGRESS/FINISHED/FAILED',
+    current_round INT NOT NULL DEFAULT 1 COMMENT '当前轮次',
+    max_round INT NOT NULL DEFAULT 6 COMMENT '最大轮次',
+    current_stage VARCHAR(64) NOT NULL DEFAULT 'OPENING' COMMENT '当前阶段',
+    started_at DATETIME DEFAULT NULL COMMENT '开始时间',
+    ended_at DATETIME DEFAULT NULL COMMENT '结束时间',
+    total_score INT DEFAULT NULL COMMENT '总评分',
+    is_deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除：0未删除，1已删除',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    KEY idx_user_id (user_id),
+    KEY idx_project_id (project_id),
+    KEY idx_resume_id (resume_id),
+    KEY idx_user_status_created (user_id, status, created_at),
+    KEY idx_user_created (user_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='真实模拟面试会话表';
+
+CREATE TABLE IF NOT EXISTS mock_interview_message (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '真实模拟面试消息ID',
+    session_id BIGINT NOT NULL COMMENT '会话ID',
+    user_id BIGINT NOT NULL COMMENT '所属用户ID',
+    role VARCHAR(32) NOT NULL COMMENT '消息角色：USER/ASSISTANT',
+    message_type VARCHAR(64) NOT NULL COMMENT '消息类型',
+    stage VARCHAR(64) NOT NULL COMMENT '面试阶段',
+    content TEXT NOT NULL COMMENT '消息内容',
+    round_no INT NOT NULL DEFAULT 1 COMMENT '所属轮次',
+    score INT DEFAULT NULL COMMENT '本轮回答评分',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    KEY idx_session_id (session_id),
+    KEY idx_user_id (user_id),
+    KEY idx_session_round (session_id, round_no),
+    KEY idx_session_stage (session_id, stage),
+    KEY idx_session_created (session_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='真实模拟面试消息表';
+
+CREATE TABLE IF NOT EXISTS mock_interview_report (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '真实模拟面试报告ID',
+    session_id BIGINT NOT NULL COMMENT '会话ID',
+    user_id BIGINT NOT NULL COMMENT '所属用户ID',
+    project_id BIGINT DEFAULT NULL COMMENT '关联项目ID',
+    resume_id BIGINT DEFAULT NULL COMMENT '关联简历ID',
+    total_score INT NOT NULL COMMENT '总评分',
+    sample_sufficiency VARCHAR(32) NOT NULL DEFAULT 'INSUFFICIENT' COMMENT '样本充分性',
+    summary TEXT NOT NULL COMMENT '整体评价',
+    stage_performances JSON DEFAULT NULL COMMENT '阶段表现',
+    strengths JSON DEFAULT NULL COMMENT '核心优势',
+    weaknesses JSON DEFAULT NULL COMMENT '主要问题',
+    high_risk_answers JSON DEFAULT NULL COMMENT '高风险回答',
+    next_actions JSON DEFAULT NULL COMMENT '下一步行动',
+    recommended_learning JSON DEFAULT NULL COMMENT '推荐学习内容',
+    recommended_training JSON DEFAULT NULL COMMENT '推荐专项训练',
+    weakness_tags JSON DEFAULT NULL COMMENT '薄弱标签',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    UNIQUE KEY uk_session_id (session_id),
+    KEY idx_user_id (user_id),
+    KEY idx_project_id (project_id),
+    KEY idx_resume_id (resume_id),
+    KEY idx_user_created (user_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='真实模拟面试报告表';
+
 CREATE TABLE IF NOT EXISTS agent_review (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '复盘Agent结果ID',
     user_id BIGINT NOT NULL COMMENT '所属用户ID',
