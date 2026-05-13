@@ -28,6 +28,8 @@ public class MockInterviewReportVO {
 
     private String summary;
 
+    private MockInterviewPlanVO planSummary;
+
     private List<StagePerformanceVO> stagePerformances;
 
     private List<String> strengths;
@@ -65,5 +67,15 @@ public class MockInterviewReportVO {
         private Integer score;
 
         private String comment;
+
+        private Integer suggestedRounds;
+
+        private Integer completedRounds;
+
+        private String completionStatus;
+
+        private Integer followUpCount;
+
+        private List<String> deductionReasons;
     }
 }

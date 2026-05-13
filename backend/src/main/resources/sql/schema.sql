@@ -372,6 +372,8 @@ CREATE TABLE IF NOT EXISTS mock_interview_session (
     status VARCHAR(32) NOT NULL DEFAULT 'IN_PROGRESS' COMMENT '状态：IN_PROGRESS/FINISHED/FAILED',
     current_round INT NOT NULL DEFAULT 1 COMMENT '当前轮次',
     max_round INT NOT NULL DEFAULT 6 COMMENT '最大轮次',
+    plan_id VARCHAR(64) DEFAULT NULL COMMENT 'Plan-Execute面试计划ID',
+    plan_json JSON DEFAULT NULL COMMENT 'Plan-Execute面试计划快照',
     current_stage VARCHAR(64) NOT NULL DEFAULT 'OPENING' COMMENT '当前阶段',
     started_at DATETIME DEFAULT NULL COMMENT '开始时间',
     ended_at DATETIME DEFAULT NULL COMMENT '结束时间',

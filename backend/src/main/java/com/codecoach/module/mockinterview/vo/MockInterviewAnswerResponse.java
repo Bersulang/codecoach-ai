@@ -18,4 +18,10 @@ public class MockInterviewAnswerResponse {
     private Integer totalScore;
 
     private String currentStage;
+
+    private String currentStageGoal;
+
+    private Integer currentStageProgress;
+
+    private Integer currentStageSuggestedRounds;
 }

@@ -1,4 +1,4 @@
-import { Button, Popconfirm, Result, Space, Tag, Typography, message } from "antd";
+import { Button, Popconfirm, Progress, Result, Space, Tag, Typography, message } from "antd";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -90,6 +90,12 @@ function MockInterviewRoomPage() {
               ? prev.maxRound
               : Math.min(prev.currentRound + 1, prev.maxRound),
             currentStage: payload.currentStage || prev.currentStage,
+            currentStageGoal: payload.currentStageGoal || prev.currentStageGoal,
+            currentStageProgress:
+              payload.currentStageProgress ?? prev.currentStageProgress,
+            currentStageSuggestedRounds:
+              payload.currentStageSuggestedRounds ??
+              prev.currentStageSuggestedRounds,
             reportId: payload.reportId || prev.reportId,
           }
         : prev,
@@ -209,6 +215,31 @@ function MockInterviewRoomPage() {
             </Tag>
             <Tag>{detail?.targetRole}</Tag>
           </Space>
+          <div className="mock-room-plan">
+            <Typography.Text strong>
+              {detail?.currentStageGoal || "正在加载阶段目标"}
+            </Typography.Text>
+            <Typography.Paragraph>
+              本次模拟面试将覆盖：{detail?.plan?.coverageSummary || "自我介绍、简历项目、技术基础、项目深挖、场景设计、总结"}
+            </Typography.Paragraph>
+            <div className="mock-room-plan__progress">
+              <span>
+                阶段进度 {detail?.currentStageProgress ?? 0}/
+                {detail?.currentStageSuggestedRounds ?? 1}
+              </span>
+              <Progress
+                percent={Math.min(
+                  100,
+                  Math.round(
+                    ((detail?.currentStageProgress ?? 0) /
+                      Math.max(detail?.currentStageSuggestedRounds ?? 1, 1)) *
+                      100,
+                  ),
+                )}
+                showInfo={false}
+              />
+            </div>
+          </div>
         </div>
         <Popconfirm title="结束后将生成综合报告" onConfirm={finish}>
           <Button danger disabled={!detail || detail.status === "FINISHED"}>

@@ -10,4 +10,6 @@ public class MockInterviewCreateResponse {
     private Long sessionId;
 
     private MockInterviewMessageVO firstMessage;
+
+    private MockInterviewPlanVO plan;
 }

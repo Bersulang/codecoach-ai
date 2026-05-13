@@ -32,6 +32,14 @@ public class MockInterviewSessionDetailVO {
 
     private String currentStage;
 
+    private String currentStageGoal;
+
+    private Integer currentStageProgress;
+
+    private Integer currentStageSuggestedRounds;
+
+    private MockInterviewPlanVO plan;
+
     private Long reportId;
 
     private List<MockInterviewMessageVO> messages;

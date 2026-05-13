@@ -12,6 +12,21 @@ function renderList(items?: string[]) {
   return <List size="small" dataSource={items} renderItem={(item) => <List.Item>{item}</List.Item>} />;
 }
 
+function formatCompletionStatus(value?: string) {
+  switch (value) {
+    case "FOLLOWED_UP":
+      return "追问较多";
+    case "EARLY_ENDED":
+      return "提前结束";
+    case "COMPLETED":
+      return "按计划完成";
+    case "NOT_STARTED":
+      return "样本不足";
+    default:
+      return "已记录";
+  }
+}
+
 function MockInterviewReportPage() {
   const { sessionId } = useParams();
   const navigate = useNavigate();
@@ -32,6 +47,7 @@ function MockInterviewReportPage() {
           recommendedLearning: data.recommendedLearning || [],
           recommendedTraining: data.recommendedTraining || [],
           weaknessTags: data.weaknessTags || [],
+          planSummary: data.planSummary,
         }),
       )
       .catch(() => {
@@ -81,13 +97,42 @@ function MockInterviewReportPage() {
         </Col>
       </Row>
 
+      <Card title="面试计划摘要" className="mock-report-card mock-report-plan">
+        <Typography.Paragraph>
+          本场面试按计划覆盖：{report?.planSummary?.coverageSummary || "多阶段技术面试"}
+        </Typography.Paragraph>
+        <Space wrap>
+          {report?.planSummary?.stages
+            ?.filter((stage) => stage.suggestedRounds > 0)
+            .map((stage) => (
+              <Tag key={stage.stage}>
+                {stage.stageName} · {stage.suggestedRounds} 轮
+              </Tag>
+            ))}
+        </Space>
+      </Card>
+
       <Card title="阶段表现" className="mock-report-card">
         <div className="mock-stage-list">
           {report?.stagePerformances?.map((stage) => (
             <div key={stage.stage} className="mock-stage-item">
               <div>
-                <strong>{stage.stageName}</strong>
+                <Space wrap>
+                  <strong>{stage.stageName}</strong>
+                  <Tag>{formatCompletionStatus(stage.completionStatus)}</Tag>
+                  {stage.followUpCount ? <Tag color="orange">追问 {stage.followUpCount} 次</Tag> : null}
+                </Space>
                 <p>{stage.comment}</p>
+                <p>
+                  完成 {stage.completedRounds ?? 0}/{stage.suggestedRounds ?? 0} 轮
+                </p>
+                {stage.deductionReasons?.length ? (
+                  <ul className="mock-stage-deductions">
+                    {stage.deductionReasons.map((reason) => (
+                      <li key={reason}>{reason}</li>
+                    ))}
+                  </ul>
+                ) : null}
               </div>
               <Progress type="circle" percent={stage.score} size={64} />
             </div>

@@ -41,6 +41,12 @@ public class MockInterviewSession {
     @TableField("max_round")
     private Integer maxRound;
 
+    @TableField("plan_id")
+    private String planId;
+
+    @TableField("plan_json")
+    private String planJson;
+
     @TableField("current_stage")
     private String currentStage;
 

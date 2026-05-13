@@ -36,6 +36,7 @@ export interface MockInterviewMessage {
 export interface MockInterviewCreateResponse {
   sessionId: number;
   firstMessage: MockInterviewMessage;
+  plan?: MockInterviewPlan;
 }
 
 export interface MockInterviewAnswerResponse {
@@ -45,6 +46,9 @@ export interface MockInterviewAnswerResponse {
   reportId?: number | null;
   totalScore?: number | null;
   currentStage?: MockInterviewStage;
+  currentStageGoal?: string;
+  currentStageProgress?: number;
+  currentStageSuggestedRounds?: number;
 }
 
 export interface MockInterviewFinishResponse {
@@ -66,6 +70,10 @@ export interface MockInterviewSessionDetail {
   currentRound: number;
   maxRound: number;
   currentStage: MockInterviewStage;
+  currentStageGoal?: string;
+  currentStageProgress?: number;
+  currentStageSuggestedRounds?: number;
+  plan?: MockInterviewPlan;
   reportId?: number;
   messages: MockInterviewMessage[];
 }
@@ -89,6 +97,28 @@ export interface MockInterviewStagePerformance {
   stageName: string;
   score: number;
   comment: string;
+  suggestedRounds?: number;
+  completedRounds?: number;
+  completionStatus?: "NOT_STARTED" | "EARLY_ENDED" | "COMPLETED" | "FOLLOWED_UP";
+  followUpCount?: number;
+  deductionReasons?: string[];
+}
+
+export interface MockInterviewPlanStage {
+  stage: MockInterviewStage;
+  stageName: string;
+  objective: string;
+  suggestedRounds: number;
+  focusPoints: string[];
+  ragSources: string[];
+  scoringDimensions: string[];
+}
+
+export interface MockInterviewPlan {
+  planId: string;
+  totalRounds: number;
+  coverageSummary: string;
+  stages: MockInterviewPlanStage[];
 }
 
 export interface MockInterviewReport {
@@ -100,6 +130,7 @@ export interface MockInterviewReport {
   totalScore: number;
   sampleSufficiency: string;
   summary: string;
+  planSummary?: MockInterviewPlan;
   stagePerformances: MockInterviewStagePerformance[];
   strengths: string[];
   weaknesses: string[];

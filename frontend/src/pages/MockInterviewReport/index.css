@@ -27,7 +27,13 @@
 }
 
 .mock-report-card {
+  margin-bottom: 16px;
   border-radius: 8px;
+}
+
+.mock-report-plan p {
+  margin-bottom: 10px;
+  color: #475569;
 }
 
 .mock-stage-list {
@@ -47,6 +53,16 @@
 .mock-stage-item p {
   margin: 6px 0 0;
   color: #64748b;
+}
+
+.mock-stage-deductions {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: #475569;
+}
+
+.mock-stage-deductions li + li {
+  margin-top: 4px;
 }
 
 .mock-report-actions {

@@ -21,6 +21,28 @@
   text-transform: uppercase;
 }
 
+.mock-room-plan {
+  max-width: 760px;
+  margin-top: 14px;
+}
+
+.mock-room-plan .ant-typography {
+  margin-bottom: 6px;
+}
+
+.mock-room-plan p {
+  color: #64748b;
+}
+
+.mock-room-plan__progress {
+  display: grid;
+  grid-template-columns: auto minmax(160px, 280px);
+  align-items: center;
+  gap: 12px;
+  color: #475569;
+  font-size: 13px;
+}
+
 .mock-room-thread {
   flex: 1;
   overflow-y: auto;
@@ -84,7 +106,12 @@
   }
 
   .mock-room-header {
+    flex-direction: column;
     padding: 18px 16px;
+  }
+
+  .mock-room-plan__progress {
+    grid-template-columns: 1fr;
   }
 
   .mock-room-message.is-user {

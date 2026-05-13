@@ -127,7 +127,7 @@ function MockInterviewsPage() {
               </Form.Item>
               <Form.Item label="轮数" name="maxRound" required>
                 <Select
-                  options={[4, 5, 6, 8, 10, 12].map((value) => ({
+                  options={[6, 8, 10, 12].map((value) => ({
                     label: `${value} 轮`,
                     value,
                   }))}
