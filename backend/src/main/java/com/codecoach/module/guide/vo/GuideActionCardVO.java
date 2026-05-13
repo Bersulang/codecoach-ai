@@ -1,54 +1,35 @@
 package com.codecoach.module.guide.vo;
 
-public class GuideActionCardVO {
+import com.codecoach.module.agent.tool.dto.ToolActionVO;
+import com.codecoach.module.agent.tool.dto.ToolDefinition;
 
-    private String actionType;
-
-    private String title;
-
-    private String description;
-
-    private String targetPath;
+public class GuideActionCardVO extends ToolActionVO {
 
     public GuideActionCardVO() {
     }
 
     public GuideActionCardVO(String actionType, String title, String description, String targetPath) {
-        this.actionType = actionType;
-        this.title = title;
-        this.description = description;
-        this.targetPath = targetPath;
+        setActionType(actionType);
+        setToolName(actionType);
+        setTitle(title);
+        setDescription(description);
+        setTargetPath(targetPath);
     }
 
-    public String getActionType() {
-        return actionType;
-    }
-
-    public void setActionType(String actionType) {
-        this.actionType = actionType;
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public void setTitle(String title) {
-        this.title = title;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public void setDescription(String description) {
-        this.description = description;
-    }
-
-    public String getTargetPath() {
-        return targetPath;
-    }
-
-    public void setTargetPath(String targetPath) {
-        this.targetPath = targetPath;
+    public static GuideActionCardVO fromDefinition(ToolDefinition definition) {
+        ToolActionVO action = ToolActionVO.fromDefinition(definition);
+        GuideActionCardVO vo = new GuideActionCardVO();
+        vo.setActionType(action.getActionType());
+        vo.setToolName(action.getToolName());
+        vo.setToolType(action.getToolType());
+        vo.setRiskLevel(action.getRiskLevel());
+        vo.setExecutionMode(action.getExecutionMode());
+        vo.setDisplayType(action.getDisplayType());
+        vo.setTitle(action.getTitle());
+        vo.setDescription(action.getDescription());
+        vo.setTargetPath(action.getTargetPath());
+        vo.setRequiresConfirmation(action.isRequiresConfirmation());
+        vo.setParams(action.getParams());
+        return vo;
     }
 }

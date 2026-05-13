@@ -168,6 +168,25 @@ CREATE TABLE ai_call_log (
                              KEY idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI调用日志表';
 
+CREATE TABLE IF NOT EXISTS agent_tool_trace (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '日志ID',
+    trace_id VARCHAR(64) NOT NULL COMMENT 'Trace ID',
+    user_id BIGINT DEFAULT NULL COMMENT '用户ID',
+    agent_type VARCHAR(64) DEFAULT NULL COMMENT 'Agent类型',
+    tool_name VARCHAR(128) NOT NULL COMMENT 'Tool名称',
+    tool_type VARCHAR(32) DEFAULT NULL COMMENT 'Tool类型',
+    input_summary TEXT DEFAULT NULL COMMENT '输入摘要',
+    output_summary TEXT DEFAULT NULL COMMENT '输出摘要',
+    success TINYINT NOT NULL DEFAULT 1 COMMENT '是否成功：1成功，0失败',
+    error_code VARCHAR(128) DEFAULT NULL COMMENT '错误码',
+    latency_ms BIGINT DEFAULT NULL COMMENT '执行耗时毫秒',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    UNIQUE KEY uk_trace_id (trace_id),
+    KEY idx_user_created (user_id, created_at),
+    KEY idx_tool_created (tool_name, created_at),
+    KEY idx_success_created (success, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Agent Tool调用Trace表';
+
 CREATE TABLE knowledge_topic (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '知识点ID',
     category VARCHAR(64) NOT NULL COMMENT '知识分类，例如 Redis/JVM/MySQL',

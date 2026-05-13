@@ -3,6 +3,8 @@ package com.codecoach.module.guide.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.codecoach.module.agent.entity.AgentReview;
 import com.codecoach.module.agent.mapper.AgentReviewMapper;
+import com.codecoach.module.agent.tool.service.AgentTool;
+import com.codecoach.module.agent.tool.service.AgentToolRegistry;
 import com.codecoach.module.document.entity.UserDocument;
 import com.codecoach.module.document.mapper.UserDocumentMapper;
 import com.codecoach.module.guide.dto.GuideChatRequest;
@@ -55,6 +57,7 @@ public class GuideChatServiceImpl implements GuideChatService {
     private final AgentReviewMapper agentReviewMapper;
     private final ObjectMapper objectMapper;
     private final ObjectProvider<AiGuideService> aiGuideServiceProvider;
+    private final AgentToolRegistry agentToolRegistry;
 
     public GuideChatServiceImpl(
             ProjectMapper projectMapper,
@@ -65,7 +68,8 @@ public class GuideChatServiceImpl implements GuideChatService {
             UserAbilitySnapshotMapper userAbilitySnapshotMapper,
             AgentReviewMapper agentReviewMapper,
             ObjectMapper objectMapper,
-            ObjectProvider<AiGuideService> aiGuideServiceProvider
+            ObjectProvider<AiGuideService> aiGuideServiceProvider,
+            AgentToolRegistry agentToolRegistry
     ) {
         this.projectMapper = projectMapper;
         this.userDocumentMapper = userDocumentMapper;
@@ -76,6 +80,7 @@ public class GuideChatServiceImpl implements GuideChatService {
         this.agentReviewMapper = agentReviewMapper;
         this.objectMapper = objectMapper;
         this.aiGuideServiceProvider = aiGuideServiceProvider;
+        this.agentToolRegistry = agentToolRegistry;
     }
 
     @Override
@@ -94,7 +99,7 @@ public class GuideChatServiceImpl implements GuideChatService {
             return new GuideChatResponseVO(
                     "训练向导暂时没有拿到完整状态。我先给你一个稳妥入口：回到工作台查看最近训练，再从项目、八股或复盘继续。",
                     false,
-                    List.of(action(GuideAction.GO_DASHBOARD), action(GuideAction.GO_AGENT_REVIEW))
+                    List.of(action("GO_DASHBOARD"), action("GO_AGENT_REVIEW"))
             );
         }
     }
@@ -104,14 +109,14 @@ public class GuideChatServiceImpl implements GuideChatService {
             return new GuideChatResponseVO(
                     pageDescription(currentPath) + " 登录后我可以结合你的训练报告、简历风险点和能力画像，推荐下一步训练动作。",
                     false,
-                    List.of(action(GuideAction.LOGIN))
+                    List.of(action("LOGIN"))
             );
         }
         if (hasAny(message, "项目", "拷打", "八股", "简历", "复盘", "弱点", "下一步", "开始")) {
             return new GuideChatResponseVO(
                     "你可以先登录进入工作台。登录后，我会根据你的项目档案、训练报告、能力画像和简历分析，给出更具体的下一步训练建议。",
                     false,
-                    List.of(action(GuideAction.LOGIN))
+                    List.of(action("LOGIN"))
             );
         }
         GuideChatResponseVO aiResponse = tryAiResponse(message, currentPath, null, false);
@@ -121,7 +126,7 @@ public class GuideChatServiceImpl implements GuideChatService {
         return new GuideChatResponseVO(
                 "我是 CodeCoach Guide，负责帮你理解产品功能并找到下一步训练入口。登录后，我可以结合你的训练数据给出个性化建议。",
                 false,
-                List.of(action(GuideAction.LOGIN))
+                List.of(action("LOGIN"))
         );
     }
 
@@ -139,34 +144,34 @@ public class GuideChatServiceImpl implements GuideChatService {
                             ? "你还没有项目档案。建议先补一个真实项目，再用项目拷打训练追问亮点、难点和技术取舍。"
                             : "你已经有 " + summary.projectCount + " 个项目档案，可以直接从项目列表选择一个开始拷打训练。",
                     true,
-                    List.of(action(summary.projectCount == 0 ? GuideAction.GO_PROJECTS : GuideAction.START_PROJECT_TRAINING))
+                    List.of(action(summary.projectCount == 0 ? "GO_PROJECTS" : "START_PROJECT_TRAINING"))
             );
         }
         if (hasAny(message, "模拟面试", "真实面试", "综合面试", "技术面")) {
             return new GuideChatResponseVO(
                     "建议直接开始一场综合技术一面。它会按开场、简历项目、技术基础、项目深挖和场景设计推进，结束后生成综合报告。",
                     true,
-                    List.of(action(GuideAction.START_MOCK_INTERVIEW), action(GuideAction.GO_MOCK_INTERVIEWS), action(GuideAction.GO_AGENT_REVIEW))
+                    List.of(action("START_MOCK_INTERVIEW"), action("GO_MOCK_INTERVIEWS"), action("GO_AGENT_REVIEW"))
             );
         }
         if (hasAny(message, "八股", "基础题", "面试题", "题库")) {
             return new GuideChatResponseVO(
                     "八股训练适合补齐 Java 后端基础表达。你可以从八股问答开始一轮，结束后到成长洞察看薄弱维度。",
                     true,
-                    List.of(action(GuideAction.START_QUESTION_TRAINING), action(GuideAction.GO_INSIGHTS))
+                    List.of(action("START_QUESTION_TRAINING"), action("GO_INSIGHTS"))
             );
         }
         if (hasAny(message, "简历", "履历", "风险")) {
             String answer = summary.resumeCount == 0
                     ? "你还没有简历记录。建议先进入简历训练上传并分析简历，再围绕风险点生成项目追问。"
                     : "你已有 " + summary.resumeCount + " 份简历记录。" + resumeRiskSentence(summary) + " 可以先进入简历训练查看风险点。";
-            return new GuideChatResponseVO(answer, true, List.of(action(GuideAction.ANALYZE_RESUME), action(GuideAction.START_PROJECT_TRAINING)));
+            return new GuideChatResponseVO(answer, true, List.of(action("ANALYZE_RESUME"), action("START_PROJECT_TRAINING")));
         }
         if (hasAny(message, "文档", "上传", "资料", "rag")) {
             String answer = summary.documentCount == 0
                     ? "你还没有上传文档。可以先把项目说明、学习笔记或简历材料放到我的文档，后续训练会更贴近你的素材。"
                     : "你已有 " + summary.documentCount + " 份文档。下一步可以用这些材料支撑项目档案、简历分析和训练追问。";
-            return new GuideChatResponseVO(answer, true, List.of(action(GuideAction.UPLOAD_DOCUMENT), action(GuideAction.GO_PROJECTS)));
+            return new GuideChatResponseVO(answer, true, List.of(action("GO_DOCUMENTS"), action("GO_PROJECTS")));
         }
         if (hasAny(message, "弱点", "薄弱", "短板", "能力", "最近应该练什么")) {
             return weaknessResponse(summary);
@@ -175,13 +180,13 @@ public class GuideChatServiceImpl implements GuideChatService {
             String answer = StringUtils.hasText(summary.latestReviewSummary)
                     ? "你最近的复盘结论是：" + summary.latestReviewSummary + "。如果想系统梳理最近问题，可以继续进入复盘 Agent。"
                     : "你还没有可用的复盘摘要。建议生成一次复盘，把项目训练、八股训练和简历风险串起来看。";
-            return new GuideChatResponseVO(answer, true, List.of(action(GuideAction.GENERATE_REVIEW), action(GuideAction.GO_HISTORY)));
+            return new GuideChatResponseVO(answer, true, List.of(action("GENERATE_AGENT_REVIEW"), action("GO_HISTORY")));
         }
         if (hasAny(message, "计划", "规划")) {
             return new GuideChatResponseVO(
                     "当前我可以先帮你找到下一步训练动作。完整训练计划功能后续会加入。你现在可以先生成复盘，确定优先训练方向。",
                     true,
-                    List.of(action(GuideAction.GENERATE_REVIEW), action(GuideAction.GO_INSIGHTS))
+                    List.of(action("GENERATE_AGENT_REVIEW"), action("GO_INSIGHTS"))
             );
         }
         if (hasAny(message, "面试", "不会回答", "不知道怎么回答", "怎么回答")) {
@@ -200,7 +205,7 @@ public class GuideChatServiceImpl implements GuideChatService {
         return new GuideChatResponseVO(
                 "我更擅长回答产品内训练路径问题。你可以问“这个页面怎么用”“我下一步该做什么”“我想练项目/八股/简历”。",
                 true,
-                List.of(action(GuideAction.GO_DASHBOARD), action(GuideAction.GO_AGENT_REVIEW))
+                List.of(action("GO_DASHBOARD"), action("GO_AGENT_REVIEW"))
         );
     }
 
@@ -209,14 +214,14 @@ public class GuideChatServiceImpl implements GuideChatService {
             return new GuideChatResponseVO(
                     "建议先创建项目档案。CodeCoach 的项目拷打、简历追问和复盘，都需要一个具体项目作为训练抓手。",
                     true,
-                    List.of(action(GuideAction.GO_PROJECTS), action(GuideAction.UPLOAD_DOCUMENT))
+                    List.of(action("GO_PROJECTS"), action("GO_DOCUMENTS"))
             );
         }
         if (summary.recentTrainingCount == 0) {
             return new GuideChatResponseVO(
                     "你已经有项目档案，但最近还没有训练记录。建议先做一轮项目拷打，产出报告后再看成长洞察。",
                     true,
-                    List.of(action(GuideAction.START_PROJECT_TRAINING), action(GuideAction.GO_INSIGHTS))
+                    List.of(action("START_PROJECT_TRAINING"), action("GO_INSIGHTS"))
             );
         }
         if (!summary.lowDimensions.isEmpty()) {
@@ -224,20 +229,20 @@ public class GuideChatServiceImpl implements GuideChatService {
             return new GuideChatResponseVO(
                     "建议优先补 `" + weak + "`。这是你近期能力画像里更靠前的薄弱项，可以先看学习推荐，再做一轮八股或项目训练验证表达。",
                     true,
-                    List.of(action(GuideAction.GO_INSIGHTS), action(GuideAction.START_QUESTION_TRAINING), action(GuideAction.GO_LEARN))
+                    List.of(action("GO_INSIGHTS"), action("START_QUESTION_TRAINING"), action("GO_LEARN"))
             );
         }
         if (summary.resumeCount == 0 && summary.documentCount > 0) {
             return new GuideChatResponseVO(
                     "你已经有文档素材，但还没有简历分析。建议进入简历训练，把材料转成可追问的风险点。",
                     true,
-                    List.of(action(GuideAction.ANALYZE_RESUME), action(GuideAction.GO_DOCUMENTS))
+                    List.of(action("ANALYZE_RESUME"), action("GO_DOCUMENTS"))
             );
         }
         return new GuideChatResponseVO(
                 "建议进入复盘 Agent，总结最近训练问题，再选择一个最影响面试表现的方向专项训练。",
                 true,
-                List.of(action(GuideAction.GENERATE_REVIEW), action(GuideAction.GO_HISTORY), action(GuideAction.GO_INSIGHTS))
+                List.of(action("GENERATE_AGENT_REVIEW"), action("GO_HISTORY"), action("GO_INSIGHTS"))
         );
     }
 
@@ -248,14 +253,14 @@ public class GuideChatServiceImpl implements GuideChatService {
                             ? "暂时还没有足够训练数据判断薄弱点。先完成一轮项目拷打或八股训练，我再帮你看能力画像。"
                             : "暂时没有明显低分维度。建议进入成长洞察查看趋势，或生成复盘找重复出现的问题。",
                     true,
-                    List.of(action(GuideAction.START_QUESTION_TRAINING), action(GuideAction.GO_INSIGHTS), action(GuideAction.GENERATE_REVIEW))
+                    List.of(action("START_QUESTION_TRAINING"), action("GO_INSIGHTS"), action("GENERATE_AGENT_REVIEW"))
             );
         }
         String weakList = String.join("、", summary.lowDimensions.stream().limit(3).toList());
         return new GuideChatResponseVO(
                 "你近期更值得优先关注：" + weakList + "。建议先看成长洞察里的证据，再用八股训练或项目拷打做针对性表达练习。",
                 true,
-                List.of(action(GuideAction.GO_INSIGHTS), action(GuideAction.START_QUESTION_TRAINING), action(GuideAction.START_PROJECT_TRAINING))
+                List.of(action("GO_INSIGHTS"), action("START_QUESTION_TRAINING"), action("START_PROJECT_TRAINING"))
         );
     }
 
@@ -283,7 +288,7 @@ public class GuideChatServiceImpl implements GuideChatService {
             GuideUserSummary summary,
             boolean personalized
     ) {
-        String allowedActions = String.join(", ", List.of(GuideAction.values()).stream().map(Enum::name).toList());
+        String allowedActions = String.join(", ", agentToolRegistry.toolNames());
         String userSummary = personalized && summary != null
                 ? "项目数=" + summary.projectCount
                 + "，文档数=" + summary.documentCount
@@ -333,18 +338,18 @@ public class GuideChatServiceImpl implements GuideChatService {
         if (suggestion == null || !StringUtils.hasText(suggestion.getAnswer())) {
             return null;
         }
-        Set<GuideAction> allowedForGuest = Set.of(GuideAction.LOGIN);
+        Set<String> allowedForGuest = Set.of("LOGIN");
         List<GuideActionCardVO> actions = new ArrayList<>();
         if (suggestion.getActions() != null) {
             for (String actionName : suggestion.getActions()) {
-                GuideAction guideAction = parseGuideAction(actionName);
-                if (guideAction == null) {
+                String toolName = parseToolName(actionName);
+                if (toolName == null) {
                     continue;
                 }
-                if (!personalized && !allowedForGuest.contains(guideAction)) {
+                if (!personalized && !allowedForGuest.contains(toolName)) {
                     continue;
                 }
-                actions.add(action(guideAction));
+                actions.add(action(toolName));
                 if (actions.size() >= 3) {
                     break;
                 }
@@ -352,21 +357,18 @@ public class GuideChatServiceImpl implements GuideChatService {
         }
         if (actions.isEmpty()) {
             actions = personalized
-                    ? List.of(action(GuideAction.GO_DASHBOARD), action(GuideAction.GO_AGENT_REVIEW))
-                    : List.of(action(GuideAction.LOGIN));
+                    ? List.of(action("GO_DASHBOARD"), action("GO_AGENT_REVIEW"))
+                    : List.of(action("LOGIN"));
         }
         return new GuideChatResponseVO(truncate(suggestion.getAnswer(), 120), personalized, actions);
     }
 
-    private GuideAction parseGuideAction(String actionName) {
+    private String parseToolName(String actionName) {
         if (!StringUtils.hasText(actionName)) {
             return null;
         }
-        try {
-            return GuideAction.valueOf(actionName.trim());
-        } catch (IllegalArgumentException exception) {
-            return null;
-        }
+        String toolName = actionName.trim();
+        return agentToolRegistry.getTool(toolName) == null ? null : toolName;
     }
 
     private GuideUserSummary buildSummary(Long userId) {
@@ -486,36 +488,36 @@ public class GuideChatServiceImpl implements GuideChatService {
     private List<GuideActionCardVO> pageActions(String currentPath) {
         String path = normalizePath(currentPath);
         if ("/projects".equals(path)) {
-            return List.of(action(GuideAction.GO_PROJECTS), action(GuideAction.START_PROJECT_TRAINING));
+            return List.of(action("GO_PROJECTS"), action("START_PROJECT_TRAINING"));
         }
         if ("/questions".equals(path)) {
-            return List.of(action(GuideAction.START_QUESTION_TRAINING), action(GuideAction.GO_INSIGHTS));
+            return List.of(action("START_QUESTION_TRAINING"), action("GO_INSIGHTS"));
         }
         if ("/learn".equals(path)) {
-            return List.of(action(GuideAction.GO_LEARN), action(GuideAction.GO_INSIGHTS));
+            return List.of(action("GO_LEARN"), action("GO_INSIGHTS"));
         }
         if ("/insights".equals(path)) {
-            return List.of(action(GuideAction.GO_INSIGHTS), action(GuideAction.START_QUESTION_TRAINING));
+            return List.of(action("GO_INSIGHTS"), action("START_QUESTION_TRAINING"));
         }
         if ("/documents".equals(path)) {
-            return List.of(action(GuideAction.UPLOAD_DOCUMENT), action(GuideAction.GO_PROJECTS));
+            return List.of(action("GO_DOCUMENTS"), action("GO_PROJECTS"));
         }
         if ("/resumes".equals(path)) {
-            return List.of(action(GuideAction.ANALYZE_RESUME), action(GuideAction.START_PROJECT_TRAINING));
+            return List.of(action("ANALYZE_RESUME"), action("START_PROJECT_TRAINING"));
         }
         if ("/agent-review".equals(path)) {
-            return List.of(action(GuideAction.GENERATE_REVIEW), action(GuideAction.GO_HISTORY));
+            return List.of(action("GENERATE_AGENT_REVIEW"), action("GO_HISTORY"));
         }
         if ("/history".equals(path)) {
-            return List.of(action(GuideAction.GO_HISTORY), action(GuideAction.GO_AGENT_REVIEW));
+            return List.of(action("GO_HISTORY"), action("GO_AGENT_REVIEW"));
         }
         if ("/profile".equals(path)) {
-            return List.of(action(GuideAction.GO_PROFILE), action(GuideAction.GO_DASHBOARD));
+            return List.of(action("GO_PROFILE"), action("GO_DASHBOARD"));
         }
         if ("/mock-interviews".equals(path)) {
-            return List.of(action(GuideAction.START_MOCK_INTERVIEW), action(GuideAction.GO_INSIGHTS));
+            return List.of(action("START_MOCK_INTERVIEW"), action("GO_INSIGHTS"));
         }
-        return List.of(action(GuideAction.GO_DASHBOARD));
+        return List.of(action("GO_DASHBOARD"));
     }
 
     private String pageDescription(String currentPath) {
@@ -536,13 +538,9 @@ public class GuideChatServiceImpl implements GuideChatService {
         };
     }
 
-    private GuideActionCardVO action(GuideAction guideAction) {
-        return new GuideActionCardVO(
-                guideAction.name(),
-                guideAction.title,
-                guideAction.description,
-                guideAction.targetPath
-        );
+    private GuideActionCardVO action(String toolName) {
+        AgentTool tool = agentToolRegistry.requireTool(toolName);
+        return GuideActionCardVO.fromDefinition(tool.definition());
     }
 
     private boolean isPageQuestion(String message) {
@@ -644,38 +642,6 @@ public class GuideChatServiceImpl implements GuideChatService {
             return "暂无";
         }
         return text.replaceAll("[\\r\\n]+", " ").trim();
-    }
-
-    private enum GuideAction {
-        GO_DASHBOARD("回到工作台", "查看你的训练入口和最近进展", "/dashboard"),
-        GO_PROJECTS("项目档案", "管理项目并开始项目拷打", "/projects"),
-        GO_QUESTIONS("八股问答", "练习 Java 后端基础题", "/questions"),
-        GO_LEARN("知识学习", "按主题补齐知识点", "/learn"),
-        GO_INSIGHTS("成长洞察", "查看能力画像和薄弱维度", "/insights"),
-        GO_DOCUMENTS("我的文档", "上传文档并用于训练增强", "/documents"),
-        GO_RESUMES("简历训练", "分析简历风险和项目追问点", "/resumes"),
-        GO_AGENT_REVIEW("复盘 Agent", "系统总结最近训练问题", "/agent-review"),
-        GO_HISTORY("训练历史", "查看最近训练和报告", "/history"),
-        GO_PROFILE("个人中心", "维护账号和个人信息", "/profile"),
-        GO_MOCK_INTERVIEWS("模拟面试", "进入完整技术面模拟", "/mock-interviews"),
-        START_MOCK_INTERVIEW("开始模拟面试", "开启一场综合技术一面", "/mock-interviews"),
-        START_PROJECT_TRAINING("开始项目拷打", "从项目档案选择一个项目训练", "/projects"),
-        START_QUESTION_TRAINING("开始八股训练", "选择主题开启一轮问答", "/questions"),
-        VIEW_LEARNING_ARTICLE("查看学习文章", "进入知识学习模块", "/learn"),
-        UPLOAD_DOCUMENT("上传文档", "进入我的文档上传资料", "/documents"),
-        ANALYZE_RESUME("分析简历", "进入简历训练并查看风险点", "/resumes"),
-        GENERATE_REVIEW("生成复盘", "进入复盘 Agent 汇总问题", "/agent-review"),
-        LOGIN("登录后继续", "解锁个性化训练建议", "/login");
-
-        private final String title;
-        private final String description;
-        private final String targetPath;
-
-        GuideAction(String title, String description, String targetPath) {
-            this.title = title;
-            this.description = description;
-            this.targetPath = targetPath;
-        }
     }
 
     private static class GuideUserSummary {

@@ -6,15 +6,12 @@ import {
   LoadingOutlined,
   SendOutlined,
 } from "@ant-design/icons";
-import { message as antdMessage } from "antd";
+import { Modal, message as antdMessage } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { executeAgentTool } from "../../api/agentTool";
 import { sendGuideMessage } from "../../api/guide";
-import { createInterviewSession } from "../../api/interview";
-import { createMockInterview } from "../../api/mockInterview";
-import { getProjects } from "../../api/project";
-import { createQuestionSession, getKnowledgeTopics } from "../../api/question";
 import { useChatAutoScroll } from "../../hooks/useChatAutoScroll";
 import type { GuideActionCard, GuideActionType } from "../../types/guide";
 import "./GuideWidget.css";
@@ -51,17 +48,23 @@ const actionPathMap: Record<GuideActionType, string> = {
   START_PROJECT_TRAINING: "/projects",
   START_QUESTION_TRAINING: "/questions",
   START_MOCK_INTERVIEW: "/mock-interviews",
-  VIEW_LEARNING_ARTICLE: "/learn",
-  UPLOAD_DOCUMENT: "/documents",
+  GET_ABILITY_SUMMARY: "/insights",
+  GET_RECENT_TRAINING_SUMMARY: "/history",
+  GET_RESUME_RISK_SUMMARY: "/resumes",
+  SEARCH_KNOWLEDGE: "/learn",
+  SEARCH_USER_DOCUMENTS: "/documents",
   ANALYZE_RESUME: "/resumes",
-  GENERATE_REVIEW: "/agent-review",
+  GENERATE_AGENT_REVIEW: "/agent-review",
+  CREATE_PROJECT_FROM_RESUME: "/resumes",
   LOGIN: "/login",
 };
 
-const DEFAULT_TARGET_ROLE = "Java 后端实习";
-
 function isAllowedAction(actionType: string): actionType is GuideActionType {
   return Object.prototype.hasOwnProperty.call(actionPathMap, actionType);
+}
+
+function resolveToolName(action: GuideActionCard) {
+  return action.toolName || action.actionType;
 }
 
 function createId() {
@@ -77,9 +80,7 @@ function GuideWidget() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [showThinking, setShowThinking] = useState(false);
-  const [executingAction, setExecutingAction] = useState<GuideActionType | null>(
-    null,
-  );
+  const [executingAction, setExecutingAction] = useState<string | null>(null);
   const [messages, setMessages] = useState<GuideMessage[]>([
     {
       id: "welcome",
@@ -147,97 +148,68 @@ function GuideWidget() {
     }
   };
 
-  const startProjectTraining = async () => {
-    const data = await getProjects(
-      { pageNum: 1, pageSize: 1 },
-      { silentError: true },
-    );
-    const project = data.records?.[0];
-    if (!project) {
-      antdMessage.info("先创建一个项目档案，我再带你进入项目拷打。");
-      navigate("/projects");
+  const executeToolAction = async (
+    action: GuideActionCard,
+    confirmed: boolean,
+  ) => {
+    const toolName = resolveToolName(action);
+    if (!isAllowedAction(toolName)) {
       return;
     }
-
-    const session = await createInterviewSession({
-      projectId: project.id,
-      targetRole: DEFAULT_TARGET_ROLE,
-      difficulty: "NORMAL",
-    });
-    if (!session?.sessionId) {
-      throw new Error("Interview session creation failed");
-    }
-    navigate(`/interviews/${session.sessionId}`);
-  };
-
-  const startQuestionTraining = async () => {
-    const data = await getKnowledgeTopics({
-      pageNum: 1,
-      pageSize: 1,
-      difficulty: "NORMAL",
-    });
-    const topic = data.records?.[0];
-    if (!topic) {
-      antdMessage.info("暂时没有可用知识点，先进入八股问答页看看。");
-      navigate("/questions");
-      return;
-    }
-
-    const session = await createQuestionSession({
-      topicId: topic.id,
-      targetRole: DEFAULT_TARGET_ROLE,
-      difficulty: "NORMAL",
-    });
-    if (!session?.sessionId) {
-      throw new Error("Question session creation failed");
-    }
-    navigate(`/question-sessions/${session.sessionId}`);
-  };
-
-  const startMockInterview = async () => {
-    const data = await getProjects(
-      { pageNum: 1, pageSize: 1 },
-      { silentError: true },
-    );
-    const project = data.records?.[0];
-    const session = await createMockInterview({
-      interviewType: "COMPREHENSIVE_TECHNICAL",
-      targetRole: DEFAULT_TARGET_ROLE,
-      difficulty: "NORMAL",
-      maxRound: 6,
-      projectId: project?.id,
-    });
-    if (!session?.sessionId) {
-      throw new Error("Mock interview session creation failed");
-    }
-    navigate(`/mock-interviews/${session.sessionId}`);
-  };
-
-  const handleAction = async (action: GuideActionCard) => {
-    if (!isAllowedAction(action.actionType)) {
-      return;
-    }
-    const allowedPath = actionPathMap[action.actionType];
-    if (action.targetPath !== allowedPath) {
-      return;
-    }
-    setExecutingAction(action.actionType);
+    setExecutingAction(toolName);
     try {
-      if (action.actionType === "START_PROJECT_TRAINING") {
-        await startProjectTraining();
-      } else if (action.actionType === "START_QUESTION_TRAINING") {
-        await startQuestionTraining();
-      } else if (action.actionType === "START_MOCK_INTERVIEW") {
-        await startMockInterview();
-      } else {
-        navigate(allowedPath);
+      const result = await executeAgentTool({
+        toolName,
+        agentType: "GUIDE",
+        confirmed,
+        params: action.params || {},
+      });
+      if (!result.success) {
+        antdMessage.error(result.message || "Tool 执行失败，请稍后重试。");
+        return;
       }
-      setOpen(false);
+      if (result.message) {
+        antdMessage.success(result.message);
+      }
+      if (result.displayType === "SUMMARY" && result.message) {
+        const content = result.message;
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: createId(),
+            role: "assistant",
+            content,
+            actions: result.nextActions,
+          },
+        ]);
+      }
+      if (result.targetPath) {
+        navigate(result.targetPath);
+        setOpen(false);
+      }
     } catch {
       antdMessage.error("训练入口暂时没有打开，请稍后重试或先进入对应页面。");
     } finally {
       setExecutingAction(null);
     }
+  };
+
+  const handleAction = (action: GuideActionCard) => {
+    const toolName = resolveToolName(action);
+    if (!isAllowedAction(toolName)) {
+      return;
+    }
+    if (action.requiresConfirmation) {
+      Modal.confirm({
+        title: action.title,
+        content: action.description || "确认后将执行这个训练动作。",
+        okText: "确认执行",
+        cancelText: "取消",
+        onOk: () => executeToolAction(action, true),
+      });
+      return;
+    }
+    void executeToolAction(action, false);
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -282,26 +254,29 @@ function GuideWidget() {
                 {message.actions && message.actions.length > 0 ? (
                   <div className="guide-actions">
                     {message.actions
-                      .filter((action) => isAllowedAction(action.actionType))
-                      .map((action) => (
-                        <button
-                          type="button"
-                          className="guide-action-card"
-                          key={`${message.id}-${action.actionType}`}
-                          disabled={Boolean(executingAction)}
-                          onClick={() => void handleAction(action)}
-                        >
-                          <span>
-                            <strong>{action.title}</strong>
-                            <small>{action.description}</small>
-                          </span>
-                          {executingAction === action.actionType ? (
-                            <LoadingOutlined />
-                          ) : (
-                            <ArrowRightOutlined />
-                          )}
-                        </button>
-                      ))}
+                      .filter((action) => isAllowedAction(resolveToolName(action)))
+                      .map((action) => {
+                        const toolName = resolveToolName(action);
+                        return (
+                          <button
+                            type="button"
+                            className="guide-action-card"
+                            key={`${message.id}-${toolName}`}
+                            disabled={Boolean(executingAction)}
+                            onClick={() => handleAction(action)}
+                          >
+                            <span>
+                              <strong>{action.title}</strong>
+                              <small>{action.description}</small>
+                            </span>
+                            {executingAction === toolName ? (
+                              <LoadingOutlined />
+                            ) : (
+                              <ArrowRightOutlined />
+                            )}
+                          </button>
+                        );
+                      })}
                   </div>
                 ) : null}
               </div>
