@@ -7,6 +7,12 @@ import "../Workspace/workspace.css";
 
 const entries = [
   {
+    title: "模拟面试",
+    desc: "按真实 Java 后端技术面节奏完成多阶段追问，结束后生成综合报告。",
+    to: "/mock-interviews",
+    action: "开始模拟",
+  },
+  {
     title: "项目拷打",
     desc: "从项目档案出发，训练架构设计、异常场景和技术取舍表达。",
     to: "/projects",
@@ -96,12 +102,12 @@ function DashboardPage() {
           <h2>
             {hasTrainingData
               ? `优先加强「${overview?.weakestDimension || "表达结构"}」`
-              : "先完成一次训练，让系统认识你的表达状态。"}
+              : "先完成一次模拟面试，让系统认识你的综合面试状态。"}
           </h2>
           <p>
             {hasTrainingData
               ? "成长洞察已经沉淀了你的近期训练表现，可以先补齐薄弱维度，再回到专项训练。"
-              : "完成一次项目拷打或八股问答后，这里会给出更具体的下一步训练建议。"}
+              : "完成一次模拟面试、项目拷打或八股问答后，这里会给出更具体的下一步训练建议。"}
           </p>
         </div>
         <Button type="primary" size="large" href="/insights">

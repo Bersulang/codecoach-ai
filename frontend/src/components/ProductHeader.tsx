@@ -11,6 +11,7 @@ interface ProductHeaderProps {
 }
 
 const productNavItems = [
+  { label: "模拟面试", to: "/mock-interviews" },
   { label: "项目档案", to: "/projects" },
   { label: "八股问答", to: "/questions" },
   { label: "知识学习", to: "/learn" },

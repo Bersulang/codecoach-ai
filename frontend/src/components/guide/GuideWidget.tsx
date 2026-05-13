@@ -12,6 +12,7 @@ import type { KeyboardEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { sendGuideMessage } from "../../api/guide";
 import { createInterviewSession } from "../../api/interview";
+import { createMockInterview } from "../../api/mockInterview";
 import { getProjects } from "../../api/project";
 import { createQuestionSession, getKnowledgeTopics } from "../../api/question";
 import type { GuideActionCard, GuideActionType } from "../../types/guide";
@@ -27,6 +28,7 @@ type GuideMessage = {
 const quickQuestions = [
   "我下一步该做什么？",
   "我想练项目",
+  "开始模拟面试",
   "我想练八股",
   "我想准备简历",
   "帮我看看最近弱点",
@@ -44,8 +46,10 @@ const actionPathMap: Record<GuideActionType, string> = {
   GO_AGENT_REVIEW: "/agent-review",
   GO_HISTORY: "/history",
   GO_PROFILE: "/profile",
+  GO_MOCK_INTERVIEWS: "/mock-interviews",
   START_PROJECT_TRAINING: "/projects",
   START_QUESTION_TRAINING: "/questions",
+  START_MOCK_INTERVIEW: "/mock-interviews",
   VIEW_LEARNING_ARTICLE: "/learn",
   UPLOAD_DOCUMENT: "/documents",
   ANALYZE_RESUME: "/resumes",
@@ -199,6 +203,25 @@ function GuideWidget() {
     navigate(`/question-sessions/${session.sessionId}`);
   };
 
+  const startMockInterview = async () => {
+    const data = await getProjects(
+      { pageNum: 1, pageSize: 1 },
+      { silentError: true },
+    );
+    const project = data.records?.[0];
+    const session = await createMockInterview({
+      interviewType: "COMPREHENSIVE_TECHNICAL",
+      targetRole: DEFAULT_TARGET_ROLE,
+      difficulty: "NORMAL",
+      maxRound: 6,
+      projectId: project?.id,
+    });
+    if (!session?.sessionId) {
+      throw new Error("Mock interview session creation failed");
+    }
+    navigate(`/mock-interviews/${session.sessionId}`);
+  };
+
   const handleAction = async (action: GuideActionCard) => {
     if (!isAllowedAction(action.actionType)) {
       return;
@@ -213,6 +236,8 @@ function GuideWidget() {
         await startProjectTraining();
       } else if (action.actionType === "START_QUESTION_TRAINING") {
         await startQuestionTraining();
+      } else if (action.actionType === "START_MOCK_INTERVIEW") {
+        await startMockInterview();
       } else {
         navigate(allowedPath);
       }

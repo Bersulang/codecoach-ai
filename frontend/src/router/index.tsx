@@ -12,6 +12,9 @@ import LearnArticlePage from "../pages/LearnArticle";
 import LearnPage from "../pages/Learn";
 import LoginPage from "../pages/Login";
 import InsightsPage from "../pages/Insights";
+import MockInterviewReportPage from "../pages/MockInterviewReport";
+import MockInterviewRoomPage from "../pages/MockInterviewRoom";
+import MockInterviewsPage from "../pages/MockInterviews";
 import ProfilePage from "../pages/Profile";
 import ProjectFormPage from "../pages/ProjectForm";
 import ProjectsPage from "../pages/Projects";
@@ -72,6 +75,18 @@ const router = createBrowserRouter([
           {
             path: "interviews/:sessionId",
             element: <InterviewPage />,
+          },
+          {
+            path: "mock-interviews",
+            element: <MockInterviewsPage />,
+          },
+          {
+            path: "mock-interviews/:sessionId",
+            element: <MockInterviewRoomPage />,
+          },
+          {
+            path: "mock-interviews/:sessionId/report",
+            element: <MockInterviewReportPage />,
           },
           {
             path: "reports/:reportId",
