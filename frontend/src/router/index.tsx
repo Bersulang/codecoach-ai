@@ -4,6 +4,7 @@ import PublicOnlyRoute from "../components/PublicOnlyRoute";
 import MainLayout from "../layouts/MainLayout";
 import AgentReviewPage from "../pages/AgentReview";
 import DashboardPage from "../pages/Dashboard";
+import DevObservabilityPage from "../pages/DevObservability";
 import DocumentsPage from "../pages/Documents";
 import HistoryPage from "../pages/History";
 import InterviewPage from "../pages/Interview";
@@ -135,6 +136,10 @@ const router = createBrowserRouter([
           {
             path: "profile",
             element: <ProfilePage />,
+          },
+          {
+            path: "dev/observability",
+            element: <DevObservabilityPage />,
           },
         ],
       },

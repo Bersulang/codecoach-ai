@@ -1,0 +1,344 @@
+.observability-page {
+  gap: var(--cc-space-5);
+}
+
+.observability-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--cc-space-4);
+  padding: var(--cc-space-6);
+  border: 1px solid var(--cc-border);
+  border-radius: var(--cc-radius-xl);
+  background: var(--cc-surface);
+  box-shadow: var(--cc-shadow-sm);
+}
+
+.observability-hero h1 {
+  margin: 0 0 8px;
+  color: var(--cc-text-primary);
+  font-size: 30px;
+  letter-spacing: 0;
+}
+
+.observability-hero p:last-child {
+  max-width: 680px;
+  color: var(--cc-text-secondary);
+}
+
+.observability-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.observability-stat-card .ant-card-body {
+  min-height: 126px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.observability-stat-card__icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--cc-text-primary);
+  background: var(--cc-accent-subtle);
+}
+
+.observability-stat-card span,
+.observability-stat-card small,
+.observability-data-card__meta,
+.observability-step__meta {
+  color: var(--cc-text-secondary);
+}
+
+.observability-stat-card strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--cc-text-primary);
+  font-size: 22px;
+}
+
+.observability-stat-card small {
+  display: block;
+  margin-top: 2px;
+}
+
+.observability-run-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.82fr) minmax(0, 1.18fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.observability-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.observability-filters--wide {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.observability-run-list,
+.observability-card-list,
+.observability-compact-list,
+.observability-summary-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.observability-run-item {
+  width: 100%;
+  text-align: left;
+  padding: 14px;
+  border: 1px solid var(--cc-border);
+  border-radius: 16px;
+  background: var(--cc-bg-subtle);
+  cursor: pointer;
+  transition: border-color 0.18s ease, transform 0.18s ease, background 0.18s ease;
+}
+
+.observability-run-item:hover,
+.observability-run-item--active {
+  border-color: var(--cc-border-strong);
+  background: var(--cc-surface);
+  transform: translateY(-1px);
+}
+
+.observability-run-item div,
+.observability-detail-head,
+.observability-data-card__head,
+.observability-step__head,
+.observability-compact-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.observability-run-item strong,
+.observability-data-card strong,
+.observability-step h3,
+.observability-compact-row strong {
+  color: var(--cc-text-primary);
+}
+
+.observability-run-item span {
+  color: var(--cc-text-muted);
+  font-family: var(--cc-font-mono);
+  font-size: 12px;
+}
+
+.observability-run-item p,
+.observability-data-card p,
+.observability-step p,
+.observability-summary-copy p {
+  margin: 8px 0;
+  color: var(--cc-text-secondary);
+  line-height: 1.7;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.observability-run-item small {
+  color: var(--cc-text-muted);
+}
+
+.observability-detail-card .ant-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.observability-detail-head strong {
+  color: var(--cc-text-primary);
+  font-size: 18px;
+}
+
+.observability-detail-grid {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 8px 12px;
+  padding: 14px;
+  border-radius: 16px;
+  background: var(--cc-bg-subtle);
+}
+
+.observability-detail-grid span {
+  color: var(--cc-text-muted);
+}
+
+.observability-detail-grid b {
+  min-width: 0;
+  color: var(--cc-text-primary);
+  font-family: var(--cc-font-mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.observability-error-box,
+.observability-error-line {
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 14px;
+  padding: 10px 12px;
+  color: #b42318;
+  background: rgba(239, 68, 68, 0.06);
+}
+
+.observability-summary-copy strong,
+.observability-section-title {
+  color: var(--cc-text-primary);
+  font-weight: 600;
+}
+
+.observability-section-title {
+  margin-top: 4px;
+}
+
+.observability-timeline {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.observability-timeline::before {
+  content: "";
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  bottom: 10px;
+  width: 2px;
+  background: var(--cc-border);
+}
+
+.observability-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.observability-step__dot {
+  position: relative;
+  z-index: 1;
+  width: 22px;
+  height: 22px;
+  margin-top: 14px;
+  border: 3px solid var(--cc-surface);
+  border-radius: 50%;
+  background: var(--cc-text-muted);
+  box-shadow: 0 0 0 1px var(--cc-border);
+}
+
+.observability-step__dot--success {
+  background: var(--cc-success);
+}
+
+.observability-step__dot--error {
+  background: var(--cc-danger);
+}
+
+.observability-step__dot--processing {
+  background: var(--cc-warning);
+}
+
+.observability-step__content,
+.observability-data-card {
+  border: 1px solid var(--cc-border);
+  border-radius: 16px;
+  padding: 14px;
+  background: var(--cc-bg-subtle);
+}
+
+.observability-step h3 {
+  margin: 10px 0 0;
+  font-size: 16px;
+}
+
+.observability-step__head span,
+.observability-step__meta strong {
+  color: var(--cc-text-primary);
+  font-weight: 600;
+}
+
+.observability-step__meta,
+.observability-data-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+
+.observability-tabs .ant-tabs-nav {
+  margin-bottom: 12px;
+}
+
+.observability-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.observability-compact-row {
+  padding: 12px;
+  border: 1px solid var(--cc-border);
+  border-radius: 14px;
+  background: var(--cc-bg-subtle);
+}
+
+.observability-compact-row div {
+  flex: 1;
+  min-width: 0;
+}
+
+.observability-compact-row span {
+  display: block;
+  color: var(--cc-text-secondary);
+}
+
+.observability-compact-row time,
+.observability-compact-row b {
+  white-space: nowrap;
+  color: var(--cc-text-primary);
+}
+
+@media (max-width: 1100px) {
+  .observability-stat-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .observability-run-grid,
+  .observability-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .observability-hero,
+  .observability-run-item div,
+  .observability-detail-head,
+  .observability-data-card__head,
+  .observability-step__head,
+  .observability-compact-row {
+    flex-direction: column;
+  }
+
+  .observability-stat-grid,
+  .observability-filters,
+  .observability-filters--wide {
+    grid-template-columns: 1fr;
+  }
+}
