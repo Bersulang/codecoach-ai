@@ -1,30 +1,18 @@
-package com.codecoach.module.guide.vo;
+package com.codecoach.module.agent.runtime.dto;
 
+import com.codecoach.module.guide.vo.GuideActionCardVO;
 import java.util.ArrayList;
 import java.util.List;
 
-public class GuideChatResponseVO {
+public class AgentResponse {
 
     private String answer;
-
     private Boolean personalized;
-
     private List<GuideActionCardVO> actions = new ArrayList<>();
-
     private String runId;
-
     private String traceId;
-
     private String status;
-
-    public GuideChatResponseVO() {
-    }
-
-    public GuideChatResponseVO(String answer, Boolean personalized, List<GuideActionCardVO> actions) {
-        this.answer = answer;
-        this.personalized = personalized;
-        this.actions = actions;
-    }
+    private List<String> observations = new ArrayList<>();
 
     public String getAnswer() {
         return answer;
@@ -47,7 +35,7 @@ public class GuideChatResponseVO {
     }
 
     public void setActions(List<GuideActionCardVO> actions) {
-        this.actions = actions;
+        this.actions = actions == null ? new ArrayList<>() : actions;
     }
 
     public String getRunId() {
@@ -72,5 +60,13 @@ public class GuideChatResponseVO {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public List<String> getObservations() {
+        return observations;
+    }
+
+    public void setObservations(List<String> observations) {
+        this.observations = observations == null ? new ArrayList<>() : observations;
     }
 }

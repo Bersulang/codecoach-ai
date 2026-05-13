@@ -168,9 +168,57 @@ CREATE TABLE ai_call_log (
                              KEY idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI调用日志表';
 
+CREATE TABLE IF NOT EXISTS agent_run (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT 'Agent Run自增ID',
+    run_id VARCHAR(64) NOT NULL COMMENT 'Agent Run ID',
+    trace_id VARCHAR(64) NOT NULL COMMENT 'Trace ID',
+    user_id BIGINT DEFAULT NULL COMMENT '用户ID',
+    agent_type VARCHAR(64) NOT NULL COMMENT 'Agent类型',
+    status VARCHAR(32) NOT NULL COMMENT '状态：RUNNING/SUCCEEDED/FAILED/CANCELLED',
+    input_summary TEXT DEFAULT NULL COMMENT '脱敏输入摘要',
+    output_summary TEXT DEFAULT NULL COMMENT '脱敏输出摘要',
+    error_code VARCHAR(128) DEFAULT NULL COMMENT '错误码',
+    error_message VARCHAR(512) DEFAULT NULL COMMENT '脱敏错误信息',
+    latency_ms BIGINT DEFAULT NULL COMMENT '执行耗时毫秒',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    UNIQUE KEY uk_run_id (run_id),
+    UNIQUE KEY uk_trace_id (trace_id),
+    KEY idx_user_created (user_id, created_at),
+    KEY idx_agent_status_created (agent_type, status, created_at),
+    KEY idx_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Agent Run执行记录表';
+
+CREATE TABLE IF NOT EXISTS agent_step (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT 'Agent Step自增ID',
+    step_id VARCHAR(64) NOT NULL COMMENT 'Agent Step ID',
+    run_id VARCHAR(64) NOT NULL COMMENT 'Agent Run ID',
+    trace_id VARCHAR(64) DEFAULT NULL COMMENT 'Trace ID',
+    user_id BIGINT DEFAULT NULL COMMENT '用户ID',
+    agent_type VARCHAR(64) NOT NULL COMMENT 'Agent类型',
+    step_type VARCHAR(64) NOT NULL COMMENT '步骤类型',
+    step_name VARCHAR(128) NOT NULL COMMENT '步骤名称',
+    tool_name VARCHAR(128) DEFAULT NULL COMMENT 'Tool名称',
+    input_summary TEXT DEFAULT NULL COMMENT '脱敏输入摘要',
+    output_summary TEXT DEFAULT NULL COMMENT '脱敏输出摘要',
+    status VARCHAR(32) NOT NULL COMMENT '状态',
+    error_code VARCHAR(128) DEFAULT NULL COMMENT '错误码',
+    error_message VARCHAR(512) DEFAULT NULL COMMENT '脱敏错误信息',
+    latency_ms BIGINT DEFAULT NULL COMMENT '步骤耗时毫秒',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    UNIQUE KEY uk_step_id (step_id),
+    KEY idx_run_created (run_id, created_at),
+    KEY idx_user_created (user_id, created_at),
+    KEY idx_type_created (step_type, created_at),
+    KEY idx_tool_created (tool_name, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Agent Step执行步骤表';
+
 CREATE TABLE IF NOT EXISTS agent_tool_trace (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '日志ID',
     trace_id VARCHAR(64) NOT NULL COMMENT 'Trace ID',
+    run_id VARCHAR(64) DEFAULT NULL COMMENT '关联Agent Run ID',
+    step_id VARCHAR(64) DEFAULT NULL COMMENT '关联Agent Step ID',
+    parent_trace_id VARCHAR(64) DEFAULT NULL COMMENT '关联Agent Trace ID',
     user_id BIGINT DEFAULT NULL COMMENT '用户ID',
     agent_type VARCHAR(64) DEFAULT NULL COMMENT 'Agent类型',
     tool_name VARCHAR(128) NOT NULL COMMENT 'Tool名称',
@@ -182,6 +230,8 @@ CREATE TABLE IF NOT EXISTS agent_tool_trace (
     latency_ms BIGINT DEFAULT NULL COMMENT '执行耗时毫秒',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     UNIQUE KEY uk_trace_id (trace_id),
+    KEY idx_run_created (run_id, created_at),
+    KEY idx_parent_trace_created (parent_trace_id, created_at),
     KEY idx_user_created (user_id, created_at),
     KEY idx_tool_created (tool_name, created_at),
     KEY idx_success_created (success, created_at)

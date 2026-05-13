@@ -20,6 +20,8 @@ public class ToolActionVO {
     private String targetPath;
     private boolean requiresConfirmation;
     private Map<String, Object> params = new LinkedHashMap<>();
+    private String runId;
+    private String traceId;
 
     public static ToolActionVO fromDefinition(ToolDefinition definition) {
         ToolActionVO vo = new ToolActionVO();
@@ -125,5 +127,21 @@ public class ToolActionVO {
 
     public void setParams(Map<String, Object> params) {
         this.params = params == null ? new LinkedHashMap<>() : params;
+    }
+
+    public String getRunId() {
+        return runId;
+    }
+
+    public void setRunId(String runId) {
+        this.runId = runId;
+    }
+
+    public String getTraceId() {
+        return traceId;
+    }
+
+    public void setTraceId(String traceId) {
+        this.traceId = traceId;
     }
 }

@@ -2,11 +2,20 @@ package com.codecoach.module.agent.tool.service;
 
 import com.codecoach.common.exception.BusinessException;
 import com.codecoach.common.result.ResultCode;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.codecoach.module.agent.runtime.entity.AgentRun;
+import com.codecoach.module.agent.runtime.dto.AgentStepRecord;
+import com.codecoach.module.agent.runtime.enums.AgentStepStatus;
+import com.codecoach.module.agent.runtime.enums.AgentStepType;
+import com.codecoach.module.agent.runtime.mapper.AgentRunMapper;
+import com.codecoach.module.agent.runtime.service.AgentTraceService;
 import com.codecoach.module.agent.tool.dto.ToolDefinition;
 import com.codecoach.module.agent.tool.dto.ToolExecuteRequest;
 import com.codecoach.module.agent.tool.dto.ToolExecuteResult;
 import com.codecoach.module.agent.tool.enums.ToolDisplayType;
 import com.codecoach.module.agent.tool.enums.ToolRiskLevel;
+import com.codecoach.module.agent.runtime.support.AgentExecutionContext;
+import com.codecoach.module.agent.runtime.support.AgentRuntimeContextHolder;
 import com.codecoach.security.UserContext;
 import java.util.Map;
 import java.util.UUID;
@@ -20,17 +29,49 @@ public class AgentToolExecutor {
 
     private final AgentToolRegistry agentToolRegistry;
     private final AgentToolTraceService agentToolTraceService;
+    private final AgentTraceService agentTraceService;
+    private final AgentRunMapper agentRunMapper;
 
-    public AgentToolExecutor(AgentToolRegistry agentToolRegistry, AgentToolTraceService agentToolTraceService) {
+    public AgentToolExecutor(
+            AgentToolRegistry agentToolRegistry,
+            AgentToolTraceService agentToolTraceService,
+            AgentTraceService agentTraceService,
+            AgentRunMapper agentRunMapper
+    ) {
         this.agentToolRegistry = agentToolRegistry;
         this.agentToolTraceService = agentToolTraceService;
+        this.agentTraceService = agentTraceService;
+        this.agentRunMapper = agentRunMapper;
     }
 
     public ToolExecuteResult execute(ToolExecuteRequest request) {
         long startTime = System.currentTimeMillis();
         String traceId = UUID.randomUUID().toString();
         Long userId = UserContext.getCurrentUserId();
+        AgentExecutionContext context = AgentRuntimeContextHolder.get();
         String agentType = request == null ? null : request.getAgentType();
+        if (agentType == null && context != null) {
+            agentType = context.getAgentType();
+        }
+        String runId = request == null ? null : request.getRunId();
+        if (runId == null && context != null) {
+            runId = context.getRunId();
+        }
+        String stepId = request == null ? null : request.getStepId();
+        String parentTraceId = request == null ? null : request.getTraceId();
+        if (parentTraceId == null && context != null) {
+            parentTraceId = context.getTraceId();
+        }
+        if (!canAttachRun(runId, userId)) {
+            runId = null;
+            stepId = null;
+            parentTraceId = null;
+        }
+        boolean temporaryContext = false;
+        if (context == null && runId != null) {
+            AgentRuntimeContextHolder.set(new AgentExecutionContext(runId, parentTraceId, userId, agentType));
+            temporaryContext = true;
+        }
         Map<String, Object> params = request == null ? Map.of() : request.getParams();
         AgentTool tool = agentToolRegistry.requireTool(request == null ? null : request.getToolName());
         ToolDefinition definition = tool.definition();
@@ -61,7 +102,41 @@ public class AgentToolExecutor {
             return result;
         } finally {
             long latencyMs = System.currentTimeMillis() - startTime;
-            agentToolTraceService.record(traceId, userId, agentType, definition, params, result, latencyMs);
+            recordToolStep(runId, definition, result, latencyMs);
+            agentToolTraceService.record(traceId, runId, stepId, parentTraceId, userId, agentType, definition, params, result, latencyMs);
+            if (temporaryContext) {
+                AgentRuntimeContextHolder.clear();
+            }
+        }
+    }
+
+    private void recordToolStep(String runId, ToolDefinition definition, ToolExecuteResult result, long latencyMs) {
+        if (runId == null) {
+            return;
+        }
+        AgentStepRecord step = new AgentStepRecord();
+        step.setStepType(AgentStepType.TOOL_EXECUTE);
+        step.setStepName("Execute agent tool");
+        step.setToolName(definition == null ? "UNKNOWN" : definition.getToolName());
+        step.setInputSummary(definition == null ? null : "toolName=" + definition.getToolName());
+        step.setOutputSummary(result == null ? null : result.getMessage());
+        step.setStatus(result != null && result.isSuccess() ? AgentStepStatus.SUCCEEDED : AgentStepStatus.FAILED);
+        step.setErrorCode(result == null ? "UNKNOWN_ERROR" : result.getErrorCode());
+        step.setLatencyMs(latencyMs);
+        agentTraceService.recordStep(runId, step);
+    }
+
+    private boolean canAttachRun(String runId, Long userId) {
+        if (runId == null) {
+            return true;
+        }
+        try {
+            Long count = agentRunMapper.selectCount(new LambdaQueryWrapper<AgentRun>()
+                    .eq(AgentRun::getRunId, runId)
+                    .eq(AgentRun::getUserId, userId));
+            return count != null && count > 0;
+        } catch (RuntimeException exception) {
+            return false;
         }
     }
 }

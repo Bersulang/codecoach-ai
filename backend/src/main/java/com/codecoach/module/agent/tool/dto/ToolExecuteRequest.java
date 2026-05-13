@@ -7,6 +7,9 @@ public class ToolExecuteRequest {
 
     private String toolName;
     private String agentType;
+    private String runId;
+    private String stepId;
+    private String traceId;
     private Boolean confirmed;
     private Map<String, Object> params = new LinkedHashMap<>();
 
@@ -24,6 +27,30 @@ public class ToolExecuteRequest {
 
     public void setAgentType(String agentType) {
         this.agentType = agentType;
+    }
+
+    public String getRunId() {
+        return runId;
+    }
+
+    public void setRunId(String runId) {
+        this.runId = runId;
+    }
+
+    public String getStepId() {
+        return stepId;
+    }
+
+    public void setStepId(String stepId) {
+        this.stepId = stepId;
+    }
+
+    public String getTraceId() {
+        return traceId;
+    }
+
+    public void setTraceId(String traceId) {
+        this.traceId = traceId;
     }
 
     public Boolean getConfirmed() {

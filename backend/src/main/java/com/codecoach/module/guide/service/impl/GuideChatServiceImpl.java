@@ -3,6 +3,13 @@ package com.codecoach.module.guide.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.codecoach.module.agent.entity.AgentReview;
 import com.codecoach.module.agent.mapper.AgentReviewMapper;
+import com.codecoach.module.agent.runtime.dto.AgentStepRecord;
+import com.codecoach.module.agent.runtime.enums.AgentStepStatus;
+import com.codecoach.module.agent.runtime.enums.AgentStepType;
+import com.codecoach.module.agent.runtime.service.AgentTraceService;
+import com.codecoach.module.agent.runtime.support.AgentExecutionContext;
+import com.codecoach.module.agent.runtime.support.AgentRuntimeContextHolder;
+import com.codecoach.module.agent.runtime.support.AgentTraceSanitizer;
 import com.codecoach.module.agent.tool.service.AgentTool;
 import com.codecoach.module.agent.tool.service.AgentToolRegistry;
 import com.codecoach.module.document.entity.UserDocument;
@@ -58,6 +65,8 @@ public class GuideChatServiceImpl implements GuideChatService {
     private final ObjectMapper objectMapper;
     private final ObjectProvider<AiGuideService> aiGuideServiceProvider;
     private final AgentToolRegistry agentToolRegistry;
+    private final AgentTraceService agentTraceService;
+    private final AgentTraceSanitizer agentTraceSanitizer;
 
     public GuideChatServiceImpl(
             ProjectMapper projectMapper,
@@ -69,7 +78,9 @@ public class GuideChatServiceImpl implements GuideChatService {
             AgentReviewMapper agentReviewMapper,
             ObjectMapper objectMapper,
             ObjectProvider<AiGuideService> aiGuideServiceProvider,
-            AgentToolRegistry agentToolRegistry
+            AgentToolRegistry agentToolRegistry,
+            AgentTraceService agentTraceService,
+            AgentTraceSanitizer agentTraceSanitizer
     ) {
         this.projectMapper = projectMapper;
         this.userDocumentMapper = userDocumentMapper;
@@ -81,6 +92,8 @@ public class GuideChatServiceImpl implements GuideChatService {
         this.objectMapper = objectMapper;
         this.aiGuideServiceProvider = aiGuideServiceProvider;
         this.agentToolRegistry = agentToolRegistry;
+        this.agentTraceService = agentTraceService;
+        this.agentTraceSanitizer = agentTraceSanitizer;
     }
 
     @Override
@@ -272,14 +285,77 @@ public class GuideChatServiceImpl implements GuideChatService {
     ) {
         AiGuideService aiGuideService = aiGuideServiceProvider.getIfAvailable();
         if (aiGuideService == null) {
+            recordRuntimeStep(
+                    AgentStepType.LLM_CALL,
+                    "Guide AI suggestion skipped",
+                    null,
+                    "provider=none",
+                    "AI Guide service not configured",
+                    AgentStepStatus.SKIPPED,
+                    "AI_GUIDE_NOT_CONFIGURED",
+                    null,
+                    0
+            );
             return null;
         }
+        long startTime = System.currentTimeMillis();
         try {
             GuideAiSuggestion suggestion = aiGuideService.suggest(buildAiPrompt(message, currentPath, summary, personalized));
-            return sanitizeAiSuggestion(suggestion, personalized);
+            GuideChatResponseVO response = sanitizeAiSuggestion(suggestion, personalized);
+            recordRuntimeStep(
+                    AgentStepType.LLM_CALL,
+                    "Guide AI suggestion",
+                    null,
+                    "personalized=" + personalized + ", path=" + normalizePath(currentPath),
+                    response == null ? "empty suggestion" : response.getAnswer(),
+                    response == null ? AgentStepStatus.FAILED : AgentStepStatus.SUCCEEDED,
+                    response == null ? "EMPTY_AI_SUGGESTION" : null,
+                    null,
+                    System.currentTimeMillis() - startTime
+            );
+            return response;
         } catch (Exception ignored) {
+            recordRuntimeStep(
+                    AgentStepType.LLM_CALL,
+                    "Guide AI suggestion",
+                    null,
+                    "personalized=" + personalized + ", path=" + normalizePath(currentPath),
+                    null,
+                    AgentStepStatus.FAILED,
+                    "AI_GUIDE_FAILED",
+                    agentTraceSanitizer.errorMessage(ignored),
+                    System.currentTimeMillis() - startTime
+            );
             return null;
         }
+    }
+
+    private void recordRuntimeStep(
+            AgentStepType stepType,
+            String stepName,
+            String toolName,
+            String inputSummary,
+            String outputSummary,
+            AgentStepStatus status,
+            String errorCode,
+            String errorMessage,
+            long latencyMs
+    ) {
+        AgentExecutionContext context = AgentRuntimeContextHolder.get();
+        if (context == null) {
+            return;
+        }
+        AgentStepRecord record = new AgentStepRecord();
+        record.setStepType(stepType);
+        record.setStepName(stepName);
+        record.setToolName(toolName);
+        record.setInputSummary(inputSummary);
+        record.setOutputSummary(outputSummary);
+        record.setStatus(status);
+        record.setErrorCode(errorCode);
+        record.setErrorMessage(errorMessage);
+        record.setLatencyMs(latencyMs);
+        agentTraceService.recordStep(context.getRunId(), record);
     }
 
     private String buildAiPrompt(

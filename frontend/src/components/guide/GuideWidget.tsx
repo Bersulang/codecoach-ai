@@ -161,6 +161,8 @@ function GuideWidget() {
       const result = await executeAgentTool({
         toolName,
         agentType: "GUIDE",
+        runId: action.runId,
+        traceId: action.traceId,
         confirmed,
         params: action.params || {},
       });

@@ -1,4 +1,4 @@
-package com.codecoach.module.agent.tool.entity;
+package com.codecoach.module.agent.runtime.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
@@ -6,23 +6,20 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.LocalDateTime;
 
-@TableName("agent_tool_trace")
-public class AgentToolTrace {
+@TableName("agent_step")
+public class AgentStep {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
-    @TableField("trace_id")
-    private String traceId;
+    @TableField("step_id")
+    private String stepId;
 
     @TableField("run_id")
     private String runId;
 
-    @TableField("step_id")
-    private String stepId;
-
-    @TableField("parent_trace_id")
-    private String parentTraceId;
+    @TableField("trace_id")
+    private String traceId;
 
     @TableField("user_id")
     private Long userId;
@@ -30,11 +27,14 @@ public class AgentToolTrace {
     @TableField("agent_type")
     private String agentType;
 
+    @TableField("step_type")
+    private String stepType;
+
+    @TableField("step_name")
+    private String stepName;
+
     @TableField("tool_name")
     private String toolName;
-
-    @TableField("tool_type")
-    private String toolType;
 
     @TableField("input_summary")
     private String inputSummary;
@@ -42,11 +42,14 @@ public class AgentToolTrace {
     @TableField("output_summary")
     private String outputSummary;
 
-    @TableField("success")
-    private Integer success;
+    @TableField("status")
+    private String status;
 
     @TableField("error_code")
     private String errorCode;
+
+    @TableField("error_message")
+    private String errorMessage;
 
     @TableField("latency_ms")
     private Long latencyMs;
@@ -62,12 +65,12 @@ public class AgentToolTrace {
         this.id = id;
     }
 
-    public String getTraceId() {
-        return traceId;
+    public String getStepId() {
+        return stepId;
     }
 
-    public void setTraceId(String traceId) {
-        this.traceId = traceId;
+    public void setStepId(String stepId) {
+        this.stepId = stepId;
     }
 
     public String getRunId() {
@@ -78,20 +81,12 @@ public class AgentToolTrace {
         this.runId = runId;
     }
 
-    public String getStepId() {
-        return stepId;
+    public String getTraceId() {
+        return traceId;
     }
 
-    public void setStepId(String stepId) {
-        this.stepId = stepId;
-    }
-
-    public String getParentTraceId() {
-        return parentTraceId;
-    }
-
-    public void setParentTraceId(String parentTraceId) {
-        this.parentTraceId = parentTraceId;
+    public void setTraceId(String traceId) {
+        this.traceId = traceId;
     }
 
     public Long getUserId() {
@@ -110,20 +105,28 @@ public class AgentToolTrace {
         this.agentType = agentType;
     }
 
+    public String getStepType() {
+        return stepType;
+    }
+
+    public void setStepType(String stepType) {
+        this.stepType = stepType;
+    }
+
+    public String getStepName() {
+        return stepName;
+    }
+
+    public void setStepName(String stepName) {
+        this.stepName = stepName;
+    }
+
     public String getToolName() {
         return toolName;
     }
 
     public void setToolName(String toolName) {
         this.toolName = toolName;
-    }
-
-    public String getToolType() {
-        return toolType;
-    }
-
-    public void setToolType(String toolType) {
-        this.toolType = toolType;
     }
 
     public String getInputSummary() {
@@ -142,12 +145,12 @@ public class AgentToolTrace {
         this.outputSummary = outputSummary;
     }
 
-    public Integer getSuccess() {
-        return success;
+    public String getStatus() {
+        return status;
     }
 
-    public void setSuccess(Integer success) {
-        this.success = success;
+    public void setStatus(String status) {
+        this.status = status;
     }
 
     public String getErrorCode() {
@@ -156,6 +159,14 @@ public class AgentToolTrace {
 
     public void setErrorCode(String errorCode) {
         this.errorCode = errorCode;
+    }
+
+    public String getErrorMessage() {
+        return errorMessage;
+    }
+
+    public void setErrorMessage(String errorMessage) {
+        this.errorMessage = errorMessage;
     }
 
     public Long getLatencyMs() {

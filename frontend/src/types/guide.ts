@@ -54,17 +54,26 @@ export interface GuideActionCard {
   targetPath: string;
   requiresConfirmation?: boolean;
   params?: Record<string, unknown>;
+  runId?: string;
+  traceId?: string;
 }
 
 export interface GuideChatResponse {
   answer: string;
   personalized: boolean;
   actions: GuideActionCard[];
+  runId?: string;
+  traceId?: string;
+  status?: string;
+  observations?: string[];
 }
 
 export interface ToolExecuteRequest {
   toolName: string;
   agentType?: string;
+  runId?: string;
+  stepId?: string;
+  traceId?: string;
   confirmed?: boolean;
   params?: Record<string, unknown>;
 }

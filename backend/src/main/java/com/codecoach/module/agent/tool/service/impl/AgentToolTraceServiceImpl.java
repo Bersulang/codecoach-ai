@@ -34,6 +34,9 @@ public class AgentToolTraceServiceImpl implements AgentToolTraceService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void record(
             String traceId,
+            String runId,
+            String stepId,
+            String parentTraceId,
             Long userId,
             String agentType,
             ToolDefinition definition,
@@ -44,6 +47,9 @@ public class AgentToolTraceServiceImpl implements AgentToolTraceService {
         try {
             AgentToolTrace trace = new AgentToolTrace();
             trace.setTraceId(traceId);
+            trace.setRunId(runId);
+            trace.setStepId(stepId);
+            trace.setParentTraceId(parentTraceId);
             trace.setUserId(userId);
             trace.setAgentType(StringUtils.hasText(agentType) ? agentType : "UNKNOWN");
             trace.setToolName(definition == null ? "UNKNOWN" : definition.getToolName());

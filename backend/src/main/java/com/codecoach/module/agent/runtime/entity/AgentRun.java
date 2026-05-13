@@ -1,4 +1,4 @@
-package com.codecoach.module.agent.tool.entity;
+package com.codecoach.module.agent.runtime.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
@@ -6,23 +6,17 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.LocalDateTime;
 
-@TableName("agent_tool_trace")
-public class AgentToolTrace {
+@TableName("agent_run")
+public class AgentRun {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
-    @TableField("trace_id")
-    private String traceId;
-
     @TableField("run_id")
     private String runId;
 
-    @TableField("step_id")
-    private String stepId;
-
-    @TableField("parent_trace_id")
-    private String parentTraceId;
+    @TableField("trace_id")
+    private String traceId;
 
     @TableField("user_id")
     private Long userId;
@@ -30,11 +24,8 @@ public class AgentToolTrace {
     @TableField("agent_type")
     private String agentType;
 
-    @TableField("tool_name")
-    private String toolName;
-
-    @TableField("tool_type")
-    private String toolType;
+    @TableField("status")
+    private String status;
 
     @TableField("input_summary")
     private String inputSummary;
@@ -42,11 +33,11 @@ public class AgentToolTrace {
     @TableField("output_summary")
     private String outputSummary;
 
-    @TableField("success")
-    private Integer success;
-
     @TableField("error_code")
     private String errorCode;
+
+    @TableField("error_message")
+    private String errorMessage;
 
     @TableField("latency_ms")
     private Long latencyMs;
@@ -54,20 +45,15 @@ public class AgentToolTrace {
     @TableField("created_at")
     private LocalDateTime createdAt;
 
+    @TableField("updated_at")
+    private LocalDateTime updatedAt;
+
     public Long getId() {
         return id;
     }
 
     public void setId(Long id) {
         this.id = id;
-    }
-
-    public String getTraceId() {
-        return traceId;
-    }
-
-    public void setTraceId(String traceId) {
-        this.traceId = traceId;
     }
 
     public String getRunId() {
@@ -78,20 +64,12 @@ public class AgentToolTrace {
         this.runId = runId;
     }
 
-    public String getStepId() {
-        return stepId;
+    public String getTraceId() {
+        return traceId;
     }
 
-    public void setStepId(String stepId) {
-        this.stepId = stepId;
-    }
-
-    public String getParentTraceId() {
-        return parentTraceId;
-    }
-
-    public void setParentTraceId(String parentTraceId) {
-        this.parentTraceId = parentTraceId;
+    public void setTraceId(String traceId) {
+        this.traceId = traceId;
     }
 
     public Long getUserId() {
@@ -110,20 +88,12 @@ public class AgentToolTrace {
         this.agentType = agentType;
     }
 
-    public String getToolName() {
-        return toolName;
+    public String getStatus() {
+        return status;
     }
 
-    public void setToolName(String toolName) {
-        this.toolName = toolName;
-    }
-
-    public String getToolType() {
-        return toolType;
-    }
-
-    public void setToolType(String toolType) {
-        this.toolType = toolType;
+    public void setStatus(String status) {
+        this.status = status;
     }
 
     public String getInputSummary() {
@@ -142,20 +112,20 @@ public class AgentToolTrace {
         this.outputSummary = outputSummary;
     }
 
-    public Integer getSuccess() {
-        return success;
-    }
-
-    public void setSuccess(Integer success) {
-        this.success = success;
-    }
-
     public String getErrorCode() {
         return errorCode;
     }
 
     public void setErrorCode(String errorCode) {
         this.errorCode = errorCode;
+    }
+
+    public String getErrorMessage() {
+        return errorMessage;
+    }
+
+    public void setErrorMessage(String errorMessage) {
+        this.errorMessage = errorMessage;
     }
 
     public Long getLatencyMs() {
@@ -172,5 +142,13 @@ public class AgentToolTrace {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
     }
 }

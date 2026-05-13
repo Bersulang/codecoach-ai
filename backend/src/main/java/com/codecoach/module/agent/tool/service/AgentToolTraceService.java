@@ -8,6 +8,9 @@ public interface AgentToolTraceService {
 
     void record(
             String traceId,
+            String runId,
+            String stepId,
+            String parentTraceId,
             Long userId,
             String agentType,
             ToolDefinition definition,
