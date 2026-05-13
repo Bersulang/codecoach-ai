@@ -2,6 +2,7 @@ package com.codecoach.module.question.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.codecoach.common.concurrency.SingleFlightService;
 import com.codecoach.common.exception.BusinessException;
 import com.codecoach.common.result.PageResult;
 import com.codecoach.common.result.ResultCode;
@@ -122,8 +123,7 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
     private static final String ANSWER_LOCK_KEY_PREFIX = "question:answer:lock:";
 
     private static final Duration REPORT_LOCK_TTL = Duration.ofMinutes(15);
-
-    private static final String REPORT_LOCK_KEY_PREFIX = "question:report:lock:";
+    private static final Duration REPORT_CACHE_TTL = Duration.ofMinutes(10);
 
     private static final int RAG_ANSWER_TRUNCATE_LENGTH = 1000;
 
@@ -162,6 +162,7 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
 
     private final ReportQualityPostProcessor reportQualityPostProcessor;
     private final UserMemoryService userMemoryService;
+    private final SingleFlightService singleFlightService;
 
     public QuestionSessionServiceImpl(
             KnowledgeTopicMapper knowledgeTopicMapper,
@@ -176,7 +177,8 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
             RagRetrievalService ragRetrievalService,
             RagProperties ragProperties,
             ReportQualityPostProcessor reportQualityPostProcessor,
-            UserMemoryService userMemoryService
+            UserMemoryService userMemoryService,
+            SingleFlightService singleFlightService
     ) {
         this.knowledgeTopicMapper = knowledgeTopicMapper;
         this.questionTrainingSessionMapper = questionTrainingSessionMapper;
@@ -191,6 +193,7 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
         this.ragProperties = ragProperties;
         this.reportQualityPostProcessor = reportQualityPostProcessor;
         this.userMemoryService = userMemoryService;
+        this.singleFlightService = singleFlightService;
     }
 
     @Override
@@ -503,34 +506,35 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
     }
 
     private void startAsyncReportGeneration(Long sessionId) {
-        String lockKey = REPORT_LOCK_KEY_PREFIX + sessionId;
-        String lockValue = UUID.randomUUID().toString();
-        if (!tryAcquireLock(lockKey, lockValue, REPORT_LOCK_TTL)) {
-            return;
-        }
         CompletableFuture.runAsync(() -> {
             try {
-                transactionTemplate.execute(status -> {
-                    QuestionTrainingReport existingReport = getReportBySessionId(sessionId);
-                    if (existingReport != null) {
-                        return null;
-                    }
-                    QuestionTrainingSession session = questionTrainingSessionMapper.selectById(sessionId);
-                    if (session == null || Integer.valueOf(DELETED).equals(session.getIsDeleted())) {
-                        return null;
-                    }
-                    KnowledgeTopic topic = knowledgeTopicMapper.selectById(session.getTopicId());
-                    List<QuestionTrainingMessage> messages = listSessionMessages(sessionId);
-                    finishSessionWithReport(session, topic, messages, LocalDateTime.now());
-                    return null;
-                });
+                singleFlightService.execute(
+                        reportRequestKey(sessionId),
+                        REPORT_LOCK_TTL,
+                        REPORT_CACHE_TTL,
+                        QuestionTrainingReport.class,
+                        () -> transactionTemplate.execute(status -> {
+                            QuestionTrainingReport existingReport = getReportBySessionId(sessionId);
+                            if (existingReport != null) {
+                                return existingReport;
+                            }
+                            QuestionTrainingSession session = questionTrainingSessionMapper.selectById(sessionId);
+                            if (session == null || Integer.valueOf(DELETED).equals(session.getIsDeleted())) {
+                                return null;
+                            }
+                            KnowledgeTopic topic = knowledgeTopicMapper.selectById(session.getTopicId());
+                            List<QuestionTrainingMessage> messages = listSessionMessages(sessionId);
+                            return finishSessionWithReport(session, topic, messages, LocalDateTime.now());
+                        }),
+                        () -> getReportBySessionId(sessionId),
+                        ANSWER_PROCESSING_CODE,
+                        "八股训练报告正在生成中，请稍后刷新。"
+                );
             } catch (Exception exception) {
                 log.warn("Async question report generation failed, sessionId={}, error={}",
                         sessionId,
                         exception.getMessage(),
                         exception);
-            } finally {
-                releaseAnswerLock(lockKey, lockValue);
             }
         });
     }
@@ -703,6 +707,10 @@ public class QuestionSessionServiceImpl implements QuestionSessionService {
         } catch (RuntimeException exception) {
             log.warn("Failed to release question answer lock", exception);
         }
+    }
+
+    private String reportRequestKey(Long sessionId) {
+        return "question:report:" + sessionId;
     }
 
     private QuestionTrainingSession getSessionForUpdate(Long sessionId) {

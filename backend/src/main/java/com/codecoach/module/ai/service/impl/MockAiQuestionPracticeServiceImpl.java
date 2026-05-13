@@ -6,12 +6,12 @@ import com.codecoach.module.ai.model.QuestionQaReviewItem;
 import com.codecoach.module.ai.model.QuestionReportGenerateResult;
 import com.codecoach.module.ai.service.AiQuestionPracticeService;
 import java.util.List;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 @Service
-@ConditionalOnProperty(prefix = "ai", name = "provider", havingValue = "mock")
+@Profile("mock")
 public class MockAiQuestionPracticeServiceImpl implements AiQuestionPracticeService {
 
     @Override

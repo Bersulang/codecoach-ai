@@ -3,6 +3,8 @@ import type {
   ObservabilityAgentRun,
   ObservabilityAgentStep,
   ObservabilityAiCall,
+  ObservabilityRagTrace,
+  ObservabilitySingleFlightTrace,
   ObservabilitySummary,
   ObservabilityToolTrace,
 } from "../types/observability";
@@ -55,3 +57,24 @@ export const getObservabilityAiCalls = (params?: {
     params,
     silentError: true,
   });
+
+export const getObservabilityRagTraces = (params?: {
+  success?: boolean;
+  limit?: number;
+}) =>
+  request.get<ObservabilityRagTrace[]>("/api/dev/observability/rag-traces", {
+    params,
+    silentError: true,
+  });
+
+export const getObservabilitySingleFlightTraces = (params?: {
+  success?: boolean;
+  limit?: number;
+}) =>
+  request.get<ObservabilitySingleFlightTrace[]>(
+    "/api/dev/observability/single-flight-traces",
+    {
+      params,
+      silentError: true,
+    },
+  );

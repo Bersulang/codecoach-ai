@@ -2,6 +2,8 @@ package com.codecoach.module.guide.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.codecoach.module.agent.entity.AgentReview;
+import com.codecoach.module.agent.function.model.FunctionToolCall;
+import com.codecoach.module.agent.function.service.FunctionCallExecutorAdapter;
 import com.codecoach.module.agent.mapper.AgentReviewMapper;
 import com.codecoach.module.agent.runtime.dto.AgentStepRecord;
 import com.codecoach.module.agent.runtime.enums.AgentStepStatus;
@@ -66,6 +68,7 @@ public class GuideChatServiceImpl implements GuideChatService {
     private final ObjectMapper objectMapper;
     private final ObjectProvider<AiGuideService> aiGuideServiceProvider;
     private final AgentToolRegistry agentToolRegistry;
+    private final FunctionCallExecutorAdapter functionCallExecutorAdapter;
     private final AgentTraceService agentTraceService;
     private final AgentTraceSanitizer agentTraceSanitizer;
 
@@ -80,6 +83,7 @@ public class GuideChatServiceImpl implements GuideChatService {
             ObjectMapper objectMapper,
             ObjectProvider<AiGuideService> aiGuideServiceProvider,
             AgentToolRegistry agentToolRegistry,
+            FunctionCallExecutorAdapter functionCallExecutorAdapter,
             AgentTraceService agentTraceService,
             AgentTraceSanitizer agentTraceSanitizer
     ) {
@@ -93,6 +97,7 @@ public class GuideChatServiceImpl implements GuideChatService {
         this.objectMapper = objectMapper;
         this.aiGuideServiceProvider = aiGuideServiceProvider;
         this.agentToolRegistry = agentToolRegistry;
+        this.functionCallExecutorAdapter = functionCallExecutorAdapter;
         this.agentTraceService = agentTraceService;
         this.agentTraceSanitizer = agentTraceSanitizer;
     }
@@ -398,6 +403,7 @@ public class GuideChatServiceImpl implements GuideChatService {
                 + "，长期简历风险=" + (summary.memoryResumeRisks.isEmpty() ? "暂无" : String.join("、", summary.memoryResumeRisks))
                 + "，长期项目风险=" + (summary.memoryProjectRisks.isEmpty() ? "暂无" : String.join("、", summary.memoryProjectRisks))
                 + "，最近建议行动=" + (summary.memoryNextActions.isEmpty() ? "暂无" : String.join("、", summary.memoryNextActions))
+                + "，只读工具证据=" + (summary.functionToolEvidence.isEmpty() ? "暂无" : String.join("；", summary.functionToolEvidence))
                 + "，最近复盘摘要=" + safePromptText(summary.latestReviewSummary)
                 + "，简历风险数量=" + summary.resumeRiskCount
                 + "，简历首要风险=" + safePromptText(summary.topResumeRisk)
@@ -485,7 +491,28 @@ public class GuideChatServiceImpl implements GuideChatService {
         fillLatestReview(summary, userId);
         fillResumeRisk(summary, userId);
         fillMemorySummary(summary, userId);
+        fillFunctionToolEvidence(summary);
         return summary;
+    }
+
+    private void fillFunctionToolEvidence(GuideUserSummary summary) {
+        List<String> evidence = new ArrayList<>();
+        executeReadOnlyTool("GET_ABILITY_SUMMARY", Map.of()).ifPresent(evidence::add);
+        executeReadOnlyTool("GET_RECENT_TRAINING_SUMMARY", Map.of()).ifPresent(evidence::add);
+        executeReadOnlyTool("GET_USER_MEMORY_SUMMARY", Map.of("query", "下一步训练建议", "topK", 3)).ifPresent(evidence::add);
+        summary.functionToolEvidence = evidence;
+    }
+
+    private java.util.Optional<String> executeReadOnlyTool(String toolName, Map<String, Object> params) {
+        try {
+            ToolExecuteResult result = functionCallExecutorAdapter.execute(new FunctionToolCall(null, toolName, params), "GUIDE_AGENT");
+            if (result == null) {
+                return java.util.Optional.empty();
+            }
+            return java.util.Optional.of(toolName + ":" + truncate(firstText(result.getMessage(), result.getErrorCode()), 80));
+        } catch (RuntimeException exception) {
+            return java.util.Optional.empty();
+        }
     }
 
     private void fillMemorySummary(GuideUserSummary summary, Long userId) {
@@ -806,5 +833,6 @@ public class GuideChatServiceImpl implements GuideChatService {
         private List<String> memoryResumeRisks = new ArrayList<>();
         private List<String> memoryProjectRisks = new ArrayList<>();
         private List<String> memoryNextActions = new ArrayList<>();
+        private List<String> functionToolEvidence = new ArrayList<>();
     }
 }

@@ -11,6 +11,10 @@ public class AiProperties {
 
     private OpenAiCompatible openAiCompatible = new OpenAiCompatible();
 
+    private Gateway gateway = new Gateway();
+
+    private SpringAi springAi = new SpringAi();
+
     private Log log = new Log();
 
     public String getProvider() {
@@ -27,6 +31,22 @@ public class AiProperties {
 
     public void setOpenAiCompatible(OpenAiCompatible openAiCompatible) {
         this.openAiCompatible = openAiCompatible;
+    }
+
+    public Gateway getGateway() {
+        return gateway;
+    }
+
+    public void setGateway(Gateway gateway) {
+        this.gateway = gateway;
+    }
+
+    public SpringAi getSpringAi() {
+        return springAi;
+    }
+
+    public void setSpringAi(SpringAi springAi) {
+        this.springAi = springAi;
     }
 
     public Log getLog() {
@@ -77,6 +97,62 @@ public class AiProperties {
 
         public void setTimeoutSeconds(Integer timeoutSeconds) {
             this.timeoutSeconds = timeoutSeconds;
+        }
+    }
+
+    public static class Gateway {
+
+        private String primary = "openai-compatible";
+
+        private Boolean shadowSpringAi = false;
+
+        public String getPrimary() {
+            return primary;
+        }
+
+        public void setPrimary(String primary) {
+            this.primary = primary;
+        }
+
+        public Boolean getShadowSpringAi() {
+            return shadowSpringAi;
+        }
+
+        public void setShadowSpringAi(Boolean shadowSpringAi) {
+            this.shadowSpringAi = shadowSpringAi;
+        }
+    }
+
+    public static class SpringAi {
+
+        private Boolean enabled = false;
+
+        private String provider = "spring-ai";
+
+        private String model;
+
+        public Boolean getEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(Boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public String getProvider() {
+            return provider;
+        }
+
+        public void setProvider(String provider) {
+            this.provider = provider;
+        }
+
+        public String getModel() {
+            return model;
+        }
+
+        public void setModel(String model) {
+            this.model = model;
         }
     }
 

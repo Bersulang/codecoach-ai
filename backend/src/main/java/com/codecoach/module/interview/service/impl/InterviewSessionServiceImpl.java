@@ -3,6 +3,7 @@ package com.codecoach.module.interview.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.codecoach.common.exception.BusinessException;
+import com.codecoach.common.concurrency.SingleFlightService;
 import com.codecoach.common.result.PageResult;
 import com.codecoach.common.result.ResultCode;
 import com.codecoach.module.ai.dto.InterviewContext;
@@ -112,6 +113,8 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
     private static final long MAX_PAGE_SIZE = 100L;
 
     private static final Duration ANSWER_LOCK_TTL = Duration.ofSeconds(120);
+    private static final Duration REPORT_LOCK_TTL = Duration.ofMinutes(15);
+    private static final Duration REPORT_CACHE_TTL = Duration.ofMinutes(10);
 
     private static final String ANSWER_LOCK_KEY_PREFIX = "interview:answer:lock:";
 
@@ -150,6 +153,7 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
 
     private final ReportQualityPostProcessor reportQualityPostProcessor;
     private final UserMemoryService userMemoryService;
+    private final SingleFlightService singleFlightService;
 
     public InterviewSessionServiceImpl(
             InterviewSessionMapper interviewSessionMapper,
@@ -166,7 +170,8 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
             ResumeProfileMapper resumeProfileMapper,
             ResumeProjectExperienceMapper resumeProjectExperienceMapper,
             ReportQualityPostProcessor reportQualityPostProcessor,
-            UserMemoryService userMemoryService
+            UserMemoryService userMemoryService,
+            SingleFlightService singleFlightService
     ) {
         this.interviewSessionMapper = interviewSessionMapper;
         this.interviewMessageMapper = interviewMessageMapper;
@@ -183,6 +188,7 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         this.resumeProjectExperienceMapper = resumeProjectExperienceMapper;
         this.reportQualityPostProcessor = reportQualityPostProcessor;
         this.userMemoryService = userMemoryService;
+        this.singleFlightService = singleFlightService;
     }
 
     @Override
@@ -432,9 +438,21 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
             throw new BusinessException(SESSION_ENDED_CODE, "训练会话已结束");
         }
 
-        Project project = projectMapper.selectById(session.getProjectId());
-        List<InterviewMessage> messages = listSessionMessages(sessionId);
-        return finishSessionWithReport(session, project, messages, LocalDateTime.now());
+        String requestKey = reportRequestKey(sessionId);
+        return singleFlightService.execute(
+                requestKey,
+                REPORT_LOCK_TTL,
+                REPORT_CACHE_TTL,
+                InterviewFinishResponse.class,
+                () -> {
+                    Project project = projectMapper.selectById(session.getProjectId());
+                    List<InterviewMessage> messages = listSessionMessages(sessionId);
+                    return finishSessionWithReport(session, project, messages, LocalDateTime.now());
+                },
+                () -> latestInterviewFinishResponse(sessionId, session),
+                ANSWER_PROCESSING_CODE,
+                "综合训练报告正在生成中，请稍后刷新。"
+        );
     }
 
     private void acquireAnswerLock(String lockKey, String lockValue) {
@@ -455,6 +473,26 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         } catch (RuntimeException exception) {
             log.warn("Failed to release interview answer lock", exception);
         }
+    }
+
+    private InterviewFinishResponse latestInterviewFinishResponse(Long sessionId, InterviewSession session) {
+        InterviewReport report = getReportBySessionId(sessionId);
+        if (report == null) {
+            return null;
+        }
+        if (session != null) {
+            session.setStatus(STATUS_FINISHED);
+            session.setEndedAt(session.getEndedAt() == null ? LocalDateTime.now() : session.getEndedAt());
+            session.setTotalScore(report.getTotalScore());
+            session.setCurrentRound(session.getMaxRound());
+            interviewSessionMapper.updateById(session);
+            userAbilitySnapshotService.createProjectReportSnapshots(report, session);
+        }
+        return new InterviewFinishResponse(report.getId(), sessionId, report.getTotalScore());
+    }
+
+    private String reportRequestKey(Long sessionId) {
+        return "interview:report:" + sessionId;
     }
 
     private InterviewSession getSessionForUpdate(Long sessionId) {

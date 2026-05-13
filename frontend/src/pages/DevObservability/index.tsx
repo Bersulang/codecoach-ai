@@ -16,6 +16,8 @@ import {
   getObservabilityAgentRuns,
   getObservabilityAgentSteps,
   getObservabilityAiCalls,
+  getObservabilityRagTraces,
+  getObservabilitySingleFlightTraces,
   getObservabilitySummary,
   getObservabilityToolTraces,
 } from "../../api/observability";
@@ -24,6 +26,8 @@ import type {
   ObservabilityAgentRun,
   ObservabilityAgentStep,
   ObservabilityAiCall,
+  ObservabilityRagTrace,
+  ObservabilitySingleFlightTrace,
   ObservabilitySummary,
   ObservabilityToolTrace,
 } from "../../types/observability";
@@ -259,8 +263,78 @@ function AiCallList({ calls }: { calls: ObservabilityAiCall[] }) {
           </p>
           <div className="observability-data-card__meta">
             <time>{formatDateTime(call.createdAt)}</time>
+            <span>trace {compactId(call.traceId)}</span>
             {call.errorCode ? <span>{call.errorCode}</span> : null}
           </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function RagTraceList({ traces }: { traces: ObservabilityRagTrace[] }) {
+  if (!traces.length) {
+    return <Empty description="暂无 RagTrace 记录" />;
+  }
+  return (
+    <div className="observability-card-list">
+      {traces.map((trace, index) => (
+        <article
+          key={`${trace.traceId || "rag"}-${trace.createdAt || index}`}
+          className="observability-data-card"
+        >
+          <div className="observability-data-card__head">
+            <Space wrap>
+              <Tag icon={<BranchesOutlined />}>RAG</Tag>
+              <Tag>{trace.sourceTypes || "ALL_SOURCES"}</Tag>
+              {successTag(trace.success)}
+            </Space>
+            <strong>{formatDuration(trace.latencyMs)}</strong>
+          </div>
+          <p>{trace.query || "未记录查询"}</p>
+          {trace.rewrittenQuery && trace.rewrittenQuery !== trace.query ? (
+            <p>改写：{trace.rewrittenQuery}</p>
+          ) : null}
+          <div className="observability-data-card__meta">
+            <span>hit {trace.hitCount ?? 0}</span>
+            <span>topK {trace.topK ?? "—"}</span>
+            <span>ctx {trace.contextChars ?? 0}</span>
+            <span>score {trace.avgScore?.toFixed(3) ?? "—"}</span>
+            <span>trace {compactId(trace.traceId)}</span>
+            <time>{formatDateTime(trace.createdAt)}</time>
+          </div>
+          {trace.fallbackReason ? <div className="observability-error-line">{trace.fallbackReason}</div> : null}
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function SingleFlightTraceList({ traces }: { traces: ObservabilitySingleFlightTrace[] }) {
+  if (!traces.length) {
+    return <Empty description="暂无 Single-flight 记录" />;
+  }
+  return (
+    <div className="observability-card-list">
+      {traces.map((trace, index) => (
+        <article
+          key={`${trace.traceId || "singleflight"}-${trace.createdAt || index}`}
+          className="observability-data-card"
+        >
+          <div className="observability-data-card__head">
+            <Space wrap>
+              <Tag icon={<ThunderboltOutlined />}>Single-flight</Tag>
+              <Tag>{trace.action || "UNKNOWN_ACTION"}</Tag>
+              {successTag(trace.success)}
+            </Space>
+            <strong>{formatDuration(trace.latencyMs)}</strong>
+          </div>
+          <p>{trace.requestKey || "未记录请求Key"}</p>
+          <div className="observability-data-card__meta">
+            <span>trace {compactId(trace.traceId)}</span>
+            <time>{formatDateTime(trace.createdAt)}</time>
+          </div>
+          {trace.fallbackReason ? <div className="observability-error-line">{trace.fallbackReason}</div> : null}
         </article>
       ))}
     </div>
@@ -275,6 +349,8 @@ function DevObservabilityPage() {
   const [runTools, setRunTools] = useState<ObservabilityToolTrace[]>([]);
   const [toolTraces, setToolTraces] = useState<ObservabilityToolTrace[]>([]);
   const [aiCalls, setAiCalls] = useState<ObservabilityAiCall[]>([]);
+  const [ragTraces, setRagTraces] = useState<ObservabilityRagTrace[]>([]);
+  const [singleFlightTraces, setSingleFlightTraces] = useState<ObservabilitySingleFlightTrace[]>([]);
   const [agentTypeFilter, setAgentTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [toolNameFilter, setToolNameFilter] = useState("");
@@ -282,10 +358,14 @@ function DevObservabilityPage() {
   const [toolSuccessFilter, setToolSuccessFilter] = useState("all");
   const [aiRequestFilter, setAiRequestFilter] = useState("");
   const [aiSuccessFilter, setAiSuccessFilter] = useState("all");
+  const [ragSuccessFilter, setRagSuccessFilter] = useState("all");
+  const [singleFlightSuccessFilter, setSingleFlightSuccessFilter] = useState("all");
   const [loadingOverview, setLoadingOverview] = useState(false);
   const [loadingRun, setLoadingRun] = useState(false);
   const [loadingTools, setLoadingTools] = useState(false);
   const [loadingAi, setLoadingAi] = useState(false);
+  const [loadingRag, setLoadingRag] = useState(false);
+  const [loadingSingleFlight, setLoadingSingleFlight] = useState(false);
 
   const loadRunDetail = useCallback(async (runId: string) => {
     setLoadingRun(true);
@@ -359,6 +439,36 @@ function DevObservabilityPage() {
     }
   }, [aiRequestFilter, aiSuccessFilter]);
 
+  const loadRagTraces = useCallback(async () => {
+    setLoadingRag(true);
+    try {
+      const data = await getObservabilityRagTraces({
+        success: toSuccess(ragSuccessFilter),
+        limit: 100,
+      });
+      setRagTraces(data || []);
+    } catch {
+      setRagTraces([]);
+    } finally {
+      setLoadingRag(false);
+    }
+  }, [ragSuccessFilter]);
+
+  const loadSingleFlightTraces = useCallback(async () => {
+    setLoadingSingleFlight(true);
+    try {
+      const data = await getObservabilitySingleFlightTraces({
+        success: toSuccess(singleFlightSuccessFilter),
+        limit: 100,
+      });
+      setSingleFlightTraces(data || []);
+    } catch {
+      setSingleFlightTraces([]);
+    } finally {
+      setLoadingSingleFlight(false);
+    }
+  }, [singleFlightSuccessFilter]);
+
   const loadOverview = useCallback(async () => {
     setLoadingOverview(true);
     try {
@@ -375,6 +485,8 @@ function DevObservabilityPage() {
     void loadOverview();
     void loadToolTraces();
     void loadAiCalls();
+    void loadRagTraces();
+    void loadSingleFlightTraces();
   }, []);
 
   const stats = useMemo(
@@ -429,6 +541,8 @@ function DevObservabilityPage() {
             void loadOverview();
             void loadToolTraces();
             void loadAiCalls();
+            void loadRagTraces();
+            void loadSingleFlightTraces();
           }}
         >
           刷新
@@ -569,6 +683,56 @@ function DevObservabilityPage() {
                   <Skeleton active paragraph={{ rows: 4 }} />
                 ) : (
                   <ToolTraceList traces={toolTraces} emptyText="暂无 ToolTrace 记录" />
+                )}
+              </Card>
+            ),
+          },
+          {
+            key: "rag",
+            label: "RagTrace",
+            children: (
+              <Card
+                title="RagTrace 列表"
+                extra={
+                  <Button size="small" onClick={() => void loadRagTraces()}>
+                    应用过滤
+                  </Button>
+                }
+              >
+                <div className="observability-filters observability-filters--wide">
+                  <Select
+                    value={ragSuccessFilter}
+                    options={SUCCESS_OPTIONS}
+                    onChange={setRagSuccessFilter}
+                  />
+                </div>
+                {loadingRag ? <Skeleton active paragraph={{ rows: 4 }} /> : <RagTraceList traces={ragTraces} />}
+              </Card>
+            ),
+          },
+          {
+            key: "singleflight",
+            label: "Single-flight",
+            children: (
+              <Card
+                title="Single-flight 列表"
+                extra={
+                  <Button size="small" onClick={() => void loadSingleFlightTraces()}>
+                    应用过滤
+                  </Button>
+                }
+              >
+                <div className="observability-filters observability-filters--wide">
+                  <Select
+                    value={singleFlightSuccessFilter}
+                    options={SUCCESS_OPTIONS}
+                    onChange={setSingleFlightSuccessFilter}
+                  />
+                </div>
+                {loadingSingleFlight ? (
+                  <Skeleton active paragraph={{ rows: 4 }} />
+                ) : (
+                  <SingleFlightTraceList traces={singleFlightTraces} />
                 )}
               </Card>
             ),

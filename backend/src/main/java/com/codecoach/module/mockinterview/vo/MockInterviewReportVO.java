@@ -52,6 +52,8 @@ public class MockInterviewReportVO {
 
     private List<String> weaknessTags;
 
+    private List<QaReplayVO> qaReplay;
+
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     private LocalDateTime createdAt;
 
@@ -77,5 +79,25 @@ public class MockInterviewReportVO {
         private Integer followUpCount;
 
         private List<String> deductionReasons;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class QaReplayVO {
+
+        private String stage;
+
+        private String question;
+
+        private String answerSummary;
+
+        private String aiFollowUp;
+
+        private Integer qualityScore;
+
+        private String riskType;
+
+        private String suggestion;
     }
 }

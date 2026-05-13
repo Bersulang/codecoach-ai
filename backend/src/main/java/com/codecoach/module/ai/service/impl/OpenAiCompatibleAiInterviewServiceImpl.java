@@ -5,6 +5,10 @@ import com.codecoach.module.ai.config.AiProperties;
 import com.codecoach.module.ai.dto.InterviewContext;
 import com.codecoach.module.ai.entity.AiCallLog;
 import com.codecoach.module.ai.enums.AiRequestType;
+import com.codecoach.module.ai.gateway.AiModelGateway;
+import com.codecoach.module.ai.gateway.AiModelGatewayRouter;
+import com.codecoach.module.ai.gateway.model.AiChatRequest;
+import com.codecoach.module.ai.gateway.model.AiChatResponse;
 import com.codecoach.module.ai.service.AiCallLogService;
 import com.codecoach.module.ai.service.AiInterviewService;
 import com.codecoach.module.ai.service.AiTokenStreamHandler;
@@ -36,11 +40,11 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
@@ -49,7 +53,7 @@ import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.ResourceAccessException;
 
 @Service
-@ConditionalOnProperty(prefix = "ai", name = "provider", havingValue = "openai-compatible")
+@Profile("!mock")
 public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewService {
 
     private static final Logger log = LoggerFactory.getLogger(OpenAiCompatibleAiInterviewServiceImpl.class);
@@ -85,6 +89,8 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
 
     private final AiCallLogService aiCallLogService;
 
+    private final AiModelGatewayRouter aiModelGatewayRouter;
+
     private final ObjectMapper objectMapper;
 
     private final RestClient restClient;
@@ -97,6 +103,7 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
             AiJsonParser aiJsonParser,
             AiResponseValidator aiResponseValidator,
             AiCallLogService aiCallLogService,
+            AiModelGatewayRouter aiModelGatewayRouter,
             ObjectMapper objectMapper
     ) {
         this.aiProperties = aiProperties;
@@ -104,6 +111,7 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
         this.aiJsonParser = aiJsonParser;
         this.aiResponseValidator = aiResponseValidator;
         this.aiCallLogService = aiCallLogService;
+        this.aiModelGatewayRouter = aiModelGatewayRouter;
         this.objectMapper = objectMapper;
 
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
@@ -270,57 +278,11 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
     }
 
     private ChatResult chat(List<ChatMessage> messages, double temperature) {
-        AiProperties.OpenAiCompatible config = getConfig();
-        String endpoint = resolveChatCompletionsEndpoint(config.getBaseUrl());
-        OpenAiChatRequest request = new OpenAiChatRequest(config.getModel(), messages, temperature);
-
         try {
-            ResponseEntity<String> responseEntity = restClient.post()
-                    .uri(endpoint)
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + config.getApiKey())
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(request)
-                    .retrieve()
-                    .toEntity(String.class);
-            OpenAiChatResponse response = readChatResponse(
-                    responseEntity.getBody(),
-                    responseEntity.getStatusCode().value(),
-                    getRequestId(responseEntity.getHeaders(), null)
-            );
-            String requestId = getRequestId(responseEntity.getHeaders(), response);
-            String content = extractContent(
-                    response,
-                    responseEntity.getBody(),
-                    responseEntity.getStatusCode().value(),
-                    requestId
-            );
-            return new ChatResult(
-                    content,
-                    responseEntity.getBody(),
-                    responseEntity.getStatusCode().value(),
-                    requestId,
-                    response.getUsage()
-            );
-        } catch (RestClientResponseException ex) {
-            ErrorInfo errorInfo = parseErrorInfo(ex.getResponseBodyAsString());
-            throw new AiCallException(
-                    errorInfo.getErrorCode(),
-                    errorInfo.getErrorMessage(),
-                    ex.getStatusCode().value(),
-                    ex.getResponseBodyAsString(),
-                    getRequestId(ex.getResponseHeaders(), null),
-                    ex
-            );
-        } catch (ResourceAccessException ex) {
-            if (isTimeoutException(ex)) {
-                throw new AiCallException("TIMEOUT", "TIMEOUT", ex);
-            }
-            throw new AiCallException("NETWORK_ERROR", "NETWORK_ERROR", ex);
-        } catch (RestClientException ex) {
-            if (isTimeoutException(ex)) {
-                throw new AiCallException("TIMEOUT", "TIMEOUT", ex);
-            }
-            throw new AiCallException("HTTP_REQUEST_FAILED", "HTTP_REQUEST_FAILED", ex);
+            AiChatResponse response = gateway().chat(gatewayRequest(messages, temperature, "INTERVIEW_AGENT"));
+            return toChatResult(response);
+        } catch (RuntimeException ex) {
+            throw new AiCallException("AI_GATEWAY_FAILED", "AI_GATEWAY_FAILED", ex);
         }
     }
 
@@ -329,52 +291,39 @@ public class OpenAiCompatibleAiInterviewServiceImpl implements AiInterviewServic
             double temperature,
             AiTokenStreamHandler streamHandler
     ) {
-        AiProperties.OpenAiCompatible config = getConfig();
-        String endpoint = resolveChatCompletionsEndpoint(config.getBaseUrl());
-
         try {
-            String requestBody = objectMapper.writeValueAsString(
-                    new OpenAiChatRequest(config.getModel(), messages, temperature, true)
-            );
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(endpoint))
-                    .timeout(Duration.ofSeconds(resolveTimeoutSeconds(aiProperties)))
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + config.getApiKey())
-                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                    .header(HttpHeaders.ACCEPT, MediaType.TEXT_EVENT_STREAM_VALUE)
-                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                    .build();
-            HttpResponse<Stream<String>> response = httpClient.send(
-                    request,
-                    HttpResponse.BodyHandlers.ofLines()
-            );
-            String requestId = response.headers().firstValue("x-request-id")
-                    .or(() -> response.headers().firstValue("x-correlation-id"))
-                    .orElse(null);
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                String rawError = collectBody(response.body());
-                ErrorInfo errorInfo = parseErrorInfo(rawError);
-                throw new AiCallException(
-                        errorInfo.getErrorCode(),
-                        errorInfo.getErrorMessage(),
-                        response.statusCode(),
-                        rawError,
-                        requestId,
-                        null
-                );
-            }
-            return readStreamResponse(response.body(), response.statusCode(), requestId, streamHandler);
-        } catch (JsonProcessingException exception) {
-            throw new AiCallException("REQUEST_BUILD_FAILED", "REQUEST_BUILD_FAILED", exception);
-        } catch (IOException exception) {
-            if (isTimeoutException(exception)) {
-                throw new AiCallException("TIMEOUT", "TIMEOUT", exception);
-            }
-            throw new AiCallException("NETWORK_ERROR", "NETWORK_ERROR", exception);
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new AiCallException("INTERRUPTED", "INTERRUPTED", exception);
+            AiChatResponse response = gateway().streamChat(gatewayRequest(messages, temperature, "INTERVIEW_AGENT_STREAM"), streamHandler);
+            return toChatResult(response);
+        } catch (RuntimeException ex) {
+            throw new AiCallException("AI_GATEWAY_STREAM_FAILED", "AI_GATEWAY_STREAM_FAILED", ex);
         }
+    }
+
+    private AiModelGateway gateway() {
+        String primary = aiProperties.getGateway() == null ? null : aiProperties.getGateway().getPrimary();
+        return aiModelGatewayRouter.require(StringUtils.hasText(primary) ? primary : aiProperties.getProvider());
+    }
+
+    private AiChatRequest gatewayRequest(List<ChatMessage> messages, double temperature, String requestType) {
+        AiChatRequest request = new AiChatRequest();
+        request.setMessages(messages == null ? List.of() : messages.stream()
+                .map(message -> new com.codecoach.module.ai.gateway.model.AiChatMessage(message.getRole(), message.getContent()))
+                .toList());
+        request.setTemperature(temperature);
+        request.setRequestType(requestType);
+        request.setPromptVersion(PROMPT_VERSION + "-gateway");
+        return request;
+    }
+
+    private ChatResult toChatResult(AiChatResponse response) {
+        if (response == null || !StringUtils.hasText(response.getContent())) {
+            throw new AiCallException("EMPTY_CONTENT", "EMPTY_CONTENT");
+        }
+        OpenAiUsage usage = new OpenAiUsage();
+        usage.setPromptTokens(response.getPromptTokens());
+        usage.setCompletionTokens(response.getCompletionTokens());
+        usage.setTotalTokens(response.getTotalTokens());
+        return new ChatResult(response.getContent(), null, 200, response.getRequestId(), usage);
     }
 
     private ChatResult readStreamResponse(

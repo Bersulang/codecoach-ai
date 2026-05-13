@@ -22,6 +22,7 @@ import com.codecoach.module.interview.vo.InterviewSessionCreateResponse;
 import com.codecoach.module.knowledge.entity.KnowledgeTopic;
 import com.codecoach.module.knowledge.mapper.KnowledgeTopicMapper;
 import com.codecoach.module.memory.service.UserMemoryService;
+import com.codecoach.module.memory.model.MemorySemanticHit;
 import com.codecoach.module.memory.vo.UserMemoryItemVO;
 import com.codecoach.module.memory.vo.UserMemorySummaryVO;
 import com.codecoach.module.mockinterview.dto.MockInterviewCreateRequest;
@@ -231,6 +232,7 @@ public class AgentToolConfiguration {
                             "topProjectRisks", toMemorySummaryItems(summary.getTopProjectRisks()),
                             "recentNextActions", toMemorySummaryItems(summary.getRecentNextActions()),
                             "masteredTopics", toMemorySummaryItems(summary.getMasteredTopics()),
+                            "semanticRecall", semanticMemoryRecall(userId, params),
                             "empty", summary.isEmpty());
                     return ToolExecuteResult.success(
                             summary.isEmpty() ? "暂时没有长期训练记忆摘要。" : "已获取长期训练记忆摘要。",
@@ -561,6 +563,24 @@ public class AgentToolConfiguration {
                         "confidence", item.getConfidence(),
                         "weight", item.getWeight(),
                         "lastReinforcedAt", item.getLastReinforcedAt()))
+                .toList();
+    }
+
+    private List<Map<String, Object>> semanticMemoryRecall(Long userId, Map<String, Object> params) {
+        String query = AgentToolSupport.stringParam(params, "query", null);
+        if (!StringUtils.hasText(query)) {
+            return List.of();
+        }
+        int topK = Math.min(AgentToolSupport.intParam(params, "topK", 3), 5);
+        List<MemorySemanticHit> hits = userMemoryService.semanticSearch(userId, query, topK);
+        return hits.stream()
+                .map(hit -> mapOf(
+                        "memoryId", hit.memoryId(),
+                        "memoryType", hit.memoryType(),
+                        "value", hit.value(),
+                        "confidence", hit.confidence(),
+                        "weight", hit.weight(),
+                        "score", hit.score()))
                 .toList();
     }
 

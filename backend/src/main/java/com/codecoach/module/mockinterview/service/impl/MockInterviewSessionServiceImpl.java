@@ -2,6 +2,7 @@ package com.codecoach.module.mockinterview.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.codecoach.common.concurrency.SingleFlightService;
 import com.codecoach.common.exception.BusinessException;
 import com.codecoach.common.result.PageResult;
 import com.codecoach.common.result.ResultCode;
@@ -56,6 +57,7 @@ import com.codecoach.security.UserContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -92,6 +94,8 @@ public class MockInterviewSessionServiceImpl implements MockInterviewSessionServ
     private static final int DEFAULT_MAX_ROUND = 6;
     private static final int MAX_CONTEXT_CHARS = 1800;
     private static final String AGENT_TYPE = "MOCK_INTERVIEW_PLAN_EXECUTE";
+    private static final Duration REPORT_LOCK_TTL = Duration.ofMinutes(15);
+    private static final Duration REPORT_CACHE_TTL = Duration.ofMinutes(10);
     private static final TypeReference<List<String>> STRING_LIST = new TypeReference<>() {
     };
     private static final TypeReference<List<MockInterviewReportVO.StagePerformanceVO>> STAGE_LIST =
@@ -112,6 +116,7 @@ public class MockInterviewSessionServiceImpl implements MockInterviewSessionServ
     private final AgentTraceService agentTraceService;
     private final ObjectMapper objectMapper;
     private final UserMemoryService userMemoryService;
+    private final SingleFlightService singleFlightService;
 
     public MockInterviewSessionServiceImpl(
             MockInterviewSessionMapper sessionMapper,
@@ -125,7 +130,8 @@ public class MockInterviewSessionServiceImpl implements MockInterviewSessionServ
             UserAbilitySnapshotMapper abilitySnapshotMapper,
             AgentTraceService agentTraceService,
             ObjectMapper objectMapper,
-            UserMemoryService userMemoryService
+            UserMemoryService userMemoryService,
+            SingleFlightService singleFlightService
     ) {
         this.sessionMapper = sessionMapper;
         this.messageMapper = messageMapper;
@@ -139,6 +145,7 @@ public class MockInterviewSessionServiceImpl implements MockInterviewSessionServ
         this.agentTraceService = agentTraceService;
         this.objectMapper = objectMapper;
         this.userMemoryService = userMemoryService;
+        this.singleFlightService = singleFlightService;
     }
 
     @Override
@@ -415,6 +422,19 @@ public class MockInterviewSessionServiceImpl implements MockInterviewSessionServ
     }
 
     private MockInterviewFinishResponse finishSessionWithReport(MockInterviewSession session, LocalDateTime now, String runId) {
+        return singleFlightService.execute(
+                reportRequestKey(session.getId()),
+                REPORT_LOCK_TTL,
+                REPORT_CACHE_TTL,
+                MockInterviewFinishResponse.class,
+                () -> finishSessionWithReportInternal(session, now, runId),
+                () -> latestFinishResponse(session, now),
+                ResultCode.ANSWER_PROCESSING.getCode(),
+                "模拟面试报告正在生成中，请稍后刷新。"
+        );
+    }
+
+    private MockInterviewFinishResponse finishSessionWithReportInternal(MockInterviewSession session, LocalDateTime now, String runId) {
         MockInterviewReport existing = getReportBySessionId(session.getId());
         if (existing != null) {
             markFinished(session, existing.getTotalScore(), now);
@@ -422,6 +442,10 @@ public class MockInterviewSessionServiceImpl implements MockInterviewSessionServ
         }
         List<MockInterviewMessage> messages = listMessages(session.getId());
         InterviewPlan plan = readPlan(session);
+        UserMemorySummaryVO memorySummary = userMemoryService.getSummary(session.getUserId());
+        recordStep(runId, AgentStepType.RAG_RETRIEVE, "Mock report Retriever Agent", "RETRIEVER_AGENT",
+                "sessionId=" + session.getId() + ", messageCount=" + messages.size(),
+                "planId=" + (plan == null ? null : plan.getPlanId()) + ", memoryWeaknesses=" + safeSize(memorySummary.getTopWeaknesses()));
         recordStep(runId, AgentStepType.REPORT_GENERATE, "Generate mock interview report", null,
                 "sessionId=" + session.getId() + ", answerCount=" + countAnswers(messages),
                 "planId=" + (plan == null ? null : plan.getPlanId()) + ", stages=" + (plan == null ? 0 : activeStages(plan).size()));
@@ -442,6 +466,9 @@ public class MockInterviewSessionServiceImpl implements MockInterviewSessionServ
                 .orElse(0));
         int totalScore = reportQualityEvaluator.applyScoreCap(baseScore, quality);
         List<String> weaknessTags = buildWeaknessTags(messages, quality);
+        recordStep(runId, AgentStepType.OBSERVATION, "Mock report Evaluator Agent", "EVALUATOR_AGENT",
+                "answerCount=" + answers.size() + ", baseScore=" + baseScore,
+                "totalScore=" + totalScore + ", weaknessTags=" + weaknessTags.size() + ", sample=" + quality.getSampleSufficiency());
         MockInterviewReport report = new MockInterviewReport();
         report.setSessionId(session.getId());
         report.setUserId(session.getUserId());
@@ -465,7 +492,27 @@ public class MockInterviewSessionServiceImpl implements MockInterviewSessionServ
             createAbilitySnapshots(report, session);
         }
         userMemoryService.sinkMockInterviewReport(report, session);
+        userMemoryService.indexActiveSemanticMemory(session.getUserId());
+        recordStep(runId, AgentStepType.RESPONSE_COMPOSE, "Mock report Coach Agent", "COACH_AGENT",
+                "reportId=" + report.getId(),
+                "nextActions=" + safeSize(readJson(report.getNextActions(), STRING_LIST)) + ", memoryIndexed=true");
         return new MockInterviewFinishResponse(report.getId(), session.getId(), totalScore);
+    }
+
+    private MockInterviewFinishResponse latestFinishResponse(MockInterviewSession session, LocalDateTime now) {
+        if (session == null) {
+            return null;
+        }
+        MockInterviewReport existing = getReportBySessionId(session.getId());
+        if (existing == null) {
+            return null;
+        }
+        markFinished(session, existing.getTotalScore(), now);
+        return new MockInterviewFinishResponse(existing.getId(), session.getId(), existing.getTotalScore());
+    }
+
+    private String reportRequestKey(Long sessionId) {
+        return "mock-interview:report:" + sessionId;
     }
 
     private void markFinished(MockInterviewSession session, Integer totalScore, LocalDateTime now) {
@@ -1404,6 +1451,7 @@ public class MockInterviewSessionServiceImpl implements MockInterviewSessionServ
 
     private MockInterviewReportVO toReportVO(MockInterviewReport report, MockInterviewSession session) {
         InterviewPlan plan = readPlan(session);
+        List<MockInterviewMessage> messages = listMessages(session.getId());
         return new MockInterviewReportVO(
                 report.getId(),
                 report.getSessionId(),
@@ -1418,15 +1466,53 @@ public class MockInterviewSessionServiceImpl implements MockInterviewSessionServ
                 readJson(report.getStrengths(), STRING_LIST),
                 readJson(report.getWeaknesses(), STRING_LIST),
                 readJson(report.getHighRiskAnswers(), STRING_LIST),
-                averageStage(listMessages(session.getId()), "PROJECT_DEEP_DIVE"),
-                averageStage(listMessages(session.getId()), "RESUME_PROJECT"),
-                averageStage(listMessages(session.getId()), "TECHNICAL_FUNDAMENTAL"),
+                averageStage(messages, "PROJECT_DEEP_DIVE"),
+                averageStage(messages, "RESUME_PROJECT"),
+                averageStage(messages, "TECHNICAL_FUNDAMENTAL"),
                 readJson(report.getNextActions(), STRING_LIST),
                 readJson(report.getRecommendedLearning(), STRING_LIST),
                 readJson(report.getRecommendedTraining(), STRING_LIST),
                 readJson(report.getWeaknessTags(), STRING_LIST),
+                buildQaReplay(messages),
                 report.getCreatedAt()
         );
+    }
+
+    private List<MockInterviewReportVO.QaReplayVO> buildQaReplay(List<MockInterviewMessage> messages) {
+        if (messages == null || messages.isEmpty()) {
+            return List.of();
+        }
+        List<MockInterviewReportVO.QaReplayVO> replay = new ArrayList<>();
+        MockInterviewMessage lastQuestion = null;
+        for (MockInterviewMessage message : messages) {
+            if (TYPE_AI_QUESTION.equals(message.getMessageType())) {
+                lastQuestion = message;
+                continue;
+            }
+            if (!TYPE_USER_ANSWER.equals(message.getMessageType())) {
+                continue;
+            }
+            String stage = message.getStage();
+            String answer = abbreviate(message.getContent(), 120);
+            Integer score = message.getScore();
+            String risk = score == null ? "UNKNOWN" : score < 60 ? "HIGH_RISK" : score < 75 ? "STRUCTURE_WEAK" : "LOW_RISK";
+            String suggestion = score != null && score < 75
+                    ? "补充定义、场景、权衡和个人贡献证据。"
+                    : "保持结构化表达，并准备一层追问证据。";
+            replay.add(new MockInterviewReportVO.QaReplayVO(
+                    stage,
+                    lastQuestion == null ? null : abbreviate(lastQuestion.getContent(), 140),
+                    answer,
+                    lastQuestion == null ? null : abbreviate(lastQuestion.getContent(), 80),
+                    score,
+                    risk,
+                    suggestion
+            ));
+            if (replay.size() >= 12) {
+                break;
+            }
+        }
+        return replay;
     }
 
     private String normalizeType(String value) {

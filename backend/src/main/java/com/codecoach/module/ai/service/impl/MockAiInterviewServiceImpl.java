@@ -8,12 +8,12 @@ import com.codecoach.module.project.entity.Project;
 
 import java.util.ArrayList;
 import java.util.List;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 @Service
-@ConditionalOnProperty(prefix = "ai", name = "provider", havingValue = "mock")
+@Profile("mock")
 public class MockAiInterviewServiceImpl implements AiInterviewService {
 
     private static final String DEFAULT_PROJECT_NAME = "这个项目";

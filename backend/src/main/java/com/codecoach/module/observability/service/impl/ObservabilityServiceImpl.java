@@ -1,6 +1,7 @@
 package com.codecoach.module.observability.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.codecoach.common.concurrency.SingleFlightTrace;
 import com.codecoach.common.exception.BusinessException;
 import com.codecoach.common.result.ResultCode;
 import com.codecoach.module.agent.runtime.entity.AgentRun;
@@ -12,13 +13,18 @@ import com.codecoach.module.agent.tool.mapper.AgentToolTraceMapper;
 import com.codecoach.module.ai.entity.AiCallLog;
 import com.codecoach.module.ai.mapper.AiCallLogMapper;
 import com.codecoach.module.observability.service.ObservabilityService;
+import com.codecoach.module.observability.mapper.SingleFlightTraceMapper;
 import com.codecoach.module.observability.vo.ObservabilityAgentRunVO;
 import com.codecoach.module.observability.vo.ObservabilityAgentStepVO;
 import com.codecoach.module.observability.vo.ObservabilityAiCallVO;
 import com.codecoach.module.observability.vo.ObservabilityErrorItemVO;
 import com.codecoach.module.observability.vo.ObservabilityLatencyItemVO;
+import com.codecoach.module.observability.vo.ObservabilityRagTraceVO;
+import com.codecoach.module.observability.vo.ObservabilitySingleFlightTraceVO;
 import com.codecoach.module.observability.vo.ObservabilitySummaryVO;
 import com.codecoach.module.observability.vo.ObservabilityToolTraceVO;
+import com.codecoach.module.rag.entity.RagTrace;
+import com.codecoach.module.rag.mapper.RagTraceMapper;
 import com.codecoach.security.UserContext;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -42,17 +48,23 @@ public class ObservabilityServiceImpl implements ObservabilityService {
     private final AgentStepMapper agentStepMapper;
     private final AgentToolTraceMapper agentToolTraceMapper;
     private final AiCallLogMapper aiCallLogMapper;
+    private final RagTraceMapper ragTraceMapper;
+    private final SingleFlightTraceMapper singleFlightTraceMapper;
 
     public ObservabilityServiceImpl(
             AgentRunMapper agentRunMapper,
             AgentStepMapper agentStepMapper,
             AgentToolTraceMapper agentToolTraceMapper,
-            AiCallLogMapper aiCallLogMapper
+            AiCallLogMapper aiCallLogMapper,
+            RagTraceMapper ragTraceMapper,
+            SingleFlightTraceMapper singleFlightTraceMapper
     ) {
         this.agentRunMapper = agentRunMapper;
         this.agentStepMapper = agentStepMapper;
         this.agentToolTraceMapper = agentToolTraceMapper;
         this.aiCallLogMapper = aiCallLogMapper;
+        this.ragTraceMapper = ragTraceMapper;
+        this.singleFlightTraceMapper = singleFlightTraceMapper;
     }
 
     @Override
@@ -68,6 +80,12 @@ public class ObservabilityServiceImpl implements ObservabilityService {
         Long aiCallCount = aiCallLogMapper.selectCount(new LambdaQueryWrapper<AiCallLog>()
                 .eq(AiCallLog::getUserId, userId)
                 .ge(AiCallLog::getCreatedAt, since));
+        Long ragCount = ragTraceMapper.selectCount(new LambdaQueryWrapper<RagTrace>()
+                .eq(RagTrace::getUserId, userId)
+                .ge(RagTrace::getCreatedAt, since));
+        Long singleFlightCount = singleFlightTraceMapper.selectCount(new LambdaQueryWrapper<SingleFlightTrace>()
+                .and(wrapper -> wrapper.eq(SingleFlightTrace::getUserId, userId).or().isNull(SingleFlightTrace::getUserId))
+                .ge(SingleFlightTrace::getCreatedAt, since));
         Long runFailures = agentRunMapper.selectCount(new LambdaQueryWrapper<AgentRun>()
                 .eq(AgentRun::getUserId, userId)
                 .ge(AgentRun::getCreatedAt, since)
@@ -80,6 +98,14 @@ public class ObservabilityServiceImpl implements ObservabilityService {
                 .eq(AiCallLog::getUserId, userId)
                 .ge(AiCallLog::getCreatedAt, since)
                 .eq(AiCallLog::getSuccess, 0));
+        Long ragFailures = ragTraceMapper.selectCount(new LambdaQueryWrapper<RagTrace>()
+                .eq(RagTrace::getUserId, userId)
+                .ge(RagTrace::getCreatedAt, since)
+                .eq(RagTrace::getSuccess, 0));
+        Long singleFlightFailures = singleFlightTraceMapper.selectCount(new LambdaQueryWrapper<SingleFlightTrace>()
+                .and(wrapper -> wrapper.eq(SingleFlightTrace::getUserId, userId).or().isNull(SingleFlightTrace::getUserId))
+                .ge(SingleFlightTrace::getCreatedAt, since)
+                .eq(SingleFlightTrace::getSuccess, 0));
 
         List<AgentRun> runs = agentRunMapper.selectList(new LambdaQueryWrapper<AgentRun>()
                 .eq(AgentRun::getUserId, userId)
@@ -95,6 +121,11 @@ public class ObservabilityServiceImpl implements ObservabilityService {
                 .eq(AiCallLog::getUserId, userId)
                 .ge(AiCallLog::getCreatedAt, since)
                 .orderByDesc(AiCallLog::getCreatedAt)
+                .last("LIMIT " + SUMMARY_SAMPLE_LIMIT));
+        List<SingleFlightTrace> singleFlightTraces = singleFlightTraceMapper.selectList(new LambdaQueryWrapper<SingleFlightTrace>()
+                .and(wrapper -> wrapper.eq(SingleFlightTrace::getUserId, userId).or().isNull(SingleFlightTrace::getUserId))
+                .ge(SingleFlightTrace::getCreatedAt, since)
+                .orderByDesc(SingleFlightTrace::getCreatedAt)
                 .last("LIMIT " + SUMMARY_SAMPLE_LIMIT));
 
         List<ObservabilityErrorItemVO> errors = new ArrayList<>();
@@ -128,6 +159,16 @@ public class ObservabilityServiceImpl implements ObservabilityService {
                         safeText(call.getErrorCode(), ERROR_TEXT_LIMIT),
                         call.getCreatedAt()))
                 .forEach(errors::add);
+        singleFlightTraces.stream()
+                .filter(trace -> !isSuccess(trace.getSuccess()))
+                .limit(6)
+                .map(trace -> new ObservabilityErrorItemVO(
+                        "SingleFlight",
+                        trace.getTraceId(),
+                        safeText(trace.getRequestKey(), ERROR_TEXT_LIMIT),
+                        safeText(trace.getFallbackReason(), ERROR_TEXT_LIMIT),
+                        trace.getCreatedAt()))
+                .forEach(errors::add);
         errors.sort(Comparator.comparing(ObservabilityErrorItemVO::createdAt, Comparator.nullsLast(Comparator.reverseOrder())));
 
         List<ObservabilityLatencyItemVO> slowestItems = new ArrayList<>();
@@ -143,17 +184,21 @@ public class ObservabilityServiceImpl implements ObservabilityService {
                 .filter(call -> call.getLatencyMs() != null)
                 .map(call -> new ObservabilityLatencyItemVO("AICall", null, safeText(call.getRequestType(), ERROR_TEXT_LIMIT), call.getLatencyMs()))
                 .forEach(slowestItems::add);
+        singleFlightTraces.stream()
+                .filter(trace -> trace.getLatencyMs() != null)
+                .map(trace -> new ObservabilityLatencyItemVO("SingleFlight", trace.getTraceId(), safeText(trace.getRequestKey(), ERROR_TEXT_LIMIT), trace.getLatencyMs()))
+                .forEach(slowestItems::add);
         slowestItems.sort(Comparator.comparing(ObservabilityLatencyItemVO::latencyMs, Comparator.nullsLast(Comparator.reverseOrder())));
 
         return new ObservabilitySummaryVO(
                 since,
                 SUMMARY_WINDOW_HOURS,
                 agentRunCount,
-                aiCallCount,
+                aiCallCount + ragCount + singleFlightCount,
                 toolCallCount,
                 averageLatency(runs.stream().map(AgentRun::getLatencyMs).toList()),
                 averageLatency(aiCalls.stream().map(AiCallLog::getLatencyMs).toList()),
-                runFailures + toolFailures + aiFailures,
+                runFailures + toolFailures + aiFailures + ragFailures + singleFlightFailures,
                 errors.stream().limit(8).toList(),
                 slowestItems.stream().limit(8).toList()
         );
@@ -235,6 +280,34 @@ public class ObservabilityServiceImpl implements ObservabilityService {
         return aiCallLogMapper.selectList(wrapper).stream().map(this::toAiCallVO).toList();
     }
 
+    @Override
+    public List<ObservabilityRagTraceVO> listRagTraces(Boolean success, Integer limit) {
+        Long userId = UserContext.getCurrentUserId();
+        LambdaQueryWrapper<RagTrace> wrapper = new LambdaQueryWrapper<RagTrace>()
+                .eq(RagTrace::getUserId, userId)
+                .orderByDesc(RagTrace::getCreatedAt)
+                .orderByDesc(RagTrace::getId)
+                .last("LIMIT " + normalizeLimit(limit));
+        if (success != null) {
+            wrapper.eq(RagTrace::getSuccess, success ? 1 : 0);
+        }
+        return ragTraceMapper.selectList(wrapper).stream().map(this::toRagTraceVO).toList();
+    }
+
+    @Override
+    public List<ObservabilitySingleFlightTraceVO> listSingleFlightTraces(Boolean success, Integer limit) {
+        Long userId = UserContext.getCurrentUserId();
+        LambdaQueryWrapper<SingleFlightTrace> wrapper = new LambdaQueryWrapper<SingleFlightTrace>()
+                .and(inner -> inner.eq(SingleFlightTrace::getUserId, userId).or().isNull(SingleFlightTrace::getUserId))
+                .orderByDesc(SingleFlightTrace::getCreatedAt)
+                .orderByDesc(SingleFlightTrace::getId)
+                .last("LIMIT " + normalizeLimit(limit));
+        if (success != null) {
+            wrapper.eq(SingleFlightTrace::getSuccess, success ? 1 : 0);
+        }
+        return singleFlightTraceMapper.selectList(wrapper).stream().map(this::toSingleFlightTraceVO).toList();
+    }
+
     private AgentRun getRunForCurrentUser(String runId) {
         Long userId = UserContext.getCurrentUserId();
         AgentRun run = agentRunMapper.selectOne(new LambdaQueryWrapper<AgentRun>()
@@ -296,6 +369,7 @@ public class ObservabilityServiceImpl implements ObservabilityService {
 
     private ObservabilityAiCallVO toAiCallVO(AiCallLog call) {
         return new ObservabilityAiCallVO(
+                safeText(call.getTraceId(), ERROR_TEXT_LIMIT),
                 safeText(call.getProvider(), ERROR_TEXT_LIMIT),
                 safeText(call.getModelName(), ERROR_TEXT_LIMIT),
                 safeText(call.getRequestType(), ERROR_TEXT_LIMIT),
@@ -304,6 +378,35 @@ public class ObservabilityServiceImpl implements ObservabilityService {
                 isSuccess(call.getSuccess()),
                 safeText(call.getErrorCode(), ERROR_TEXT_LIMIT),
                 call.getCreatedAt()
+        );
+    }
+
+    private ObservabilityRagTraceVO toRagTraceVO(RagTrace trace) {
+        return new ObservabilityRagTraceVO(
+                safeText(trace.getTraceId(), ERROR_TEXT_LIMIT),
+                safeText(trace.getQuery(), SUMMARY_TEXT_LIMIT),
+                safeText(trace.getRewrittenQuery(), SUMMARY_TEXT_LIMIT),
+                safeText(trace.getSourceTypes(), ERROR_TEXT_LIMIT),
+                trace.getTopK(),
+                trace.getHitCount(),
+                trace.getAvgScore(),
+                trace.getContextChars(),
+                isSuccess(trace.getSuccess()),
+                safeText(trace.getFallbackReason(), ERROR_TEXT_LIMIT),
+                trace.getLatencyMs(),
+                trace.getCreatedAt()
+        );
+    }
+
+    private ObservabilitySingleFlightTraceVO toSingleFlightTraceVO(SingleFlightTrace trace) {
+        return new ObservabilitySingleFlightTraceVO(
+                safeText(trace.getTraceId(), ERROR_TEXT_LIMIT),
+                safeText(trace.getRequestKey(), SUMMARY_TEXT_LIMIT),
+                safeText(trace.getAction(), ERROR_TEXT_LIMIT),
+                isSuccess(trace.getSuccess()),
+                trace.getLatencyMs(),
+                safeText(trace.getFallbackReason(), ERROR_TEXT_LIMIT),
+                trace.getCreatedAt()
         );
     }
 

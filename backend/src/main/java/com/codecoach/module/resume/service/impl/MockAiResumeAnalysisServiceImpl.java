@@ -3,12 +3,12 @@ package com.codecoach.module.resume.service.impl;
 import com.codecoach.module.resume.model.ResumeAnalysisResult;
 import com.codecoach.module.resume.service.AiResumeAnalysisService;
 import java.util.List;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 @Service
-@ConditionalOnProperty(prefix = "ai", name = "provider", havingValue = "mock")
+@Profile("mock")
 public class MockAiResumeAnalysisServiceImpl implements AiResumeAnalysisService {
 
     @Override

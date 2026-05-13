@@ -142,5 +142,16 @@ export interface MockInterviewReport {
   recommendedLearning: string[];
   recommendedTraining: string[];
   weaknessTags: string[];
+  qaReplay?: MockInterviewQaReplay[];
   createdAt?: string;
+}
+
+export interface MockInterviewQaReplay {
+  stage?: MockInterviewStage;
+  question?: string;
+  answerSummary?: string;
+  aiFollowUp?: string;
+  qualityScore?: number;
+  riskType?: string;
+  suggestion?: string;
 }

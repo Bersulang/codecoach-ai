@@ -1,5 +1,16 @@
-import { Alert, Button, Card, Empty, Select, Skeleton, Space, Tag, message } from "antd";
-import { useCallback, useEffect, useState } from "react";
+import {
+  Alert,
+  Button,
+  Card,
+  Empty,
+  Select,
+  Skeleton,
+  Space,
+  Tag,
+  message,
+} from "antd";
+import { ArrowRightOutlined, ReloadOutlined } from "@ant-design/icons";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   generateAgentReview,
@@ -11,49 +22,181 @@ import type {
   AgentReview,
   AgentReviewListItem,
   AgentReviewNextAction,
+  ReviewRecommendation,
 } from "../../types/agentReview";
 import "./index.css";
 
-const CONFIDENCE_LABELS = {
+const CONFIDENCE_LABELS: Record<string, string> = {
   LOW: "低置信度",
   MEDIUM: "中等置信度",
   HIGH: "高置信度",
+};
+
+const SAMPLE_LABELS: Record<string, string> = {
+  INSUFFICIENT: "样本不足",
+  LIMITED: "样本有限",
+  ENOUGH: "样本充足",
 };
 
 const ACTION_LABELS: Record<string, string> = {
   LEARN: "知识学习",
   TRAIN_QUESTION: "八股训练",
   TRAIN_PROJECT: "项目拷打",
+  MOCK_INTERVIEW: "模拟面试",
   REVIEW_RESUME: "简历训练",
   UPLOAD_DOCUMENT: "文档上传",
+  VIEW_MEMORY: "长期记忆",
+  VIEW_REPORT_REPLAY: "问答回放",
 };
 
 function formatDateTime(value?: string) {
   if (!value) {
-    return "—";
+    return "--";
   }
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  return date.toLocaleString();
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 }
 
-function listOrEmpty(items: string[] | undefined, empty = "暂无内容") {
-  if (!items?.length) {
-    return <Empty description={empty} />;
-  }
-  return (
-    <ul>
-      {items.map((item, index) => (
-        <li key={`${item}-${index}`}>{item}</li>
-      ))}
-    </ul>
-  );
+function asNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 function confidenceClass(confidence?: string) {
-  return `agent-review-confidence agent-review-confidence--${(confidence || "LOW").toLowerCase()}`;
+  return `agent-review-pill agent-review-pill--${(confidence || "LOW").toLowerCase()}`;
+}
+
+function RadarChart({ review }: { review: AgentReview }) {
+  const dimensions = (review.radarDimensions || []).filter((item) =>
+    Number.isFinite(item.score),
+  );
+  const size = 260;
+  const center = size / 2;
+  const radius = 92;
+
+  if (dimensions.length < 3) {
+    return (
+      <div className="agent-review-empty-panel">
+        <Empty description="雷达图数据不足，完成更多训练后会自动生成。" />
+      </div>
+    );
+  }
+
+  const points = dimensions.map((item, index) => {
+    const angle = (Math.PI * 2 * index) / dimensions.length - Math.PI / 2;
+    const value = Math.max(0, Math.min(100, Number(item.score || 0))) / 100;
+    return {
+      ...item,
+      x: center + Math.cos(angle) * radius * value,
+      y: center + Math.sin(angle) * radius * value,
+      labelX: center + Math.cos(angle) * (radius + 30),
+      labelY: center + Math.sin(angle) * (radius + 30),
+      axisX: center + Math.cos(angle) * radius,
+      axisY: center + Math.sin(angle) * radius,
+    };
+  });
+  const polygon = points.map((point) => `${point.x},${point.y}`).join(" ");
+
+  return (
+    <div className="agent-review-radar-wrap">
+      <svg className="agent-review-radar" viewBox={`0 0 ${size} ${size}`}>
+        {[0.25, 0.5, 0.75, 1].map((scale) => (
+          <circle
+            key={scale}
+            cx={center}
+            cy={center}
+            r={radius * scale}
+            fill="none"
+            stroke="rgba(120, 96, 72, 0.16)"
+          />
+        ))}
+        {points.map((point) => (
+          <line
+            key={point.name}
+            x1={center}
+            y1={center}
+            x2={point.axisX}
+            y2={point.axisY}
+            stroke="rgba(120, 96, 72, 0.18)"
+          />
+        ))}
+        <polygon points={polygon} fill="rgba(205, 128, 76, 0.2)" stroke="#c97742" strokeWidth="2" />
+        {points.map((point) => (
+          <g key={point.name}>
+            <circle cx={point.x} cy={point.y} r="4" fill="#c97742" />
+            <text x={point.labelX} y={point.labelY} textAnchor="middle" dominantBaseline="middle">
+              {point.name}
+            </text>
+          </g>
+        ))}
+      </svg>
+      <div className="agent-review-radar-list">
+        {dimensions.map((item) => (
+          <div key={item.name}>
+            <strong>{item.name}</strong>
+            <span>{item.score ?? "--"} 分</span>
+            <p>{item.evidence}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ListPanel({
+  title,
+  items,
+  empty,
+}: {
+  title: string;
+  items?: string[];
+  empty: string;
+}) {
+  return (
+    <Card className="agent-review-section-card">
+      <div className="agent-review-section-title">{title}</div>
+      {items?.length ? (
+        <ul className="agent-review-list">
+          {items.map((item, index) => (
+            <li key={`${item}-${index}`}>{item}</li>
+          ))}
+        </ul>
+      ) : (
+        <Empty description={empty} />
+      )}
+    </Card>
+  );
+}
+
+function RecommendationList({
+  title,
+  items,
+  onOpen,
+}: {
+  title: string;
+  items?: ReviewRecommendation[];
+  onOpen: (path?: string) => void;
+}) {
+  return (
+    <Card className="agent-review-section-card">
+      <div className="agent-review-section-title">{title}</div>
+      {items?.length ? (
+        <div className="agent-review-recommend-list">
+          {items.map((item, index) => (
+            <button
+              key={`${item.title}-${index}`}
+              type="button"
+              onClick={() => onOpen(item.targetPath)}
+            >
+              <strong>{item.title}</strong>
+              <span>{item.reason}</span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <Empty description="暂无推荐内容" />
+      )}
+    </Card>
+  );
 }
 
 function AgentReviewPage() {
@@ -71,8 +214,7 @@ function AgentReviewPage() {
       const data = await getAgentReviewHistory();
       setHistory(data || []);
       if (!currentReview && data?.[0]?.id) {
-        const detail = await getAgentReviewDetail(data[0].id);
-        setCurrentReview(detail);
+        setCurrentReview(await getAgentReviewDetail(data[0].id));
       }
     } catch {
       setHistory([]);
@@ -85,15 +227,26 @@ function AgentReviewPage() {
     void loadHistory();
   }, []);
 
+  const source = currentReview?.sourceSnapshot || {};
+  const totalEvidence = useMemo(
+    () =>
+      Number(source.projectReportCount || 0) +
+      Number(source.questionReportCount || 0) +
+      Number(source.mockInterviewReportCount || 0) +
+      Number(source.abilitySnapshotCount || 0) +
+      Number(source.memoryItemCount || 0),
+    [source],
+  );
+
   const handleGenerate = async () => {
     setGenerating(true);
     try {
       const review = await generateAgentReview(scopeType);
       setCurrentReview(review);
-      message.success("复盘已生成");
+      message.success("综合复盘已生成");
       await loadHistory();
     } catch {
-      message.error("复盘生成失败，可以稍后重试");
+      message.error("复盘生成失败或正在生成中，可以稍后重试");
     } finally {
       setGenerating(false);
     }
@@ -102,8 +255,7 @@ function AgentReviewPage() {
   const handleOpenHistory = async (reviewId: number) => {
     setDetailLoadingId(reviewId);
     try {
-      const detail = await getAgentReviewDetail(reviewId);
-      setCurrentReview(detail);
+      setCurrentReview(await getAgentReviewDetail(reviewId));
     } catch {
       message.error("复盘详情加载失败");
     } finally {
@@ -111,132 +263,253 @@ function AgentReviewPage() {
     }
   };
 
-  const handleAction = (action: AgentReviewNextAction) => {
-    if (action.targetPath) {
-      navigate(action.targetPath);
+  const openPath = (path?: string) => {
+    if (path) {
+      navigate(path);
     }
   };
 
-  const source = currentReview?.sourceSnapshot || {};
-  const hasNoData =
-    Number(source.projectReportCount || 0) +
-      Number(source.questionReportCount || 0) +
-      Number(source.abilitySnapshotCount || 0) ===
-    0;
+  const handleAction = (action: AgentReviewNextAction) => {
+    openPath(action.targetPath);
+  };
+
+  const score = asNumber(currentReview?.scoreOverview?.score);
 
   return (
     <PageShell className="agent-review-page">
       <section className="agent-review-hero">
-        <p className="workspace-kicker">复盘 Agent</p>
-        <h1>把最近训练变成下一步动作。</h1>
-        <p>
-          复盘 Agent 不只是总结一次训练，而是帮你从最近训练中找出反复出现的问题和下一步最该做的训练动作。
-          它会结合训练报告、能力画像、简历风险点和知识库内容生成结构化复盘。
-        </p>
+        <div>
+          <p className="workspace-kicker">Review Center</p>
+          <h1>综合复盘 Agent</h1>
+          <p>
+            聚合训练报告、能力画像、简历风险、长期记忆和 RAG 证据，用多角色 Agent 给出下一步训练路线。
+          </p>
+        </div>
+        <div className="agent-review-hero-metrics">
+          <span>AgentRun</span>
+          <span>RagTrace</span>
+          <span>Memory</span>
+        </div>
       </section>
 
       <Card className="agent-review-generate-card">
         <div className="agent-review-generate">
-          <div className="agent-review-generate__copy">
-            <strong>生成复盘</strong>
-            <span>第一版默认聚焦最近 10 次训练，并结合最近能力快照与简历风险。</span>
+          <div>
+            <strong>生成综合复盘</strong>
+            <span>高成本 AI 操作已做 Single-flight 防重复生成。</span>
           </div>
           <Space wrap>
             <Select
               value={scopeType}
               onChange={setScopeType}
-              style={{ width: 180 }}
+              className="agent-review-scope"
               options={[
-                { value: "RECENT_10", label: "最近 10 次训练" },
                 { value: "RECENT_7_DAYS", label: "最近 7 天" },
+                { value: "RECENT_30_DAYS", label: "最近 30 天" },
+                { value: "RECENT_10", label: "最近 10 次训练" },
+                { value: "ALL", label: "全部训练概览" },
               ]}
             />
-            <Button type="primary" loading={generating} onClick={handleGenerate}>
-              生成复盘
+            <Button
+              type="primary"
+              icon={<ReloadOutlined />}
+              loading={generating}
+              onClick={handleGenerate}
+            >
+              生成综合复盘
             </Button>
           </Space>
         </div>
-        {currentReview?.confidence === "LOW" || hasNoData ? (
+        {currentReview?.confidence === "LOW" || totalEvidence === 0 ? (
           <Alert
             type="warning"
             showIcon
-            message="当前训练数据较少，建议先完成一次项目拷打和一次八股训练后再生成复盘。"
+            message="当前证据较少，复盘会以低置信度生成。建议补一次项目拷打、八股训练或模拟面试。"
           />
         ) : null}
       </Card>
 
       {generating ? (
         <Card>
-          <Skeleton active paragraph={{ rows: 5 }} />
+          <Skeleton active paragraph={{ rows: 6 }} />
         </Card>
       ) : currentReview ? (
         <>
           <Card className="agent-review-summary-card">
             <div className="agent-review-summary-head">
               <div>
-                <h2>最新复盘</h2>
+                <h2>最新综合复盘</h2>
                 <p>{formatDateTime(currentReview.createdAt)}</p>
               </div>
-              <span className={confidenceClass(currentReview.confidence)}>
-                {CONFIDENCE_LABELS[currentReview.confidence] || currentReview.confidence}
-              </span>
+              <Space wrap>
+                <span className={confidenceClass(currentReview.confidence)}>
+                  {CONFIDENCE_LABELS[currentReview.confidence] || currentReview.confidence}
+                </span>
+                <span className="agent-review-pill">
+                  {SAMPLE_LABELS[currentReview.sampleQuality || ""] || currentReview.sampleQuality}
+                </span>
+              </Space>
             </div>
-            <p className="agent-review-summary">{currentReview.summary}</p>
-            <Space wrap>
+            <div className="agent-review-score-row">
+              <div className="agent-review-score">
+                <strong>{score ?? "--"}</strong>
+                <span>综合分</span>
+              </div>
+              <p>{currentReview.summary}</p>
+            </div>
+            <div className="agent-review-source-strip">
               <Tag>项目报告 {String(source.projectReportCount ?? 0)}</Tag>
               <Tag>八股报告 {String(source.questionReportCount ?? 0)}</Tag>
+              <Tag>模拟面试 {String(source.mockInterviewReportCount ?? 0)}</Tag>
               <Tag>能力快照 {String(source.abilitySnapshotCount ?? 0)}</Tag>
-              <Tag>简历风险 {String(source.resumeRiskCount ?? 0)}</Tag>
-              <Tag>知识文章 {String(source.ragArticleCount ?? 0)}</Tag>
-            </Space>
+              <Tag>Memory {String(source.memoryItemCount ?? 0)}</Tag>
+              <Tag>RAG 文章 {String(source.ragArticleCount ?? 0)}</Tag>
+              <Tag>用户文档 {String(source.ragDocumentCount ?? 0)}</Tag>
+            </div>
           </Card>
 
+          <section className="agent-review-two-col">
+            <Card className="agent-review-section-card">
+              <div className="agent-review-section-title">能力雷达图</div>
+              <RadarChart review={currentReview} />
+            </Card>
+            <ListPanel title="关键发现" items={currentReview.keyFindings} empty="暂无关键发现" />
+          </section>
+
           <section className="agent-review-grid">
-            <Card className="agent-review-list-card">
-              <div className="agent-review-section-title">关键发现</div>
-              {listOrEmpty(currentReview.keyFindings)}
+            <ListPanel
+              title="反复薄弱点"
+              items={currentReview.recurringWeaknesses}
+              empty="暂无稳定薄弱点"
+            />
+            <ListPanel title="问题归因" items={currentReview.causeAnalysis} empty="暂无归因" />
+            <ListPanel
+              title="简历风险"
+              items={currentReview.resumeRisks}
+              empty="上传并分析简历后会展示风险提醒"
+            />
+            <ListPanel
+              title="Memory 更新"
+              items={currentReview.memoryUpdates}
+              empty="本次没有新的长期记忆沉淀"
+            />
+          </section>
+
+          <Card className="agent-review-section-card">
+            <div className="agent-review-section-title">高风险回答</div>
+            {currentReview.highRiskAnswers?.length ? (
+              <div className="agent-review-risk-list">
+                {currentReview.highRiskAnswers.map((item, index) => (
+                  <article key={`${item.question}-${index}`}>
+                    <div>
+                      <Tag color={item.riskLevel === "HIGH" ? "red" : "orange"}>
+                        {item.riskLevel || "RISK"}
+                      </Tag>
+                      <Tag>{item.riskType || "回答风险"}</Tag>
+                    </div>
+                    <h3>{item.question}</h3>
+                    <p>{item.answerSummary}</p>
+                    <p>{item.reason}</p>
+                    <strong>{item.betterDirection}</strong>
+                    {item.relatedAction ? (
+                      <Button type="link" onClick={() => handleAction(item.relatedAction!)}>
+                        去处理 <ArrowRightOutlined />
+                      </Button>
+                    ) : null}
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <Empty description="暂未识别高风险回答" />
+            )}
+          </Card>
+
+          <section className="agent-review-two-col">
+            <Card className="agent-review-section-card">
+              <div className="agent-review-section-title">模拟面试阶段表现</div>
+              {currentReview.stagePerformance?.length ? (
+                <div className="agent-review-stage-list">
+                  {currentReview.stagePerformance.map((stage, index) => (
+                    <div key={`${stage.stage}-${index}`}>
+                      <strong>{stage.stageName || stage.stage}</strong>
+                      <span>{stage.score ?? "--"} 分</span>
+                      <p>{stage.comment}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <Empty description="暂无模拟面试阶段数据" />
+              )}
             </Card>
-            <Card className="agent-review-list-card">
-              <div className="agent-review-section-title">反复薄弱点</div>
-              {listOrEmpty(currentReview.recurringWeaknesses)}
-            </Card>
-            <Card className="agent-review-list-card">
-              <div className="agent-review-section-title">原因分析</div>
-              {listOrEmpty(currentReview.causeAnalysis)}
-            </Card>
-            <Card className="agent-review-list-card">
-              <div className="agent-review-section-title">简历风险提醒</div>
-              {listOrEmpty(
-                currentReview.resumeRisks,
-                "上传并分析简历后，复盘会结合简历风险点",
+
+            <Card className="agent-review-section-card">
+              <div className="agent-review-section-title">问答回放</div>
+              {currentReview.qaReplay?.length ? (
+                <div className="agent-review-replay-list">
+                  {currentReview.qaReplay.map((item, index) => (
+                    <details key={`${item.sourceType}-${index}`}>
+                      <summary>
+                        <span>{item.sourceType}</span>
+                        {item.question}
+                      </summary>
+                      <p>{item.answerSummary}</p>
+                      {item.aiFollowUp ? <p>追问：{item.aiFollowUp}</p> : null}
+                      {item.mainProblems?.length ? (
+                        <div>
+                          {item.mainProblems.map((problem) => (
+                            <Tag key={problem}>{problem}</Tag>
+                          ))}
+                        </div>
+                      ) : null}
+                      <strong>{item.suggestedExpression}</strong>
+                    </details>
+                  ))}
+                </div>
+              ) : (
+                <Empty description="暂无可回放问答摘要" />
               )}
             </Card>
           </section>
 
-          <section className="agent-review-section">
+          <Card className="agent-review-section-card">
             <div className="agent-review-section-title">下一步行动</div>
             {currentReview.nextActions?.length ? (
               <div className="agent-review-action-grid">
                 {currentReview.nextActions.map((action, index) => (
-                  <Card key={`${action.title}-${index}`} className="agent-review-action-card">
-                    <div className="agent-review-action-meta">
+                  <article key={`${action.title}-${index}`} className="agent-review-action-card">
+                    <div>
                       <Tag>{ACTION_LABELS[action.type] || action.type}</Tag>
                       <Tag>优先级 {action.priority || index + 1}</Tag>
                     </div>
                     <h3>{action.title}</h3>
                     <p>{action.reason}</p>
-                    <Button onClick={() => handleAction(action)}>去完成</Button>
-                  </Card>
+                    <Button onClick={() => handleAction(action)}>
+                      进入 <ArrowRightOutlined />
+                    </Button>
+                  </article>
                 ))}
               </div>
             ) : (
               <Empty description="暂无行动建议" />
             )}
+          </Card>
+
+          <section className="agent-review-two-col">
+            <RecommendationList
+              title="推荐学习"
+              items={currentReview.recommendedArticles}
+              onOpen={openPath}
+            />
+            <RecommendationList
+              title="推荐训练"
+              items={currentReview.recommendedTrainings}
+              onOpen={openPath}
+            />
           </section>
         </>
       ) : (
         <Card>
-          <Empty description="还没有复盘记录，点击生成复盘开始第一次分析。" />
+          <Empty description="还没有复盘记录，点击生成复盘开始第一次综合分析。" />
         </Card>
       )}
 
@@ -257,6 +530,7 @@ function AgentReviewPage() {
                 disabled={detailLoadingId === item.id}
               >
                 <strong>{formatDateTime(item.createdAt)}</strong>
+                <span>{CONFIDENCE_LABELS[item.confidence] || item.confidence}</span>
                 <p>{item.summary || "查看这次复盘详情"}</p>
               </button>
             ))}

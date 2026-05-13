@@ -1,5 +1,7 @@
 package com.codecoach.module.agent.vo;
 
+import java.util.Map;
+
 public class NextActionVO {
 
     private String type;
@@ -7,6 +9,8 @@ public class NextActionVO {
     private String reason;
     private Integer priority;
     private String targetPath;
+    private String toolName;
+    private Map<String, Object> params;
 
     public String getType() { return type; }
     public void setType(String type) { this.type = type; }
@@ -18,4 +22,8 @@ public class NextActionVO {
     public void setPriority(Integer priority) { this.priority = priority; }
     public String getTargetPath() { return targetPath; }
     public void setTargetPath(String targetPath) { this.targetPath = targetPath; }
+    public String getToolName() { return toolName; }
+    public void setToolName(String toolName) { this.toolName = toolName; }
+    public Map<String, Object> getParams() { return params; }
+    public void setParams(Map<String, Object> params) { this.params = params; }
 }

@@ -1,6 +1,7 @@
 package com.codecoach.module.rag.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.codecoach.common.concurrency.SingleFlightService;
 import com.codecoach.common.exception.BusinessException;
 import com.codecoach.common.result.ResultCode;
 import com.codecoach.module.knowledge.entity.KnowledgeArticle;
@@ -31,6 +32,7 @@ import com.codecoach.module.rag.service.VectorStoreService;
 import com.codecoach.security.UserContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -54,6 +56,7 @@ public class RagIndexServiceImpl implements RagIndexService {
     private static final Integer NOT_DELETED = 0;
 
     private static final int MAX_ERROR_MESSAGE_LENGTH = 512;
+    private static final Duration INDEX_LOCK_TTL = Duration.ofMinutes(20);
 
     private final KnowledgeArticleMapper knowledgeArticleMapper;
 
@@ -78,6 +81,7 @@ public class RagIndexServiceImpl implements RagIndexService {
     private final RagEmbeddingMapper ragEmbeddingMapper;
 
     private final ObjectMapper objectMapper;
+    private final SingleFlightService singleFlightService;
 
     public RagIndexServiceImpl(
             KnowledgeArticleMapper knowledgeArticleMapper,
@@ -91,7 +95,8 @@ public class RagIndexServiceImpl implements RagIndexService {
             RagDocumentMapper ragDocumentMapper,
             RagChunkMapper ragChunkMapper,
             RagEmbeddingMapper ragEmbeddingMapper,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            SingleFlightService singleFlightService
     ) {
         this.knowledgeArticleMapper = knowledgeArticleMapper;
         this.knowledgeTopicMapper = knowledgeTopicMapper;
@@ -105,10 +110,24 @@ public class RagIndexServiceImpl implements RagIndexService {
         this.ragChunkMapper = ragChunkMapper;
         this.ragEmbeddingMapper = ragEmbeddingMapper;
         this.objectMapper = objectMapper;
+        this.singleFlightService = singleFlightService;
     }
 
     @Override
     public RagIndexResult indexKnowledgeArticle(Long articleId) {
+        return singleFlightService.execute(
+                "rag:index:article:" + articleId,
+                INDEX_LOCK_TTL,
+                Duration.ZERO,
+                RagIndexResult.class,
+                () -> indexKnowledgeArticleInternal(articleId),
+                () -> latestArticleIndexResult(articleId),
+                ResultCode.RAG_PARAM_ERROR.getCode(),
+                "知识文章正在索引中，请稍后重试。"
+        );
+    }
+
+    private RagIndexResult indexKnowledgeArticleInternal(Long articleId) {
         RagDocument document = null;
         try {
             KnowledgeArticle article = getPublishedArticle(articleId);
@@ -175,6 +194,19 @@ public class RagIndexServiceImpl implements RagIndexService {
     @Override
     public RagIndexResult indexProject(Long projectId) {
         Long currentUserId = UserContext.getCurrentUserId();
+        return singleFlightService.execute(
+                "rag:index:project:" + currentUserId + ":" + projectId,
+                INDEX_LOCK_TTL,
+                Duration.ZERO,
+                RagIndexResult.class,
+                () -> indexProjectInternal(projectId, currentUserId),
+                () -> latestProjectIndexResult(projectId, currentUserId),
+                ResultCode.RAG_PARAM_ERROR.getCode(),
+                "项目档案正在索引中，请稍后重试。"
+        );
+    }
+
+    private RagIndexResult indexProjectInternal(Long projectId, Long currentUserId) {
         Project project = getCurrentUserProject(projectId, currentUserId);
         RagDocument document = null;
         try {
@@ -212,6 +244,60 @@ public class RagIndexServiceImpl implements RagIndexService {
                     RagConstants.SOURCE_TYPE_PROJECT,
                     projectId);
         }
+    }
+
+    private RagIndexResult latestArticleIndexResult(Long articleId) {
+        RagDocument document = findKnowledgeArticleDocument(articleId);
+        if (document == null) {
+            return null;
+        }
+        return withSource(new RagIndexResult(
+                        articleId,
+                        document.getId(),
+                        document.getChunkCount(),
+                        countEmbeddedChunks(document.getId()),
+                        countFailedChunks(document.getId()),
+                        document.getStatus(),
+                        document.getErrorMessage()
+                ),
+                RagConstants.SOURCE_TYPE_KNOWLEDGE_ARTICLE,
+                articleId);
+    }
+
+    private RagIndexResult latestProjectIndexResult(Long projectId, Long userId) {
+        RagDocument document = findProjectDocument(projectId, userId);
+        if (document == null) {
+            return null;
+        }
+        return withSource(new RagIndexResult(
+                        null,
+                        document.getId(),
+                        document.getChunkCount(),
+                        countEmbeddedChunks(document.getId()),
+                        countFailedChunks(document.getId()),
+                        document.getStatus(),
+                        document.getErrorMessage()
+                ),
+                RagConstants.SOURCE_TYPE_PROJECT,
+                projectId);
+    }
+
+    private int countEmbeddedChunks(Long documentId) {
+        if (documentId == null) {
+            return 0;
+        }
+        return Math.toIntExact(ragChunkMapper.selectCount(new LambdaQueryWrapper<RagChunk>()
+                .eq(RagChunk::getDocumentId, documentId)
+                .eq(RagChunk::getEmbeddingStatus, RagConstants.EMBEDDING_STATUS_EMBEDDED)));
+    }
+
+    private int countFailedChunks(Long documentId) {
+        if (documentId == null) {
+            return 0;
+        }
+        return Math.toIntExact(ragChunkMapper.selectCount(new LambdaQueryWrapper<RagChunk>()
+                .eq(RagChunk::getDocumentId, documentId)
+                .eq(RagChunk::getEmbeddingStatus, RagConstants.EMBEDDING_STATUS_FAILED)));
     }
 
     @Override

@@ -155,6 +155,7 @@ CREATE TABLE ai_call_log (
                              error_code VARCHAR(128) DEFAULT NULL COMMENT '模型接口错误码',
                              error_message TEXT DEFAULT NULL COMMENT '错误信息',
                              request_id VARCHAR(128) DEFAULT NULL COMMENT '模型服务请求ID',
+                             trace_id VARCHAR(64) DEFAULT NULL COMMENT '标准Trace ID',
 
                              raw_response MEDIUMTEXT DEFAULT NULL COMMENT '模型原始响应',
                              created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -165,6 +166,7 @@ CREATE TABLE ai_call_log (
                              KEY idx_request_type (request_type),
                              KEY idx_success_created (success, created_at),
                              KEY idx_model_created (provider, model_name, created_at),
+                             KEY idx_trace_id (trace_id),
                              KEY idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI调用日志表';
 
@@ -236,6 +238,23 @@ CREATE TABLE IF NOT EXISTS agent_tool_trace (
     KEY idx_tool_created (tool_name, created_at),
     KEY idx_success_created (success, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Agent Tool调用Trace表';
+
+CREATE TABLE IF NOT EXISTS single_flight_trace (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT 'Single-flight Trace ID',
+    trace_id VARCHAR(64) NOT NULL COMMENT 'Trace ID',
+    user_id BIGINT DEFAULT NULL COMMENT '用户ID，可为空表示系统或异步任务',
+    request_key VARCHAR(200) NOT NULL COMMENT '脱敏后的请求Key',
+    action VARCHAR(64) NOT NULL COMMENT '动作：CACHE_HIT/LOCK_ACQUIRED/LOCK_FALLBACK/LOCK_REJECTED/EXECUTE_SUCCESS/EXECUTE_FAILED',
+    success TINYINT NOT NULL DEFAULT 1 COMMENT '是否成功：1成功，0失败',
+    latency_ms BIGINT DEFAULT NULL COMMENT '耗时毫秒',
+    fallback_reason VARCHAR(255) DEFAULT NULL COMMENT '降级或失败原因摘要',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    UNIQUE KEY uk_trace_id (trace_id),
+    KEY idx_user_created (user_id, created_at),
+    KEY idx_key_created (request_key, created_at),
+    KEY idx_action_created (action, created_at),
+    KEY idx_success_created (success, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Single-flight 去重与锁竞争Trace表';
 
 CREATE TABLE knowledge_topic (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '知识点ID',
@@ -458,12 +477,21 @@ CREATE TABLE IF NOT EXISTS agent_review (
     user_id BIGINT NOT NULL COMMENT '所属用户ID',
     scope_type VARCHAR(32) NOT NULL DEFAULT 'RECENT_10' COMMENT '复盘范围：RECENT_10/RECENT_7_DAYS',
     summary TEXT DEFAULT NULL COMMENT '整体总结',
+    score_overview JSON DEFAULT NULL COMMENT '综合分数概览',
+    radar_dimensions JSON DEFAULT NULL COMMENT '雷达图维度',
     key_findings JSON DEFAULT NULL COMMENT '关键发现',
     recurring_weaknesses JSON DEFAULT NULL COMMENT '反复薄弱点',
+    high_risk_answers JSON DEFAULT NULL COMMENT '高风险回答',
+    stage_performance JSON DEFAULT NULL COMMENT '模拟面试阶段表现',
+    qa_replay JSON DEFAULT NULL COMMENT '问答回放摘要',
     cause_analysis JSON DEFAULT NULL COMMENT '原因分析',
     resume_risks JSON DEFAULT NULL COMMENT '简历风险提醒',
     next_actions JSON DEFAULT NULL COMMENT '下一步行动',
+    recommended_articles JSON DEFAULT NULL COMMENT '推荐学习内容',
+    recommended_trainings JSON DEFAULT NULL COMMENT '推荐训练入口',
+    memory_updates JSON DEFAULT NULL COMMENT '本次记忆沉淀摘要',
     confidence VARCHAR(32) NOT NULL DEFAULT 'LOW' COMMENT '复盘可信度：LOW/MEDIUM/HIGH',
+    sample_quality VARCHAR(32) NOT NULL DEFAULT 'INSUFFICIENT' COMMENT '样本充分性：INSUFFICIENT/LIMITED/ENOUGH',
     source_snapshot JSON DEFAULT NULL COMMENT '本次复盘使用的数据源快照',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     KEY idx_user_id (user_id),
@@ -548,6 +576,27 @@ CREATE TABLE IF NOT EXISTS rag_embedding (
     KEY idx_chunk_id (chunk_id),
     KEY idx_vector_store (vector_store)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='RAG向量记录表，MySQL只保存向量元数据，实际向量存储在Qdrant';
+
+CREATE TABLE IF NOT EXISTS rag_trace (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT 'RAG Trace ID',
+    trace_id VARCHAR(64) NOT NULL COMMENT '标准Trace ID',
+    user_id BIGINT DEFAULT NULL COMMENT '用户ID',
+    query_text VARCHAR(512) DEFAULT NULL COMMENT '原始查询摘要',
+    rewritten_query VARCHAR(512) DEFAULT NULL COMMENT '改写后查询摘要',
+    source_types VARCHAR(255) DEFAULT NULL COMMENT '检索来源类型',
+    top_k INT DEFAULT NULL COMMENT 'TopK',
+    hit_count INT DEFAULT NULL COMMENT '命中数量',
+    selected_chunk_ids VARCHAR(512) DEFAULT NULL COMMENT '选中Chunk ID列表',
+    avg_score DOUBLE DEFAULT NULL COMMENT '平均分',
+    context_chars INT DEFAULT NULL COMMENT '上下文字符数',
+    success TINYINT NOT NULL DEFAULT 1 COMMENT '是否成功',
+    fallback_reason VARCHAR(256) DEFAULT NULL COMMENT '降级原因',
+    latency_ms BIGINT DEFAULT NULL COMMENT '耗时毫秒',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    KEY idx_trace_id (trace_id),
+    KEY idx_user_created (user_id, created_at),
+    KEY idx_success_created (success, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='RAG Pipeline Trace表';
 
 INSERT IGNORE INTO knowledge_topic
     (category, name, description, difficulty, interview_focus, tags, sort_order)

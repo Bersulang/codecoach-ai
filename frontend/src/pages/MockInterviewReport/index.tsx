@@ -1,4 +1,4 @@
-import { Button, Card, Col, Empty, List, Progress, Result, Row, Space, Statistic, Tag, Typography, message } from "antd";
+import { Button, Card, Col, Collapse, Empty, List, Progress, Result, Row, Space, Statistic, Tag, Typography, message } from "antd";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getMockInterviewReport } from "../../api/mockInterview";
@@ -47,6 +47,7 @@ function MockInterviewReportPage() {
           recommendedLearning: data.recommendedLearning || [],
           recommendedTraining: data.recommendedTraining || [],
           weaknessTags: data.weaknessTags || [],
+          qaReplay: data.qaReplay || [],
           planSummary: data.planSummary,
         }),
       )
@@ -97,6 +98,26 @@ function MockInterviewReportPage() {
         </Col>
       </Row>
 
+      <Card title="综合雷达维度" className="mock-report-card">
+        <div className="mock-radar-grid">
+          {[
+            ["技术基础", report?.technicalFoundationScore ?? 0],
+            ["项目表达", report?.projectCredibilityScore ?? 0],
+            ["简历可信度", report?.projectCredibilityScore ?? 0],
+            ["工程思维", report?.stagePerformances?.find((item) => item.stage === "SCENARIO_DESIGN")?.score ?? 0],
+            ["追问应对", report?.followUpPressureScore ?? 0],
+            ["表达结构", report?.stagePerformances?.find((item) => item.stage === "OPENING")?.score ?? 0],
+            ["面试节奏", report?.totalScore ?? 0],
+          ].map(([label, value]) => (
+            <div key={label} className="mock-radar-item">
+              <span>{label}</span>
+              <Progress percent={Number(value)} showInfo={false} />
+              <strong>{value}</strong>
+            </div>
+          ))}
+        </div>
+      </Card>
+
       <Card title="面试计划摘要" className="mock-report-card mock-report-plan">
         <Typography.Paragraph>
           本场面试按计划覆盖：{report?.planSummary?.coverageSummary || "多阶段技术面试"}
@@ -138,6 +159,32 @@ function MockInterviewReportPage() {
             </div>
           ))}
         </div>
+      </Card>
+
+      <Card title="问答回放" className="mock-report-card">
+        {report?.qaReplay?.length ? (
+          <Collapse
+            items={report.qaReplay.map((item, index) => ({
+              key: `${item.stage || "qa"}-${index}`,
+              label: (
+                <Space wrap>
+                  <Tag>{item.stage || "UNKNOWN"}</Tag>
+                  <span>{item.question || "问题摘要"}</span>
+                  {item.qualityScore !== undefined ? <Tag color="blue">{item.qualityScore} 分</Tag> : null}
+                </Space>
+              ),
+              children: (
+                <div className="mock-qa-replay">
+                  <p><strong>回答摘要：</strong>{item.answerSummary || "暂无摘要"}</p>
+                  <p><strong>风险类型：</strong>{item.riskType || "未标记"}</p>
+                  <p><strong>改进建议：</strong>{item.suggestion || "暂无建议"}</p>
+                </div>
+              ),
+            }))}
+          />
+        ) : (
+          <Empty description="暂无可回放问答摘要" />
+        )}
       </Card>
 
       <Row gutter={[16, 16]}>

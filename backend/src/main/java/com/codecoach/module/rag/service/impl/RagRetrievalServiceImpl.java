@@ -9,14 +9,19 @@ import com.codecoach.module.rag.entity.RagDocument;
 import com.codecoach.module.rag.mapper.RagChunkMapper;
 import com.codecoach.module.rag.mapper.RagDocumentMapper;
 import com.codecoach.module.rag.model.EmbeddingResult;
+import com.codecoach.module.rag.model.RagEvaluationResult;
 import com.codecoach.module.rag.model.RagRetrievedChunk;
 import com.codecoach.module.rag.model.RagSearchRequest;
 import com.codecoach.module.rag.model.RagSearchResponse;
 import com.codecoach.module.rag.model.VectorSearchRequest;
 import com.codecoach.module.rag.model.VectorSearchResult;
 import com.codecoach.module.rag.service.EmbeddingService;
+import com.codecoach.module.rag.service.RagQueryRewriteService;
+import com.codecoach.module.rag.service.RagRerankService;
 import com.codecoach.module.rag.service.RagRetrievalService;
+import com.codecoach.module.rag.service.RagTraceService;
 import com.codecoach.module.rag.service.VectorStoreService;
+import com.codecoach.module.observability.trace.TraceContextHolder;
 import com.codecoach.security.UserContext;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -25,6 +30,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -52,13 +58,22 @@ public class RagRetrievalServiceImpl implements RagRetrievalService {
 
     private final ObjectMapper objectMapper;
 
+    private final RagQueryRewriteService ragQueryRewriteService;
+
+    private final RagRerankService ragRerankService;
+
+    private final RagTraceService ragTraceService;
+
     public RagRetrievalServiceImpl(
             EmbeddingService embeddingService,
             VectorStoreService vectorStoreService,
             RagChunkMapper ragChunkMapper,
             RagDocumentMapper ragDocumentMapper,
             RagProperties ragProperties,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            RagQueryRewriteService ragQueryRewriteService,
+            RagRerankService ragRerankService,
+            RagTraceService ragTraceService
     ) {
         this.embeddingService = embeddingService;
         this.vectorStoreService = vectorStoreService;
@@ -66,10 +81,15 @@ public class RagRetrievalServiceImpl implements RagRetrievalService {
         this.ragDocumentMapper = ragDocumentMapper;
         this.ragProperties = ragProperties;
         this.objectMapper = objectMapper;
+        this.ragQueryRewriteService = ragQueryRewriteService;
+        this.ragRerankService = ragRerankService;
+        this.ragTraceService = ragTraceService;
     }
 
     @Override
     public RagSearchResponse search(RagSearchRequest request) {
+        long start = System.currentTimeMillis();
+        String traceId = TraceContextHolder.getOrCreateTraceId();
         Long currentUserId = UserContext.getCurrentUserId();
         String query = request == null ? null : request.getQuery();
         if (!StringUtils.hasText(query)) {
@@ -77,15 +97,23 @@ public class RagRetrievalServiceImpl implements RagRetrievalService {
         }
 
         int topK = normalizeTopK(request.getTopK());
+        List<String> sourceTypes = normalizeSourceTypes(request.getSourceTypes());
+        String rewrittenQuery = query.trim();
         try {
-            EmbeddingResult embedding = embeddingService.embed(query.trim());
-            List<VectorSearchResult> vectorResults = searchVectors(embedding, request, topK, currentUserId);
-            List<RagRetrievedChunk> chunks = toRetrievedChunks(vectorResults, currentUserId, topK);
-            return new RagSearchResponse(query.trim(), topK, chunks.size(), chunks);
+            rewrittenQuery = ragQueryRewriteService.rewrite(query.trim(), sourceTypes);
+            EmbeddingResult embedding = embeddingService.embed(StringUtils.hasText(rewrittenQuery) ? rewrittenQuery : query.trim());
+            List<VectorSearchResult> vectorResults = searchVectors(embedding, request, Math.min(topK * 2, MAX_TOP_K), currentUserId, sourceTypes);
+            List<RagRetrievedChunk> candidates = toRetrievedChunks(vectorResults, currentUserId, Math.min(topK * 2, MAX_TOP_K));
+            List<RagRetrievedChunk> chunks = ragRerankService.rerank(query.trim(), rewrittenQuery, candidates, topK);
+            RagEvaluationResult evaluation = evaluate(chunks);
+            ragTraceService.record(traceId, currentUserId, query.trim(), rewrittenQuery, sourceTypes, topK, chunks, evaluation, true, null, System.currentTimeMillis() - start);
+            return new RagSearchResponse(query.trim(), rewrittenQuery, traceId, topK, chunks.size(), chunks, evaluation);
         } catch (BusinessException exception) {
+            ragTraceService.record(traceId, currentUserId, query.trim(), rewrittenQuery, sourceTypes, topK, List.of(), null, false, exception.getMessage(), System.currentTimeMillis() - start);
             throw exception;
         } catch (Exception exception) {
             log.warn("RAG retrieval failed, queryLength={}, error={}", query.trim().length(), abbreviate(exception.getMessage()), exception);
+            ragTraceService.record(traceId, currentUserId, query.trim(), rewrittenQuery, sourceTypes, topK, List.of(), null, false, "RAG_RETRIEVAL_FAILED", System.currentTimeMillis() - start);
             throw new BusinessException(ResultCode.RAG_RETRIEVAL_FAILED);
         }
     }
@@ -129,8 +157,7 @@ public class RagRetrievalServiceImpl implements RagRetrievalService {
         return builder.toString().trim();
     }
 
-    private List<VectorSearchResult> searchVectors(EmbeddingResult embedding, RagSearchRequest request, int topK, Long currentUserId) {
-        List<String> sourceTypes = normalizeSourceTypes(request.getSourceTypes());
+    private List<VectorSearchResult> searchVectors(EmbeddingResult embedding, RagSearchRequest request, int topK, Long currentUserId, List<String> sourceTypes) {
         if (sourceTypes.isEmpty()) {
             VectorSearchRequest vectorSearchRequest = new VectorSearchRequest();
             vectorSearchRequest.setVector(embedding.getVector());
@@ -217,6 +244,26 @@ public class RagRetrievalServiceImpl implements RagRetrievalService {
                 .sorted(Comparator.comparing(RagRetrievedChunk::getScore, Comparator.nullsLast(Comparator.reverseOrder())))
                 .limit(topK)
                 .toList();
+    }
+
+    private RagEvaluationResult evaluate(List<RagRetrievedChunk> chunks) {
+        if (chunks == null || chunks.isEmpty()) {
+            return new RagEvaluationResult(0, null, true, Map.of(), 0);
+        }
+        double avgScore = chunks.stream()
+                .map(RagRetrievedChunk::getScore)
+                .filter(score -> score != null)
+                .mapToDouble(Double::doubleValue)
+                .average()
+                .orElse(0D);
+        Map<String, Long> distribution = chunks.stream()
+                .collect(Collectors.groupingBy(chunk -> safeText(chunk.getSourceType()), LinkedHashMap::new, Collectors.counting()));
+        int contextChars = chunks.stream()
+                .map(RagRetrievedChunk::getContent)
+                .filter(StringUtils::hasText)
+                .mapToInt(String::length)
+                .sum();
+        return new RagEvaluationResult(chunks.size(), avgScore, false, distribution, contextChars);
     }
 
     private boolean isReadableDocument(RagDocument document, Long currentUserId) {

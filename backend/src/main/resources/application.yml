@@ -10,9 +10,23 @@ spring:
     import:
       - optional:file:./application-local.yml
       - optional:file:./src/main/resources/application-local.yml
-
+  ai:
+    openai:
+      base-url: ${SPRING_AI_OPENAI_BASE_URL:${AI_BASE_URL:}}
+      api-key: ${SPRING_AI_OPENAI_API_KEY:${AI_API_KEY:}}
+      chat:
+        enabled: ${SPRING_AI_POC_ENABLED:false}
+        options:
+          model: ${SPRING_AI_MODEL:${AI_MODEL:}}
 ai:
   provider: ${AI_PROVIDER:openai-compatible}
+  gateway:
+    primary: ${AI_GATEWAY_PRIMARY:openai-compatible}
+    shadow-spring-ai: ${AI_GATEWAY_SHADOW_SPRING_AI:false}
+  spring-ai:
+    enabled: ${SPRING_AI_POC_ENABLED:false}
+    provider: ${SPRING_AI_PROVIDER:spring-ai}
+    model: ${SPRING_AI_MODEL:}
   log:
     save-raw-response: ${AI_LOG_SAVE_RAW_RESPONSE:false}
   openai-compatible:
@@ -35,6 +49,15 @@ rag:
     model: ${ZHIPU_EMBEDDING_MODEL:embedding-3}
     dimensions: ${ZHIPU_EMBEDDING_DIMENSIONS:512}
     timeout-seconds: ${ZHIPU_EMBEDDING_TIMEOUT_SECONDS:60}
+
+observability:
+  otel:
+    enabled: ${OTEL_ENABLED:false}
+    exporter-endpoint: ${OTEL_EXPORTER_ENDPOINT:}
+
+mcp:
+  enabled: ${MCP_POC_ENABLED:false}
+  local-only: ${MCP_LOCAL_ONLY:true}
 
 alioss:
   endpoint: ${ALIOSS_ENDPOINT:oss-cn-beijing.aliyuncs.com}

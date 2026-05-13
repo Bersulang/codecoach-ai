@@ -60,6 +60,9 @@ public class AiCallLog {
     @TableField("request_id")
     private String requestId;
 
+    @TableField("trace_id")
+    private String traceId;
+
     @TableField("raw_response")
     private String rawResponse;
 
@@ -200,6 +203,14 @@ public class AiCallLog {
 
     public void setRequestId(String requestId) {
         this.requestId = requestId;
+    }
+
+    public String getTraceId() {
+        return traceId;
+    }
+
+    public void setTraceId(String traceId) {
+        this.traceId = traceId;
     }
 
     public String getRawResponse() {

@@ -7,6 +7,7 @@ const DEFAULT_BASE_URL = "http://localhost:8080";
 const BUSINESS_ERROR_MESSAGES: Record<number, string> = {
   3003: "AI 调用失败，请稍后重试",
   3004: "当前回答正在处理中，请稍后刷新查看",
+  8002: "综合复盘正在生成中，请稍后刷新",
 };
 
 type RequestConfig<D = unknown> = AxiosRequestConfig<D> & {

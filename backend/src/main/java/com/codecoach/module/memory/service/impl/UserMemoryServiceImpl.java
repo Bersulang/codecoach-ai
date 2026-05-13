@@ -9,10 +9,12 @@ import com.codecoach.module.knowledge.entity.KnowledgeTopic;
 import com.codecoach.module.memory.entity.UserMemory;
 import com.codecoach.module.memory.mapper.UserMemoryMapper;
 import com.codecoach.module.memory.model.MemoryConfidence;
+import com.codecoach.module.memory.model.MemorySemanticHit;
 import com.codecoach.module.memory.model.MemorySinkCommand;
 import com.codecoach.module.memory.model.MemorySourceTypes;
 import com.codecoach.module.memory.model.MemoryTypes;
 import com.codecoach.module.memory.service.UserMemoryService;
+import com.codecoach.module.memory.service.UserSemanticMemoryService;
 import com.codecoach.module.memory.vo.UserMemoryItemVO;
 import com.codecoach.module.memory.vo.UserMemorySummaryVO;
 import com.codecoach.module.mockinterview.entity.MockInterviewReport;
@@ -45,6 +47,8 @@ public class UserMemoryServiceImpl implements UserMemoryService {
 
     private static final Logger log = LoggerFactory.getLogger(UserMemoryServiceImpl.class);
     private static final String STATUS_ACTIVE = "ACTIVE";
+    private static final String STATUS_ARCHIVED = "ARCHIVED";
+    private static final String STATUS_INACCURATE = "INACCURATE";
     private static final int SUMMARY_LIMIT = 80;
     private static final int VALUE_LIMIT = 220;
     private static final int KEY_LIMIT = 120;
@@ -55,13 +59,21 @@ public class UserMemoryServiceImpl implements UserMemoryService {
     };
     private static final TypeReference<List<NextActionVO>> NEXT_ACTION_LIST = new TypeReference<>() {
     };
+    private static final TypeReference<List<Map<String, Object>>> MAP_LIST = new TypeReference<>() {
+    };
 
     private final UserMemoryMapper userMemoryMapper;
     private final ObjectMapper objectMapper;
+    private final UserSemanticMemoryService userSemanticMemoryService;
 
-    public UserMemoryServiceImpl(UserMemoryMapper userMemoryMapper, ObjectMapper objectMapper) {
+    public UserMemoryServiceImpl(
+            UserMemoryMapper userMemoryMapper,
+            ObjectMapper objectMapper,
+            UserSemanticMemoryService userSemanticMemoryService
+    ) {
         this.userMemoryMapper = userMemoryMapper;
         this.objectMapper = objectMapper;
+        this.userSemanticMemoryService = userSemanticMemoryService;
     }
 
     @Override
@@ -139,6 +151,44 @@ public class UserMemoryServiceImpl implements UserMemoryService {
         summary.setTargetRole(summary.getGoals().isEmpty() ? null : summary.getGoals().get(0).getValue());
         summary.setEmpty(memories.isEmpty());
         return summary;
+    }
+
+    @Override
+    public boolean archiveMemory(Long userId, Long memoryId) {
+        return updateMemoryStatus(userId, memoryId, STATUS_ARCHIVED);
+    }
+
+    @Override
+    public boolean markMemoryInaccurate(Long userId, Long memoryId) {
+        return updateMemoryStatus(userId, memoryId, STATUS_INACCURATE);
+    }
+
+    private boolean updateMemoryStatus(Long userId, Long memoryId, String status) {
+        if (userId == null || memoryId == null || !StringUtils.hasText(status)) {
+            return false;
+        }
+        UserMemory memory = userMemoryMapper.selectById(memoryId);
+        if (memory == null || !userId.equals(memory.getUserId())) {
+            return false;
+        }
+        memory.setStatus(status);
+        memory.setUpdatedAt(LocalDateTime.now());
+        userMemoryMapper.updateById(memory);
+        return true;
+    }
+
+    @Override
+    public List<MemorySemanticHit> semanticSearch(Long userId, String query, int topK) {
+        List<MemorySemanticHit> hits = userSemanticMemoryService.search(userId, query, topK);
+        if (hits.isEmpty() && userId != null && StringUtils.hasText(query)) {
+            return fallbackKeywordSearch(userId, query, topK);
+        }
+        return hits;
+    }
+
+    @Override
+    public int indexActiveSemanticMemory(Long userId) {
+        return userSemanticMemoryService.indexActiveMemories(userId);
     }
 
     @Override
@@ -236,6 +286,11 @@ public class UserMemoryServiceImpl implements UserMemoryService {
         parseStringList(review.getCauseAnalysis()).stream()
                 .filter(this::looksLikeProjectRisk)
                 .forEach(value -> reinforceText(userId, MemoryTypes.PROJECT_RISK, value, MemorySourceTypes.AGENT_REVIEW, sourceId, normalizeConfidence(review.getConfidence()), 1));
+        parseMapList(review.getHighRiskAnswers()).forEach(item -> {
+            String value = firstText(stringValue(item.get("reason")), stringValue(item.get("answerSummary")), stringValue(item.get("riskType")));
+            String type = looksLikeProjectRisk(value) ? MemoryTypes.PROJECT_RISK : MemoryTypes.WEAKNESS;
+            reinforceText(userId, type, value, MemorySourceTypes.AGENT_REVIEW, sourceId, normalizeConfidence(review.getConfidence()), 2);
+        });
         parseNextActions(review.getNextActions()).forEach(action -> {
             String value = firstText(joinRisk(action.getTitle(), action.getReason()), action.getTitle(), action.getReason());
             reinforceText(userId, MemoryTypes.NEXT_ACTION, value, MemorySourceTypes.AGENT_REVIEW, sourceId, normalizeConfidence(review.getConfidence()), 2);
@@ -309,6 +364,28 @@ public class UserMemoryServiceImpl implements UserMemoryService {
         );
     }
 
+    private List<MemorySemanticHit> fallbackKeywordSearch(Long userId, String query, int topK) {
+        String normalized = query.trim().toLowerCase(Locale.ROOT);
+        return userMemoryMapper.selectList(new LambdaQueryWrapper<UserMemory>()
+                        .eq(UserMemory::getUserId, userId)
+                        .eq(UserMemory::getStatus, STATUS_ACTIVE)
+                        .orderByDesc(UserMemory::getWeight)
+                        .orderByDesc(UserMemory::getLastReinforcedAt)
+                        .last("LIMIT 80"))
+                .stream()
+                .filter(memory -> StringUtils.hasText(memory.getMemoryValue())
+                        && memory.getMemoryValue().toLowerCase(Locale.ROOT).contains(normalized))
+                .limit(Math.min(Math.max(topK, 1), 8))
+                .map(memory -> new MemorySemanticHit(
+                        memory.getId(),
+                        memory.getMemoryType(),
+                        memory.getMemoryValue(),
+                        memory.getConfidence(),
+                        memory.getWeight(),
+                        null))
+                .toList();
+    }
+
     private List<String> parseStringList(String json) {
         if (!StringUtils.hasText(json)) {
             return List.of();
@@ -320,6 +397,22 @@ public class UserMemoryServiceImpl implements UserMemoryService {
             log.debug("Failed to parse memory source list");
             return List.of();
         }
+    }
+
+    private List<Map<String, Object>> parseMapList(String json) {
+        if (!StringUtils.hasText(json)) {
+            return List.of();
+        }
+        try {
+            List<Map<String, Object>> values = objectMapper.readValue(json, MAP_LIST);
+            return values == null ? List.of() : values;
+        } catch (Exception exception) {
+            return List.of();
+        }
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? null : String.valueOf(value);
     }
 
     private List<NextActionVO> parseNextActions(String json) {

@@ -5,6 +5,7 @@ import com.codecoach.module.insight.entity.UserAbilitySnapshot;
 import com.codecoach.module.interview.entity.InterviewSession;
 import com.codecoach.module.knowledge.entity.KnowledgeTopic;
 import com.codecoach.module.memory.model.MemorySinkCommand;
+import com.codecoach.module.memory.model.MemorySemanticHit;
 import com.codecoach.module.memory.vo.UserMemorySummaryVO;
 import com.codecoach.module.mockinterview.entity.MockInterviewReport;
 import com.codecoach.module.mockinterview.entity.MockInterviewSession;
@@ -13,12 +14,21 @@ import com.codecoach.module.question.entity.QuestionTrainingSession;
 import com.codecoach.module.report.entity.InterviewReport;
 import com.codecoach.module.resume.entity.ResumeProfile;
 import com.codecoach.module.resume.model.ResumeAnalysisResult;
+import java.util.List;
 
 public interface UserMemoryService {
 
     void reinforce(MemorySinkCommand command);
 
     UserMemorySummaryVO getSummary(Long userId);
+
+    boolean archiveMemory(Long userId, Long memoryId);
+
+    boolean markMemoryInaccurate(Long userId, Long memoryId);
+
+    List<MemorySemanticHit> semanticSearch(Long userId, String query, int topK);
+
+    int indexActiveSemanticMemory(Long userId);
 
     void sinkProjectReport(InterviewReport report, InterviewSession session);
 
