@@ -39,6 +39,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--cc-space-3);
+  padding-bottom: 138px;
 }
 
 .question-message {
@@ -105,6 +106,13 @@
   border: 1px solid var(--cc-border);
   border-radius: var(--cc-radius-lg);
   box-shadow: var(--cc-shadow-sm);
+  bottom: 18px;
+  margin: 0 auto;
+  max-width: 920px;
+  position: sticky;
+  width: 100%;
+  z-index: 5;
+  backdrop-filter: blur(12px);
 }
 
 .question-composer .ant-card-body,

@@ -81,6 +81,14 @@
   gap: 16px;
 }
 
+.resume-project-card__actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .resume-card-list {
   display: grid;
   gap: 14px;
@@ -320,6 +328,61 @@
   background: #fff8eb;
 }
 
+.resume-draft-modal {
+  display: grid;
+  gap: 14px;
+}
+
+.resume-draft-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.resume-draft-field,
+.resume-draft-grid label {
+  display: grid;
+  gap: 7px;
+}
+
+.resume-draft-field span,
+.resume-draft-grid span {
+  color: var(--cc-text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.resume-draft-pending {
+  background: #fff8eb;
+  border: 1px solid rgba(99, 73, 40, 0.1);
+  border-radius: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+}
+
+.resume-draft-pending strong {
+  color: var(--cc-text-primary);
+  flex: 0 0 100%;
+}
+
+.resume-draft-notice {
+  background: rgba(250, 244, 235, 0.72);
+  border-radius: 16px;
+  color: var(--cc-text-secondary);
+  line-height: 1.65;
+  margin: 0;
+  padding: 12px 14px;
+}
+
+.resume-draft-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 @media (max-width: 980px) {
   .resume-create-card,
   .resume-workbench,
@@ -327,8 +390,15 @@
   .resume-risk-list,
   .resume-project-grid,
   .resume-project-columns,
-  .resume-analysis-two-col {
+  .resume-analysis-two-col,
+  .resume-draft-grid {
     grid-template-columns: 1fr;
+  }
+
+  .resume-project-card__header,
+  .resume-project-card__actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .resume-create-form,

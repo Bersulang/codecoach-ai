@@ -3,9 +3,12 @@ package com.codecoach.module.resume.controller;
 import com.codecoach.common.result.Result;
 import com.codecoach.module.resume.dto.ResumeCreateRequest;
 import com.codecoach.module.resume.dto.ResumeProjectLinkRequest;
+import com.codecoach.module.resume.dto.ResumeProjectSaveRequest;
 import com.codecoach.module.resume.service.ResumeService;
 import com.codecoach.module.resume.vo.ResumeListItemVO;
 import com.codecoach.module.resume.vo.ResumeProfileVO;
+import com.codecoach.module.resume.vo.ResumeProjectDraftVO;
+import com.codecoach.module.resume.vo.ResumeProjectSaveResponseVO;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -54,6 +57,23 @@ public class ResumeController {
             @Valid @RequestBody ResumeProjectLinkRequest request
     ) {
         return Result.success(resumeService.linkProject(resumeId, resumeProjectId, request));
+    }
+
+    @PostMapping("/{resumeId}/projects/{resumeProjectId}/draft")
+    public Result<ResumeProjectDraftVO> generateProjectDraft(
+            @PathVariable Long resumeId,
+            @PathVariable Long resumeProjectId
+    ) {
+        return Result.success(resumeService.generateProjectDraft(resumeId, resumeProjectId));
+    }
+
+    @PostMapping("/{resumeId}/projects/{resumeProjectId}/save-project")
+    public Result<ResumeProjectSaveResponseVO> saveProjectFromDraft(
+            @PathVariable Long resumeId,
+            @PathVariable Long resumeProjectId,
+            @Valid @RequestBody ResumeProjectSaveRequest request
+    ) {
+        return Result.success(resumeService.saveProjectFromDraft(resumeId, resumeProjectId, request));
     }
 
     @DeleteMapping("/{id}")

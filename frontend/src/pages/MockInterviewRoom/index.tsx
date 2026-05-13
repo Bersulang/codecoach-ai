@@ -9,6 +9,7 @@ import {
 } from "../../api/mockInterview";
 import AiThinkingIndicator from "../../components/training/AiThinkingIndicator";
 import ChatInputBox from "../../components/training/ChatInputBox";
+import { useChatAutoScroll } from "../../hooks/useChatAutoScroll";
 import type {
   MockInterviewAnswerResponse,
   MockInterviewMessage,
@@ -72,11 +73,7 @@ function MockInterviewRoomPage() {
       .finally(() => setLoading(false));
   }, [refresh]);
 
-  useEffect(() => {
-    window.requestAnimationFrame(() => {
-      endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-    });
-  }, [messages, streamingContent, sending]);
+  useChatAutoScroll(endRef, [messages, streamingContent, stageText, sending]);
 
   const appendResponse = (payload: MockInterviewAnswerResponse) => {
     setMessages((prev) => [

@@ -15,6 +15,7 @@ import { createInterviewSession } from "../../api/interview";
 import { createMockInterview } from "../../api/mockInterview";
 import { getProjects } from "../../api/project";
 import { createQuestionSession, getKnowledgeTopics } from "../../api/question";
+import { useChatAutoScroll } from "../../hooks/useChatAutoScroll";
 import type { GuideActionCard, GuideActionType } from "../../types/guide";
 import "./GuideWidget.css";
 
@@ -93,17 +94,7 @@ function GuideWidget() {
     [location.pathname, location.search],
   );
 
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    window.requestAnimationFrame(() => {
-      messagesEndRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "end",
-      });
-    });
-  }, [messages, loading, showThinking, open]);
+  useChatAutoScroll(messagesEndRef, [messages, loading, showThinking, open]);
 
   useEffect(() => {
     if (!loading) {

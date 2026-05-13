@@ -12,6 +12,7 @@ import com.codecoach.module.project.entity.Project;
 import com.codecoach.module.project.mapper.ProjectMapper;
 import com.codecoach.module.resume.dto.ResumeCreateRequest;
 import com.codecoach.module.resume.dto.ResumeProjectLinkRequest;
+import com.codecoach.module.resume.dto.ResumeProjectSaveRequest;
 import com.codecoach.module.resume.entity.ResumeProfile;
 import com.codecoach.module.resume.entity.ResumeProjectExperience;
 import com.codecoach.module.resume.mapper.ResumeProfileMapper;
@@ -21,7 +22,9 @@ import com.codecoach.module.resume.service.AiResumeAnalysisService;
 import com.codecoach.module.resume.service.ResumeService;
 import com.codecoach.module.resume.vo.ResumeListItemVO;
 import com.codecoach.module.resume.vo.ResumeProfileVO;
+import com.codecoach.module.resume.vo.ResumeProjectDraftVO;
 import com.codecoach.module.resume.vo.ResumeProjectExperienceVO;
+import com.codecoach.module.resume.vo.ResumeProjectSaveResponseVO;
 import com.codecoach.security.UserContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -180,15 +183,79 @@ public class ResumeServiceImpl implements ResumeService {
     public ResumeProfileVO linkProject(Long resumeId, Long resumeProjectId, ResumeProjectLinkRequest request) {
         ResumeProfile profile = getCurrentUserResume(resumeId);
         Project project = getCurrentUserProject(request.getProjectId(), profile.getUserId());
-        ResumeProjectExperience experience = resumeProjectExperienceMapper.selectById(resumeProjectId);
-        if (experience == null || !profile.getId().equals(experience.getResumeId()) || !profile.getUserId().equals(experience.getUserId())) {
-            throw new BusinessException(ResultCode.NOT_FOUND.getCode(), "简历项目经历不存在");
-        }
+        ResumeProjectExperience experience = getCurrentUserResumeProjectExperience(profile, resumeProjectId);
         experience.setProjectId(project.getId());
         experience.setMatchReason("用户手动关联项目档案");
         experience.setUpdatedAt(LocalDateTime.now());
         resumeProjectExperienceMapper.updateById(experience);
         return detail(profile.getId());
+    }
+
+    @Override
+    public ResumeProjectDraftVO generateProjectDraft(Long resumeId, Long resumeProjectId) {
+        ResumeProfile profile = getCurrentUserResume(resumeId);
+        ResumeProjectExperience experience = getCurrentUserResumeProjectExperience(profile, resumeProjectId);
+        List<String> techStack = parseStringList(experience.getTechStack());
+        List<String> highlights = parseStringList(experience.getHighlights());
+        List<String> risks = parseStringList(experience.getRiskPoints());
+        List<String> questions = parseStringList(experience.getRecommendedQuestions());
+        List<String> pendingItems = new ArrayList<>();
+
+        if (!StringUtils.hasText(experience.getDescription())) {
+            pendingItems.add("补充项目背景、目标用户或业务场景");
+        }
+        if (techStack.isEmpty()) {
+            pendingItems.add("补充真实使用过的技术栈");
+        }
+        if (!StringUtils.hasText(experience.getRole())) {
+            pendingItems.add("补充个人职责、负责模块和协作边界");
+        }
+        if (highlights.isEmpty()) {
+            pendingItems.add("补充可以被你真实解释清楚的项目亮点");
+        }
+        if (risks.isEmpty() && questions.isEmpty()) {
+            pendingItems.add("补充面试中可能被追问的难点或风险点");
+        }
+
+        ResumeProjectDraftVO draft = new ResumeProjectDraftVO();
+        draft.setResumeId(profile.getId());
+        draft.setResumeProjectId(experience.getId());
+        draft.setName(limit(defaultText(experience.getProjectName(), "未命名项目"), 128));
+        draft.setDescription(defaultText(experience.getDescription(), "待补充：请根据简历原文补充项目背景、业务目标和核心功能。"));
+        draft.setTechStack(techStack.isEmpty() ? "待补充" : String.join("、", techStack));
+        draft.setRole(defaultText(experience.getRole(), "待补充：请补充你本人负责的模块、职责边界和关键产出。"));
+        draft.setHighlights(highlights.isEmpty() ? "待补充：只填写你真实参与并能解释清楚的亮点。" : joinLines(highlights));
+        draft.setDifficulties(buildDifficulties(risks, questions));
+        draft.setRiskPoints(risks);
+        draft.setPendingItems(pendingItems);
+        draft.setSafetyNotice("草稿仅基于简历分析结果生成；缺失或不确定内容已标记为待补充，请确认真实准确后再保存。");
+        return draft;
+    }
+
+    @Override
+    @Transactional
+    public ResumeProjectSaveResponseVO saveProjectFromDraft(Long resumeId, Long resumeProjectId, ResumeProjectSaveRequest request) {
+        ResumeProfile profile = getCurrentUserResume(resumeId);
+        ResumeProjectExperience experience = getCurrentUserResumeProjectExperience(profile, resumeProjectId);
+
+        Project project = new Project();
+        project.setUserId(profile.getUserId());
+        project.setName(limit(request.getName(), 128));
+        project.setDescription(safeText(request.getDescription()));
+        project.setTechStack(safeText(request.getTechStack()));
+        project.setRole(safeText(request.getRole()));
+        project.setHighlights(safeText(request.getHighlights()));
+        project.setDifficulties(safeText(request.getDifficulties()));
+        project.setStatus("NORMAL");
+        project.setIsDeleted(NOT_DELETED);
+        projectMapper.insert(project);
+
+        experience.setProjectId(project.getId());
+        experience.setMatchReason("由简历项目经历确认生成");
+        experience.setUpdatedAt(LocalDateTime.now());
+        resumeProjectExperienceMapper.updateById(experience);
+
+        return new ResumeProjectSaveResponseVO(project.getId(), detail(profile.getId()));
     }
 
     private void replaceProjectExperiences(ResumeProfile profile, ResumeAnalysisResult result) {
@@ -308,6 +375,16 @@ public class ResumeServiceImpl implements ResumeService {
             throw new BusinessException(ResultCode.FORBIDDEN);
         }
         return project;
+    }
+
+    private ResumeProjectExperience getCurrentUserResumeProjectExperience(ResumeProfile profile, Long resumeProjectId) {
+        ResumeProjectExperience experience = resumeProjectExperienceMapper.selectById(resumeProjectId);
+        if (experience == null
+                || !profile.getId().equals(experience.getResumeId())
+                || !profile.getUserId().equals(experience.getUserId())) {
+            throw new BusinessException(ResultCode.NOT_FOUND.getCode(), "简历项目经历不存在");
+        }
+        return experience;
     }
 
     private void validateDocumentForResume(UserDocument document) {
@@ -435,6 +512,35 @@ public class ResumeServiceImpl implements ResumeService {
 
     private String defaultText(String value, String fallback) {
         return StringUtils.hasText(value) ? value.trim() : fallback;
+    }
+
+    private String limit(String value, int maxLength) {
+        String text = safeText(value);
+        return text.length() <= maxLength ? text : text.substring(0, maxLength);
+    }
+
+    private String joinLines(List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return "";
+        }
+        return String.join("\n", values.stream().filter(StringUtils::hasText).map(String::trim).toList());
+    }
+
+    private String buildDifficulties(List<String> risks, List<String> questions) {
+        List<String> lines = new ArrayList<>();
+        if (risks != null) {
+            risks.stream()
+                    .filter(StringUtils::hasText)
+                    .map(item -> "风险点：" + item.trim())
+                    .forEach(lines::add);
+        }
+        if (questions != null) {
+            questions.stream()
+                    .filter(StringUtils::hasText)
+                    .map(item -> "可追问：" + item.trim())
+                    .forEach(lines::add);
+        }
+        return lines.isEmpty() ? "待补充：请列出你真实遇到并能复盘的项目难点。" : String.join("\n", lines);
     }
 
     private String firstText(String left, String right) {

@@ -71,6 +71,11 @@
   backdrop-filter: blur(10px);
 }
 
+.mock-room-input .chat-input-box {
+  margin: 0 auto;
+  max-width: 920px;
+}
+
 @media (max-width: 900px) {
   .mock-room-thread,
   .mock-room-input {

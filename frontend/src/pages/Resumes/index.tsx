@@ -13,6 +13,7 @@ import {
   CopyOutlined,
   DeleteOutlined,
   FileSearchOutlined,
+  FileAddOutlined,
   LinkOutlined,
   PlayCircleOutlined,
   ReloadOutlined,
@@ -23,9 +24,11 @@ import {
   analyzeResume,
   createResume,
   deleteResume,
+  generateResumeProjectDraft,
   getResumeDetail,
   getResumes,
   linkResumeProject,
+  saveResumeProjectFromDraft,
 } from "../../api/resume";
 import { getUserDocuments, type UserDocument } from "../../api/userDocument";
 import { getProjects } from "../../api/project";
@@ -35,6 +38,8 @@ import type {
   ResumeAnalysisStatus,
   ResumeListItem,
   ResumeProfile,
+  ResumeProjectDraft,
+  ResumeProjectSaveRequest,
   ResumeProjectExperience,
   ResumeRiskPoint,
   ResumeSkill,
@@ -111,6 +116,25 @@ function ResumesPage() {
     null,
   );
   const [linkProjectId, setLinkProjectId] = useState<number | undefined>();
+  const [draftTarget, setDraftTarget] = useState<ResumeProjectExperience | null>(
+    null,
+  );
+  const [projectDraft, setProjectDraft] = useState<ResumeProjectDraft | null>(
+    null,
+  );
+  const [draftForm, setDraftForm] = useState<ResumeProjectSaveRequest>({
+    name: "",
+    description: "",
+    techStack: "",
+    role: "",
+    highlights: "",
+    difficulties: "",
+  });
+  const [generatingProjectId, setGeneratingProjectId] = useState<number | null>(
+    null,
+  );
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [createdProjectId, setCreatedProjectId] = useState<number | null>(null);
 
   const parsedDocuments = useMemo(
     () =>
@@ -307,6 +331,94 @@ function ResumesPage() {
       message.error(friendlyError(error, "创建项目拷打训练失败"));
     } finally {
       setStartingProjectId(null);
+    }
+  };
+
+  const startTrainingWithProject = async (projectId: number) => {
+    if (!activeResume) {
+      return;
+    }
+    setStartingProjectId(projectId);
+    try {
+      const data = await createInterviewSession({
+        projectId,
+        resumeId: activeResume.id,
+        resumeProjectId: draftTarget?.id,
+        targetRole: activeResume.targetRole || DEFAULT_TARGET_ROLE,
+        difficulty: DEFAULT_DIFFICULTY,
+      });
+      setDraftTarget(null);
+      setProjectDraft(null);
+      setCreatedProjectId(null);
+      navigate(`/interviews/${data.sessionId}`);
+    } catch (error) {
+      message.error(friendlyError(error, "创建项目拷打训练失败"));
+    } finally {
+      setStartingProjectId(null);
+    }
+  };
+
+  const handleGenerateProjectDraft = async (
+    resumeProject: ResumeProjectExperience,
+  ) => {
+    if (!activeResume) {
+      return;
+    }
+    setGeneratingProjectId(resumeProject.id);
+    setCreatedProjectId(null);
+    try {
+      const draft = await generateResumeProjectDraft(
+        activeResume.id,
+        resumeProject.id,
+      );
+      setDraftTarget(resumeProject);
+      setProjectDraft(draft);
+      setDraftForm({
+        name: draft.name || resumeProject.projectName,
+        description: draft.description || "",
+        techStack: draft.techStack || "",
+        role: draft.role || "",
+        highlights: draft.highlights || "",
+        difficulties: draft.difficulties || "",
+      });
+    } catch (error) {
+      message.error(friendlyError(error, "生成项目档案草稿失败"));
+    } finally {
+      setGeneratingProjectId(null);
+    }
+  };
+
+  const handleSaveProjectDraft = async () => {
+    if (!activeResume || !draftTarget) {
+      return;
+    }
+    if (
+      !draftForm.name.trim() ||
+      !draftForm.description.trim() ||
+      !draftForm.techStack.trim()
+    ) {
+      message.warning("请至少确认项目名称、描述和技术栈");
+      return;
+    }
+    setSavingDraft(true);
+    try {
+      const saved = await saveResumeProjectFromDraft(
+        activeResume.id,
+        draftTarget.id,
+        draftForm,
+      );
+      setActiveResume(saved.resume);
+      setCreatedProjectId(saved.projectId);
+      message.success("项目档案已保存");
+      const projectData = await getProjects(
+        { pageNum: 1, pageSize: 100 },
+        { silentError: true },
+      );
+      setProjects(projectData.records || []);
+    } catch (error) {
+      message.error(friendlyError(error, "保存项目档案失败"));
+    } finally {
+      setSavingDraft(false);
     }
   };
 
@@ -554,14 +666,29 @@ function ResumesPage() {
                       <strong>{project.projectName}</strong>
                       <p>{project.description || "暂无项目描述"}</p>
                     </div>
-                    <Button
-                      type="primary"
-                      icon={<PlayCircleOutlined />}
-                      loading={startingProjectId === project.projectId}
-                      onClick={() => startTraining(project)}
-                    >
-                      开始项目拷打
-                    </Button>
+                    <div className="resume-project-card__actions">
+                      {!project.projectId ? (
+                        <Button
+                          icon={<FileAddOutlined />}
+                          loading={generatingProjectId === project.id}
+                          onClick={() => handleGenerateProjectDraft(project)}
+                        >
+                          生成项目档案
+                        </Button>
+                      ) : (
+                        <Button onClick={() => navigate(`/projects/${project.projectId}/edit`)}>
+                          查看项目
+                        </Button>
+                      )}
+                      <Button
+                        type="primary"
+                        icon={<PlayCircleOutlined />}
+                        loading={startingProjectId === project.projectId}
+                        onClick={() => startTraining(project)}
+                      >
+                        开始项目拷打
+                      </Button>
+                    </div>
                   </div>
                   <div className="resume-project-tags">
                     {(project.techStack || []).map((tech) => (
@@ -701,6 +828,142 @@ function ResumesPage() {
             </Button>
           </div>
         )}
+      </Modal>
+
+      <Modal
+        title="确认项目档案草稿"
+        open={Boolean(draftTarget)}
+        onCancel={() => {
+          setDraftTarget(null);
+          setProjectDraft(null);
+          setCreatedProjectId(null);
+        }}
+        width={760}
+        footer={
+          <div className="resume-draft-footer">
+            <Button
+              onClick={() => {
+                setDraftTarget(null);
+                setProjectDraft(null);
+                setCreatedProjectId(null);
+              }}
+            >
+              关闭
+            </Button>
+            {createdProjectId ? (
+              <>
+                <Button onClick={() => navigate(`/projects/${createdProjectId}/edit`)}>
+                  查看项目
+                </Button>
+                <Button
+                  type="primary"
+                  icon={<PlayCircleOutlined />}
+                  loading={startingProjectId === createdProjectId}
+                  onClick={() => startTrainingWithProject(createdProjectId)}
+                >
+                  开始项目拷打
+                </Button>
+              </>
+            ) : (
+              <Button
+                type="primary"
+                loading={savingDraft}
+                onClick={handleSaveProjectDraft}
+              >
+                确认保存为项目档案
+              </Button>
+            )}
+          </div>
+        }
+      >
+        <div className="resume-draft-modal">
+          <Typography.Paragraph type="secondary">
+            请确认这些内容真实准确，再保存为项目档案。系统不会自动编造指标，待补充内容需要你确认后填写。
+          </Typography.Paragraph>
+          {projectDraft?.pendingItems?.length ? (
+            <div className="resume-draft-pending">
+              <strong>待补充项</strong>
+              {projectDraft.pendingItems.map((item) => (
+                <Tag key={item}>{item}</Tag>
+              ))}
+            </div>
+          ) : null}
+          <div className="resume-draft-grid">
+            <label>
+              <span>项目名称</span>
+              <Input
+                value={draftForm.name}
+                onChange={(event) =>
+                  setDraftForm((prev) => ({ ...prev, name: event.target.value }))
+                }
+              />
+            </label>
+            <label>
+              <span>技术栈</span>
+              <Input
+                value={draftForm.techStack}
+                onChange={(event) =>
+                  setDraftForm((prev) => ({
+                    ...prev,
+                    techStack: event.target.value,
+                  }))
+                }
+              />
+            </label>
+          </div>
+          <label className="resume-draft-field">
+            <span>项目描述</span>
+            <Input.TextArea
+              autoSize={{ minRows: 3, maxRows: 6 }}
+              value={draftForm.description}
+              onChange={(event) =>
+                setDraftForm((prev) => ({
+                  ...prev,
+                  description: event.target.value,
+                }))
+              }
+            />
+          </label>
+          <label className="resume-draft-field">
+            <span>个人职责 / 负责模块</span>
+            <Input.TextArea
+              autoSize={{ minRows: 2, maxRows: 5 }}
+              value={draftForm.role}
+              onChange={(event) =>
+                setDraftForm((prev) => ({ ...prev, role: event.target.value }))
+              }
+            />
+          </label>
+          <label className="resume-draft-field">
+            <span>项目亮点</span>
+            <Input.TextArea
+              autoSize={{ minRows: 2, maxRows: 5 }}
+              value={draftForm.highlights}
+              onChange={(event) =>
+                setDraftForm((prev) => ({
+                  ...prev,
+                  highlights: event.target.value,
+                }))
+              }
+            />
+          </label>
+          <label className="resume-draft-field">
+            <span>项目难点 / 可追问风险点</span>
+            <Input.TextArea
+              autoSize={{ minRows: 3, maxRows: 7 }}
+              value={draftForm.difficulties}
+              onChange={(event) =>
+                setDraftForm((prev) => ({
+                  ...prev,
+                  difficulties: event.target.value,
+                }))
+              }
+            />
+          </label>
+          {projectDraft?.safetyNotice ? (
+            <p className="resume-draft-notice">{projectDraft.safetyNotice}</p>
+          ) : null}
+        </div>
       </Modal>
     </div>
   );

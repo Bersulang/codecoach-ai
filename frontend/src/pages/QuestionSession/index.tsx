@@ -22,6 +22,7 @@ import PageShell from "../../components/PageShell";
 import SurfaceCard from "../../components/SurfaceCard";
 import AiThinkingIndicator from "../../components/training/AiThinkingIndicator";
 import ChatInputBox from "../../components/training/ChatInputBox";
+import { useChatAutoScroll } from "../../hooks/useChatAutoScroll";
 import type { InterviewDifficulty } from "../../types/interview";
 import type {
   QuestionAnswerResponse,
@@ -202,14 +203,7 @@ function QuestionSessionPage() {
     };
   }, [sessionId, refreshDetail]);
 
-  useEffect(() => {
-    window.requestAnimationFrame(() => {
-      threadEndRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "end",
-      });
-    });
-  }, [
+  useChatAutoScroll(threadEndRef, [
     messages,
     streamingMessageId,
     streamingStage,

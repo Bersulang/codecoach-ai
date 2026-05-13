@@ -10,6 +10,31 @@
   box-shadow: var(--cc-shadow-sm);
 }
 
+.project-form-resume-entry {
+  align-items: center;
+  background: rgba(255, 253, 248, 0.92);
+  border: 1px solid rgba(31, 29, 26, 0.1);
+  border-radius: 22px;
+  box-shadow: var(--cc-shadow-sm);
+  display: flex;
+  gap: var(--cc-space-4);
+  justify-content: space-between;
+  padding: 16px 18px;
+}
+
+.project-form-resume-entry strong {
+  color: var(--cc-text-primary);
+  display: block;
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+
+.project-form-resume-entry p {
+  color: var(--cc-text-secondary);
+  line-height: 1.6;
+  margin: 0;
+}
+
 .project-form-card .ant-card-body {
   padding: var(--cc-space-5);
 }
@@ -40,5 +65,10 @@
 @media (max-width: 768px) {
   .project-form-card .ant-card-body {
     padding: var(--cc-space-4);
+  }
+
+  .project-form-resume-entry {
+    align-items: stretch;
+    flex-direction: column;
   }
 }

@@ -77,3 +77,31 @@ export interface CreateResumeRequest {
   title?: string;
   targetRole?: string;
 }
+
+export interface ResumeProjectDraft {
+  resumeId: number;
+  resumeProjectId: number;
+  name: string;
+  description: string;
+  techStack: string;
+  role?: string;
+  highlights?: string;
+  difficulties?: string;
+  riskPoints?: string[];
+  pendingItems?: string[];
+  safetyNotice?: string;
+}
+
+export interface ResumeProjectSaveRequest {
+  name: string;
+  description: string;
+  techStack: string;
+  role?: string;
+  highlights?: string;
+  difficulties?: string;
+}
+
+export interface ResumeProjectSaveResponse {
+  projectId: number;
+  resume: ResumeProfile;
+}

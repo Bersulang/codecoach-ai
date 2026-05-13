@@ -1,4 +1,5 @@
 import { Button, Form, Result, message } from "antd";
+import { FileAddOutlined } from "@ant-design/icons";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import PageHeader from "../../components/PageHeader";
@@ -132,6 +133,20 @@ function ProjectFormPage() {
         title={isEdit ? "编辑项目" : "新建项目"}
         description={subtitle}
       />
+      {!isEdit ? (
+        <section className="project-form-resume-entry">
+          <div>
+            <strong>简历里已经写过项目？</strong>
+            <p>可以从简历分析结果一键生成项目档案草稿，确认编辑后再保存。</p>
+          </div>
+          <Button
+            icon={<FileAddOutlined />}
+            onClick={() => navigate("/resumes")}
+          >
+            从简历生成项目档案
+          </Button>
+        </section>
+      ) : null}
       <SurfaceCard className="project-form-card" loading={loading}>
         <ProjectForm
           form={form}

@@ -3,6 +3,9 @@ import type {
   CreateResumeRequest,
   ResumeListItem,
   ResumeProfile,
+  ResumeProjectDraft,
+  ResumeProjectSaveRequest,
+  ResumeProjectSaveResponse,
 } from "../types/resume";
 
 export function createResume(payload: CreateResumeRequest) {
@@ -44,6 +47,29 @@ export function linkResumeProject(
   return request.put<ResumeProfile>(
     `/api/resumes/${resumeId}/projects/${resumeProjectId}/link`,
     { projectId },
+    { silentError: true },
+  );
+}
+
+export function generateResumeProjectDraft(
+  resumeId: number | string,
+  resumeProjectId: number | string,
+) {
+  return request.post<ResumeProjectDraft>(
+    `/api/resumes/${resumeId}/projects/${resumeProjectId}/draft`,
+    undefined,
+    { silentError: true },
+  );
+}
+
+export function saveResumeProjectFromDraft(
+  resumeId: number | string,
+  resumeProjectId: number | string,
+  payload: ResumeProjectSaveRequest,
+) {
+  return request.post<ResumeProjectSaveResponse>(
+    `/api/resumes/${resumeId}/projects/${resumeProjectId}/save-project`,
+    payload,
     { silentError: true },
   );
 }
